@@ -6,7 +6,7 @@ import pytest
 
 from keysight_scope import cli
 from keysight_scope.capabilities import capabilities_for_model
-from keysight_scope.errors import KeysightScopeError
+from keysight_scope.errors import KeysightScopeError, VisaBackendError
 from keysight_scope.idn import parse_idn
 from keysight_scope.measurements import MeasurementResult
 from keysight_scope.screenshot import ScreenshotCapture
@@ -160,8 +160,11 @@ class _MeasurementDummyScope:
         self.capabilities = capabilities_for_model("DSOX4024A")
         return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
-    def query_measurement(self, channel, item):
-        self.calls.append(("query_measurement", channel, item))
+    def query_measurement(self, channel, item, **kwargs):
+        if kwargs:
+            self.calls.append(("query_measurement", channel, item, kwargs))
+        else:
+            self.calls.append(("query_measurement", channel, item))
         return MeasurementResult(
             item=item,
             channel=channel,
@@ -214,6 +217,20 @@ def test_list_resources_cli_prints_empty_resources(monkeypatch, capsys):
     assert cli.main(["list-resources"]) == 0
 
     assert "<none>" in capsys.readouterr().out
+
+
+def test_list_resources_cli_reports_backend_failure_without_traceback(monkeypatch, capsys):
+    def fail_list_visa_resources(visa_library=None):
+        raise VisaBackendError("VISA backend is unavailable")
+
+    monkeypatch.setattr(cli, "list_visa_resources", fail_list_visa_resources)
+
+    assert cli.main(["list-resources"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Traceback" not in captured.err
+    assert "error: VISA backend is unavailable" in captured.err
 
 
 def test_list_resources_live_only_prints_only_idn_responsive_resources(monkeypatch, capsys):
@@ -357,6 +374,20 @@ def test_verify_cli_requires_resource(monkeypatch, capsys):
 
     err = capsys.readouterr().err
     assert "--resource is required" in err
+
+
+def test_verify_cli_reports_backend_open_failure_without_traceback(monkeypatch, capsys):
+    def fail_open(resource, visa_library=None):
+        raise VisaBackendError(f"Failed to open VISA resource {resource}: device busy")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert cli.main(["verify", "--resource", "USB0::FAKE::INSTR"]) == 1
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "Traceback" not in captured.err
+    assert "error: Failed to open VISA resource USB0::FAKE::INSTR: device busy" in captured.err
 
 
 def test_old_list_command_is_not_registered():
@@ -2726,6 +2757,115 @@ def test_measure_cli_queries_new_items_then_checks_error(
     assert expected_value_line in out
     assert f"Raw response: {raw_value}" in out
     assert 'System error: +0, "No error"' in out
+
+
+@pytest.mark.parametrize(
+    (
+        "argv",
+        "normalized_item",
+        "kwargs",
+        "unit",
+        "expected_command",
+        "expected_plan_fragment",
+    ),
+    [
+        (
+            ["--item", "y_at_x", "--time", "0"],
+            "y_at_x",
+            {"time_s": 0.0},
+            "V",
+            ":MEASure:VTIMe? 0,CHANnel1",
+            "time=0.0",
+        ),
+        (
+            ["--item", "tedge", "--slope", "negative", "--occurrence", "2"],
+            "time_at_edge",
+            {"slope": "negative", "occurrence": 2},
+            "s",
+            ":MEASure:TEDGe? -2,CHANnel1",
+            "slope=negative, occurrence=2",
+        ),
+        (
+            ["--item", "time-at-value", "--level", "0.5"],
+            "time_at_value",
+            {"level": 0.5, "slope": "positive", "occurrence": 1},
+            "s",
+            ":MEASure:TVALue? 0.5,+1,CHANnel1",
+            "level=0.5, slope=positive, occurrence=1",
+        ),
+    ],
+)
+def test_measure_cli_queries_parameterized_items_then_checks_error(
+    monkeypatch,
+    capsys,
+    argv,
+    normalized_item,
+    kwargs,
+    unit,
+    expected_command,
+    expected_plan_fragment,
+):
+    scope = _install_measurement_scope(monkeypatch, 0.25, "2.5E-1", unit)
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                *argv,
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_measurement", 1, normalized_item, kwargs),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert f"Planned query: CH1 {normalized_item} measurement" in out
+    assert expected_plan_fragment in out
+    assert f"Command: {expected_command}" in out
+    assert f"Measurement: {normalized_item}" in out
+    assert f"Value {unit}: 0.25" in out
+    assert 'System error: +0, "No error"' in out
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected_error"),
+    [
+        (["--item", "y_at_x"], "requires --time"),
+        (["--item", "vpp", "--time", "0"], "can only be used"),
+        (["--item", "time_at_edge", "--level", "0.5"], "cannot be used"),
+        (["--item", "time_at_value"], "requires --level"),
+    ],
+)
+def test_measure_cli_rejects_invalid_parameterized_args_without_query(
+    monkeypatch, capsys, argv, expected_error
+):
+    scope = _install_measurement_scope(monkeypatch, 0.25, "2.5E-1", "V")
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                *argv,
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    captured = capsys.readouterr()
+    assert expected_error in captured.err
 
 
 @pytest.mark.parametrize(

@@ -75,6 +75,25 @@ def test_measurement_query_uses_keysight_measure_syntax():
     assert measurement_query("positive-pulses", 1) == ":MEASure:PPULses? CHANnel1"
     assert measurement_query("npulses", 1) == ":MEASure:NPULses? CHANnel1"
     assert measurement_query("negative-pulses", 1) == ":MEASure:NPULses? CHANnel1"
+    assert (
+        measurement_query(
+            "time_at_edge",
+            1,
+            slope="positive",
+            occurrence=1,
+        )
+        == ":MEASure:TEDGe? +1,CHANnel1"
+    )
+    assert (
+        measurement_query(
+            "time-at-value",
+            1,
+            level=0.5,
+            slope="negative",
+            occurrence=2,
+        )
+        == ":MEASure:TVALue? 0.5,-2,CHANnel1"
+    )
 
 
 def test_measurement_item_normalization_accepts_aliases():
@@ -116,6 +135,17 @@ def test_measurement_item_normalization_accepts_aliases():
     assert normalize_measurement_item("positive-pulses") == "positive_pulses"
     assert normalize_measurement_item("npulses") == "negative_pulses"
     assert normalize_measurement_item("negative-pulses") == "negative_pulses"
+    assert normalize_measurement_item("yatx") == "y_at_x"
+    assert normalize_measurement_item("y-at-x") == "y_at_x"
+    assert normalize_measurement_item("vtime") == "y_at_x"
+    assert normalize_measurement_item("y_at_time") == "y_at_x"
+    assert normalize_measurement_item("y-at-time") == "y_at_x"
+    assert normalize_measurement_item("tedge") == "time_at_edge"
+    assert normalize_measurement_item("time-at-edge") == "time_at_edge"
+    assert normalize_measurement_item("tvalue") == "time_at_value"
+    assert normalize_measurement_item("time-at-value") == "time_at_value"
+    assert normalize_measurement_item("time_at_level") == "time_at_value"
+    assert normalize_measurement_item("time-at-level") == "time_at_value"
     assert measurement_unit("frequency") == "Hz"
     assert measurement_unit("period") == "s"
     assert measurement_unit("vpp") == "V"
@@ -142,6 +172,9 @@ def test_measurement_item_normalization_accepts_aliases():
     assert measurement_unit("negative_edges") == "count"
     assert measurement_unit("positive_pulses") == "count"
     assert measurement_unit("negative_pulses") == "count"
+    assert measurement_unit("y_at_x") == "V"
+    assert measurement_unit("time_at_edge") == "s"
+    assert measurement_unit("time_at_value") == "s"
 
 
 def test_measurement_item_normalization_rejects_unknown_item():
@@ -205,6 +238,91 @@ def test_measurement_controller_queries_vpp_for_channel():
     assert result.valid is True
     assert result.value == 1.25
     assert backend.history == [":MEASure:VPP? CHANnel1"]
+
+
+@pytest.mark.parametrize(
+    ("model", "expected_command"),
+    [
+        ("DSOX2004A", ":MEASure:VTIMe? 0,CHANnel1"),
+        ("DSOX3024A", ":MEASure:VTIMe? 0,CHANnel1"),
+        ("DSOX4024A", ":MEASure:VTIMe? 0,CHANnel1"),
+    ],
+)
+def test_measurement_controller_queries_y_at_x_with_legacy_query(model, expected_command):
+    backend = FakeBackend(responses={expected_command: "2.50E-1"})
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model(model))
+
+    result = controller.query(1, "y_at_x", time_s=0.0)
+
+    assert result.valid is True
+    assert result.value == 0.25
+    assert result.unit == "V"
+    assert backend.history == [expected_command]
+
+
+@pytest.mark.parametrize(
+    ("item", "kwargs", "expected_command", "expected_value"),
+    [
+        (
+            "time_at_edge",
+            {"slope": "positive", "occurrence": 2},
+            ":MEASure:TEDGe? +2,CHANnel1",
+            1.25e-6,
+        ),
+        (
+            "time_at_edge",
+            {"slope": "negative", "occurrence": 1},
+            ":MEASure:TEDGe? -1,CHANnel1",
+            2.5e-6,
+        ),
+        (
+            "time_at_value",
+            {"level": 0.5, "slope": "positive", "occurrence": 1},
+            ":MEASure:TVALue? 0.5,+1,CHANnel1",
+            3.75e-6,
+        ),
+    ],
+)
+def test_measurement_controller_queries_parameterized_time_items(
+    item, kwargs, expected_command, expected_value
+):
+    backend = FakeBackend(responses={expected_command: f"{expected_value:.2E}"})
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    result = controller.query(1, item, **kwargs)
+
+    assert result.valid is True
+    assert result.value == expected_value
+    assert result.unit == "s"
+    assert backend.history == [expected_command]
+
+
+@pytest.mark.parametrize(
+    ("item", "kwargs", "message"),
+    [
+        ("y_at_x", {}, "--time"),
+        ("time_at_value", {}, "--level"),
+        ("vpp", {"time_s": 0.0}, "--time"),
+        ("y_at_x", {"time_s": 0.0, "level": 0.5}, "--level"),
+        ("time_at_edge", {"level": 0.5}, "--level"),
+        ("time_at_value", {"level": 0.5, "time_s": 0.0}, "--time"),
+        ("time_at_edge", {"slope": "either"}, "--slope"),
+        ("time_at_edge", {"occurrence": 1.5}, "--occurrence"),
+        ("time_at_edge", {"occurrence": 0}, "--occurrence"),
+    ],
+)
+def test_measurement_query_rejects_missing_or_extra_parameterized_args(
+    item, kwargs, message
+):
+    with pytest.raises(ParameterValidationError) as excinfo:
+        measurement_query(
+            item,
+            1,
+            capabilities=capabilities_for_model("DSOX4024A"),
+            **kwargs,
+        )
+
+    assert message in str(excinfo.value)
 
 
 @pytest.mark.parametrize(

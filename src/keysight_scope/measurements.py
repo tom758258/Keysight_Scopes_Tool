@@ -42,6 +42,12 @@ _MEASUREMENT_QUERY_TEMPLATES = {
     "negative_pulses": ":MEASure:NPULses? CHANnel{channel}",
 }
 
+_PARAMETERIZED_MEASUREMENT_ITEMS = (
+    "y_at_x",
+    "time_at_edge",
+    "time_at_value",
+)
+
 _MEASUREMENT_ALIASES = {
     "freq": "frequency",
     "acrms": "ac_rms",
@@ -81,6 +87,17 @@ _MEASUREMENT_ALIASES = {
     "positive-pulses": "positive_pulses",
     "npulses": "negative_pulses",
     "negative-pulses": "negative_pulses",
+    "yatx": "y_at_x",
+    "y-at-x": "y_at_x",
+    "vtime": "y_at_x",
+    "y_at_time": "y_at_x",
+    "y-at-time": "y_at_x",
+    "tedge": "time_at_edge",
+    "time-at-edge": "time_at_edge",
+    "tvalue": "time_at_value",
+    "time-at-value": "time_at_value",
+    "time_at_level": "time_at_value",
+    "time-at-level": "time_at_value",
 }
 
 _MEASUREMENT_UNITS = {
@@ -110,9 +127,14 @@ _MEASUREMENT_UNITS = {
     "negative_edges": "count",
     "positive_pulses": "count",
     "negative_pulses": "count",
+    "y_at_x": "V",
+    "time_at_edge": "s",
+    "time_at_value": "s",
 }
 
-SUPPORTED_MEASUREMENT_ITEMS = tuple(_MEASUREMENT_QUERY_TEMPLATES)
+SUPPORTED_MEASUREMENT_ITEMS = (
+    tuple(_MEASUREMENT_QUERY_TEMPLATES) + _PARAMETERIZED_MEASUREMENT_ITEMS
+)
 MEASUREMENT_ITEM_CHOICES = SUPPORTED_MEASUREMENT_ITEMS + tuple(_MEASUREMENT_ALIASES)
 
 
@@ -136,12 +158,31 @@ class MeasurementController:
         self.scpi = scpi
         self.capabilities = capabilities
 
-    def query(self, channel: int, item: str) -> MeasurementResult:
+    def query(
+        self,
+        channel: int,
+        item: str,
+        *,
+        time_s: float | None = None,
+        level: float | None = None,
+        slope: str | None = None,
+        occurrence: int | None = None,
+    ) -> MeasurementResult:
         """Query one measurement without changing acquisition or display state."""
 
         channel = validate_analog_channel(channel, self.capabilities)
         item = normalize_measurement_item(item)
-        raw = self.scpi.query(measurement_query(item, channel))
+        raw = self.scpi.query(
+            measurement_query(
+                item,
+                channel,
+                capabilities=self.capabilities,
+                time_s=time_s,
+                level=level,
+                slope=slope,
+                occurrence=occurrence,
+            )
+        )
         return parse_measurement_result(raw, item=item, channel=channel)
 
 
@@ -150,16 +191,45 @@ def normalize_measurement_item(item: str) -> str:
 
     normalized = item.strip().lower()
     normalized = _MEASUREMENT_ALIASES.get(normalized, normalized)
-    if normalized not in _MEASUREMENT_QUERY_TEMPLATES:
+    if (
+        normalized not in _MEASUREMENT_QUERY_TEMPLATES
+        and normalized not in _PARAMETERIZED_MEASUREMENT_ITEMS
+    ):
         supported = ", ".join(MEASUREMENT_ITEM_CHOICES)
         raise ParameterValidationError(f"measurement item must be one of: {supported}.")
     return normalized
 
 
-def measurement_query(item: str, channel: int) -> str:
+def measurement_query(
+    item: str,
+    channel: int,
+    *,
+    capabilities: ScopeCapabilities | None = None,
+    time_s: float | None = None,
+    level: float | None = None,
+    slope: str | None = None,
+    occurrence: int | None = None,
+) -> str:
     """Build a read-only measurement query for one analog channel."""
 
     item = normalize_measurement_item(item)
+    if item in _PARAMETERIZED_MEASUREMENT_ITEMS:
+        return _parameterized_measurement_query(
+            item,
+            channel,
+            capabilities=capabilities,
+            time_s=time_s,
+            level=level,
+            slope=slope,
+            occurrence=occurrence,
+        )
+    _reject_parameterized_measurement_args(
+        item,
+        time_s=time_s,
+        level=level,
+        slope=slope,
+        occurrence=occurrence,
+    )
     return _MEASUREMENT_QUERY_TEMPLATES[item].format(channel=channel)
 
 
@@ -167,6 +237,93 @@ def measurement_unit(item: str) -> str:
     """Return the display unit for a supported measurement item."""
 
     return _MEASUREMENT_UNITS[normalize_measurement_item(item)]
+
+
+def _parameterized_measurement_query(
+    item: str,
+    channel: int,
+    *,
+    capabilities: ScopeCapabilities | None,
+    time_s: float | None,
+    level: float | None,
+    slope: str | None,
+    occurrence: int | None,
+) -> str:
+    if item == "y_at_x":
+        _reject_parameterized_measurement_args(
+            item, time_s=None, level=level, slope=slope, occurrence=occurrence
+        )
+        if capabilities is None:
+            raise ParameterValidationError(
+                "y_at_x measurement requires known scope capabilities."
+            )
+        time_s = _require_finite_float(time_s, "--time", item)
+        return f":MEASure:VTIMe? {_format_scpi_number(time_s)},CHANnel{channel}"
+
+    if item == "time_at_edge":
+        _reject_parameterized_measurement_args(item, time_s=time_s, level=level)
+        signed_occurrence = _signed_occurrence(slope=slope, occurrence=occurrence)
+        return f":MEASure:TEDGe? {signed_occurrence:+d},CHANnel{channel}"
+
+    if item == "time_at_value":
+        _reject_parameterized_measurement_args(item, time_s=time_s)
+        level = _require_finite_float(level, "--level", item)
+        signed_occurrence = _signed_occurrence(slope=slope, occurrence=occurrence)
+        return (
+            f":MEASure:TVALue? {_format_scpi_number(level)},"
+            f"{signed_occurrence:+d},CHANnel{channel}"
+        )
+
+    raise AssertionError(f"Unhandled parameterized measurement item: {item}")
+
+
+def _reject_parameterized_measurement_args(
+    item: str,
+    *,
+    time_s: float | None = None,
+    level: float | None = None,
+    slope: str | None = None,
+    occurrence: int | None = None,
+) -> None:
+    invalid = []
+    if time_s is not None:
+        invalid.append("--time")
+    if level is not None:
+        invalid.append("--level")
+    if slope is not None:
+        invalid.append("--slope")
+    if occurrence is not None:
+        invalid.append("--occurrence")
+    if invalid:
+        joined = ", ".join(invalid)
+        raise ParameterValidationError(f"{joined} cannot be used with {item} measurement.")
+
+
+def _require_finite_float(value: float | None, option_name: str, item: str) -> float:
+    if value is None:
+        raise ParameterValidationError(f"{item} measurement requires {option_name}.")
+    if not math.isfinite(value):
+        raise ParameterValidationError(f"{option_name} must be a finite number.")
+    return value
+
+
+def _signed_occurrence(*, slope: str | None, occurrence: int | None) -> int:
+    if slope is None:
+        slope = "positive"
+    slope = slope.strip().lower()
+    if slope not in {"positive", "negative"}:
+        raise ParameterValidationError("--slope must be positive or negative.")
+    if occurrence is None:
+        occurrence = 1
+    if not isinstance(occurrence, int):
+        raise ParameterValidationError("--occurrence must be an integer.")
+    if occurrence < 1:
+        raise ParameterValidationError("--occurrence must be at least 1.")
+    return occurrence if slope == "positive" else -occurrence
+
+
+def _format_scpi_number(value: float) -> str:
+    return f"{value:.12g}"
 
 
 def parse_measurement_result(raw: str, *, item: str, channel: int) -> MeasurementResult:

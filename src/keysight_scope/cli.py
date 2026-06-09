@@ -457,6 +457,31 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="measurement item to query",
     )
+    measure_parser.add_argument(
+        "--time",
+        dest="time_s",
+        type=_measurement_finite_float,
+        default=None,
+        help="trigger-relative time in seconds for y_at_x",
+    )
+    measure_parser.add_argument(
+        "--level",
+        type=_measurement_finite_float,
+        default=None,
+        help="voltage level for time_at_value",
+    )
+    measure_parser.add_argument(
+        "--slope",
+        choices=("positive", "negative"),
+        default=None,
+        help="edge or crossing slope for time_at_edge and time_at_value",
+    )
+    measure_parser.add_argument(
+        "--occurrence",
+        type=_positive_int,
+        default=None,
+        help="positive edge or crossing occurrence for time_at_edge and time_at_value",
+    )
 
     capture_parser = subparsers.add_parser(
         "capture",
@@ -979,9 +1004,16 @@ def _cmd_measure(args: argparse.Namespace) -> int:
 
         channel = validate_analog_channel(args.channel, scope.capabilities)
         item = normalize_measurement_item(args.item)
-        print(f"Planned query: CH{channel} {item} measurement")
-        result = scope.query_measurement(channel, item)
-        print(f"Command: {measurement_query(item, channel)}")
+        measurement_kwargs = _measurement_query_kwargs(args, item)
+        print(
+            f"Planned query: CH{channel} {item} measurement"
+            f"{_format_measurement_parameters(measurement_kwargs)}"
+        )
+        result = scope.query_measurement(channel, item, **measurement_kwargs)
+        print(
+            "Command: "
+            f"{measurement_query(item, channel, capabilities=scope.capabilities, **measurement_kwargs)}"
+        )
         print(f"Measurement: {result.item}")
         print(f"Channel: {result.channel}")
         print(f"Valid: {'true' if result.valid else 'false'}")
@@ -1324,6 +1356,73 @@ def _trigger_level_float(value: str) -> float:
         return validate_trigger_level(parsed)
     except KeysightScopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _measurement_finite_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    if not parsed == parsed or parsed in (float("inf"), float("-inf")):
+        raise argparse.ArgumentTypeError("must be a finite number")
+    return parsed
+
+
+def _measurement_query_kwargs(args: argparse.Namespace, item: str) -> dict[str, object]:
+    values: dict[str, object] = {}
+    if args.time_s is not None:
+        values["time_s"] = args.time_s
+    if args.level is not None:
+        values["level"] = args.level
+    if args.slope is not None:
+        values["slope"] = args.slope
+    if args.occurrence is not None:
+        values["occurrence"] = args.occurrence
+
+    if item == "y_at_x":
+        if args.time_s is None:
+            raise KeysightScopeError("y_at_x measurement requires --time")
+        if any(value is not None for value in (args.level, args.slope, args.occurrence)):
+            raise KeysightScopeError(
+                "--level, --slope, and --occurrence cannot be used with y_at_x"
+            )
+        return values
+
+    if item == "time_at_edge":
+        if args.time_s is not None or args.level is not None:
+            raise KeysightScopeError("--time and --level cannot be used with time_at_edge")
+        values.setdefault("slope", "positive")
+        values.setdefault("occurrence", 1)
+        return values
+
+    if item == "time_at_value":
+        if args.level is None:
+            raise KeysightScopeError("time_at_value measurement requires --level")
+        if args.time_s is not None:
+            raise KeysightScopeError("--time cannot be used with time_at_value")
+        values.setdefault("slope", "positive")
+        values.setdefault("occurrence", 1)
+        return values
+
+    if values:
+        raise KeysightScopeError(
+            "--time, --level, --slope, and --occurrence can only be used with "
+            "y_at_x, time_at_edge, or time_at_value"
+        )
+    return {}
+
+
+def _format_measurement_parameters(values: dict[str, object]) -> str:
+    if not values:
+        return ""
+    labels = {
+        "time_s": "time",
+        "level": "level",
+        "slope": "slope",
+        "occurrence": "occurrence",
+    }
+    formatted = ", ".join(f"{labels[key]}={value}" for key, value in values.items())
+    return f" ({formatted})"
 
 
 def _waveform_points_arg(value: str) -> int:

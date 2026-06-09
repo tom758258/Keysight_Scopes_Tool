@@ -345,6 +345,23 @@ def test_scope_measurement_uses_capabilities_from_idn():
     assert backend.history == ["*IDN?", ":MEASure:VPP? CHANnel1"]
 
 
+def test_scope_parameterized_measurement_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":MEASure:VTIMe? 0,CHANnel1": "2.5E-1",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    result = scope.query_measurement(1, "y_at_x", time_s=0.0)
+
+    assert result.valid is True
+    assert result.value == 0.25
+    assert backend.history == ["*IDN?", ":MEASure:VTIMe? 0,CHANnel1"]
+
+
 def test_scope_waveform_capture_uses_capabilities_from_idn():
     backend = FakeBackend(
         responses={

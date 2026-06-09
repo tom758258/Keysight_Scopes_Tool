@@ -244,6 +244,9 @@ Query one read-only measurement:
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_edges --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item positive_pulses --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_pulses --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item y_at_x --time 0 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item time_at_edge --slope positive --occurrence 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item time_at_value --level 0.5 --slope positive --occurrence 1 --log-scpi
 ```
 
 The current measurement slice supports `vpp`, `frequency` (`freq` alias),
@@ -260,10 +263,16 @@ The current measurement slice supports `vpp`, `frequency` (`freq` alias),
 aliases), `area`, `positive_edges` (`pedges` and `positive-edges` aliases),
 `negative_edges` (`nedges` and `negative-edges` aliases), `positive_pulses`
 (`ppulses` and `positive-pulses` aliases), and `negative_pulses` (`npulses`
-and `negative-pulses` aliases). The command first queries `*IDN?`, validates
-the analog channel, sends one read-only measurement query such as
-`:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?` post-check. The
-added item queries are
+and `negative-pulses` aliases), plus parameterized single-channel queries:
+`y_at_x` (`yatx`, `y-at-x`, `vtime`, `y_at_time`, and `y-at-time` aliases),
+`time_at_edge` (`tedge` and `time-at-edge` aliases), and `time_at_value`
+(`tvalue`, `time-at-value`, `time_at_level`, and `time-at-level` aliases).
+`y_at_x` requires `--time`; `time_at_value` requires `--level`;
+`time_at_edge` and `time_at_value` accept `--slope positive|negative` and
+`--occurrence N`, defaulting to positive occurrence 1. The command first queries
+`*IDN?`, validates the analog channel, sends one read-only measurement query
+such as `:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?`
+post-check. The added item queries are
 `:MEASure:VRMS? DISPlay,AC,CHANnelN`, `:MEASure:XMAX? CHANnelN`,
 `:MEASure:XMIN? CHANnelN`,
 `:MEASure:VAMPlitude? CHANnelN`, `:MEASure:VTOP? CHANnelN`,
@@ -272,9 +281,12 @@ added item queries are
 `:MEASure:NWIDth? CHANnelN`, `:MEASure:DUTYcycle? CHANnelN`,
 `:MEASure:NDUTy? CHANnelN`, `:MEASure:AREA? CHANnelN`,
 `:MEASure:PEDGes? CHANnelN`, `:MEASure:NEDGes? CHANnelN`,
-`:MEASure:PPULses? CHANnelN`, and `:MEASure:NPULses? CHANnelN`. It does not
-change acquisition mode, trigger settings, measurement source, measurement
-window, display state, VISA timeout, or return-to-local behavior.
+`:MEASure:PPULses? CHANnelN`, `:MEASure:NPULses? CHANnelN`,
+`:MEASure:VTIMe? <time>,CHANnelN`,
+`:MEASure:TEDGe? +/-<occurrence>,CHANnelN`, and
+`:MEASure:TVALue? <level>,+/-<occurrence>,CHANnelN`. It does not change
+acquisition mode, trigger settings, measurement source, measurement window,
+display state, VISA timeout, or return-to-local behavior.
 Invalid measurement sentinels such as `9.9E+37` are printed as
 `Value: unavailable` with `Valid: false` and the original raw response
 preserved; the CLI exits non-zero so automation does not treat the unavailable
@@ -359,7 +371,7 @@ tests, and USB validated on DSO-X 4024A.
 
 Channel coupling, probe ratio, and bandwidth-limit control are implemented,
 covered by hardware-free tests, and USB validated by user report on
-2026-05-13.
+.
 
 Timebase scale and position control is implemented and covered by hardware-free
 tests, and USB validated on DSO-X 4024A.
@@ -376,25 +388,25 @@ Single-channel WORD waveform capture is implemented and covered by
 hardware-free tests, and requested point counts 1000, 5000, and 10000 are USB
 validated on DSO-X 4024A.
 
-Multi-channel BYTE and WORD waveform capture is implemented and covered by
-hardware-free tests. Hardware validation is pending; it uses the same safe
-sequential SCPI reads as single-channel capture and preserves one post-capture
-system error check.
+Multi-channel BYTE and WORD waveform capture is implemented, covered by
+hardware-free tests, and USB validated by user report on .
 
 Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and
 USB validated on DSO-X 4024A. Read-only minimum, maximum, rise time, and fall
 time measurement queries are implemented and covered by hardware-free tests;
-USB validation passed by user. Read-only amplitude, top,
+USB validation passed by user report on . Read-only amplitude, top,
 base, overshoot, preshoot, positive width, negative width, duty cycle, and
 negative duty cycle measurement queries are implemented and covered by
-hardware-free tests; USB CH1 validation passed by user.
+hardware-free tests; USB CH1 validation passed by user report on .
 Read-only area measurement query is implemented and covered by hardware-free
-tests; USB CH1 validation passed by user. Read-only AC
+tests; USB CH1 validation passed by user report on . Read-only AC
 RMS, X-at-max, X-at-min, edge count, and pulse count measurement queries are
 implemented and covered by hardware-free tests; USB CH1 validation passed by
-user. LAN retest is deferred until a LAN environment is
-available.
+user report on . Read-only parameterized single-channel y-at-x,
+time-at-edge, and time-at-value measurement queries are implemented and covered
+by hardware-free tests; USB CH1 validation passed by user report on 2026-05-14.
+LAN retest is deferred until a LAN environment is available.
 
 Screenshot PNG capture is implemented and covered by hardware-free tests. USB
-hardware validation passed by user.
+hardware validation passed by user report on .

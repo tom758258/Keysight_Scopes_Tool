@@ -196,10 +196,26 @@ class KeysightScope:
 
         return self._waveform_controller().capture_channels_word(channels, points=points)
 
-    def query_measurement(self, channel: int, item: str) -> MeasurementResult:
+    def query_measurement(
+        self,
+        channel: int,
+        item: str,
+        *,
+        time_s: float | None = None,
+        level: float | None = None,
+        slope: str | None = None,
+        occurrence: int | None = None,
+    ) -> MeasurementResult:
         """Query one read-only measurement item for one analog channel."""
 
-        return self._measurement_controller().query(channel, item)
+        return self._measurement_controller().query(
+            channel,
+            item,
+            time_s=time_s,
+            level=level,
+            slope=slope,
+            occurrence=occurrence,
+        )
 
     def capture_screenshot_png(self, *, background: str = "black") -> ScreenshotCapture:
         """Capture the current screen as a color PNG image."""
