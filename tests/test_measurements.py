@@ -9,6 +9,7 @@ from keysight_scope.measurements import (
     measurement_query,
     measurement_unit,
     normalize_measurement_item,
+    pair_measurement_query,
     parse_measurement_result,
 )
 from keysight_scope.scpi import SCPIClient
@@ -96,6 +97,17 @@ def test_measurement_query_uses_keysight_measure_syntax():
     )
 
 
+def test_pair_measurement_query_uses_keysight_measure_syntax():
+    assert (
+        pair_measurement_query("phase", 1, 2)
+        == ":MEASure:PHASe? CHANnel1,CHANnel2"
+    )
+    assert (
+        pair_measurement_query("delay", 1, 2, capabilities=capabilities_for_model("DSOX4024A"))
+        == ":MEASure:DELay? AUTO,CHANnel1,CHANnel2"
+    )
+
+
 def test_measurement_item_normalization_accepts_aliases():
     assert normalize_measurement_item("freq") == "frequency"
     assert normalize_measurement_item("acrms") == "ac_rms"
@@ -146,6 +158,8 @@ def test_measurement_item_normalization_accepts_aliases():
     assert normalize_measurement_item("time-at-value") == "time_at_value"
     assert normalize_measurement_item("time_at_level") == "time_at_value"
     assert normalize_measurement_item("time-at-level") == "time_at_value"
+    assert normalize_measurement_item("phase") == "phase"
+    assert normalize_measurement_item("delay") == "delay"
     assert measurement_unit("frequency") == "Hz"
     assert measurement_unit("period") == "s"
     assert measurement_unit("vpp") == "V"
@@ -175,11 +189,13 @@ def test_measurement_item_normalization_accepts_aliases():
     assert measurement_unit("y_at_x") == "V"
     assert measurement_unit("time_at_edge") == "s"
     assert measurement_unit("time_at_value") == "s"
+    assert measurement_unit("phase") == "deg"
+    assert measurement_unit("delay") == "s"
 
 
 def test_measurement_item_normalization_rejects_unknown_item():
     with pytest.raises(ParameterValidationError):
-        normalize_measurement_item("delay")
+        normalize_measurement_item("ratio")
 
 
 def test_parse_measurement_result_keeps_valid_numeric_value():
@@ -190,6 +206,22 @@ def test_parse_measurement_result_keeps_valid_numeric_value():
     assert result.raw_value == "5.0E-1"
     assert result.reason is None
     assert result.unit == "V"
+
+
+def test_parse_pair_measurement_result_preserves_reference_channel():
+    result = parse_measurement_result(
+        "9.0E+1",
+        item="phase",
+        channel=1,
+        reference_channel=2,
+    )
+
+    assert result.valid is True
+    assert result.value == 90.0
+    assert result.raw_value == "9.0E+1"
+    assert result.unit == "deg"
+    assert result.channel == 1
+    assert result.reference_channel == 2
 
 
 @pytest.mark.parametrize("raw", ["9.9E+37", "9.900000E+37", "-9.9E+37"])
@@ -238,6 +270,121 @@ def test_measurement_controller_queries_vpp_for_channel():
     assert result.valid is True
     assert result.value == 1.25
     assert backend.history == [":MEASure:VPP? CHANnel1"]
+
+
+@pytest.mark.parametrize(
+    ("model", "expected_command"),
+    [
+        ("DSOX2004A", ":MEASure:PHASe? CHANnel1,CHANnel2"),
+        ("DSOX3024A", ":MEASure:PHASe? CHANnel1,CHANnel2"),
+        ("DSOX4024A", ":MEASure:PHASe? CHANnel1,CHANnel2"),
+    ],
+)
+def test_measurement_controller_queries_phase_pair(model, expected_command):
+    backend = FakeBackend(responses={expected_command: "9.0E+1"})
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model(model))
+
+    result = controller.query_pair(1, 2, "phase")
+
+    assert result.valid is True
+    assert result.value == 90.0
+    assert result.unit == "deg"
+    assert result.channel == 1
+    assert result.reference_channel == 2
+    assert backend.history == [expected_command]
+
+
+def test_measurement_controller_queries_delay_pair_on_4000x():
+    command = ":MEASure:DELay? AUTO,CHANnel1,CHANnel2"
+    backend = FakeBackend(responses={command: "1.25E-6"})
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    result = controller.query_pair(1, 2, "delay")
+
+    assert result.valid is True
+    assert result.value == 1.25e-6
+    assert result.unit == "s"
+    assert result.channel == 1
+    assert result.reference_channel == 2
+    assert backend.history == [command]
+
+
+def test_measurement_controller_preserves_pair_invalid_sentinel():
+    command = ":MEASure:PHASe? CHANnel1,CHANnel2"
+    backend = FakeBackend(responses={command: "9.9E+37"})
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    result = controller.query_pair(1, 2, "phase")
+
+    assert result.valid is False
+    assert result.value is None
+    assert result.raw_value == "9.9E+37"
+    assert result.reason == INVALID_MEASUREMENT_REASON
+    assert result.unit == "deg"
+    assert result.channel == 1
+    assert result.reference_channel == 2
+    assert backend.history == [command]
+
+
+@pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A"])
+def test_measurement_controller_rejects_delay_pair_before_scpi_on_non_4000x(model):
+    backend = FakeBackend()
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model(model))
+
+    with pytest.raises(ParameterValidationError) as excinfo:
+        controller.query_pair(1, 2, "delay")
+
+    assert "4000X" in str(excinfo.value)
+    assert backend.history == []
+
+
+@pytest.mark.parametrize(
+    ("source_channel", "reference_channel", "message"),
+    [
+        (1, 1, "different"),
+        (3, 1, "channel 3 is not available"),
+        (1, 3, "channel 3 is not available"),
+    ],
+)
+def test_measurement_controller_rejects_invalid_pair_channels_before_scpi(
+    source_channel, reference_channel, message
+):
+    backend = FakeBackend()
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+
+    with pytest.raises(ParameterValidationError) as excinfo:
+        controller.query_pair(source_channel, reference_channel, "phase")
+
+    assert message in str(excinfo.value)
+    assert backend.history == []
+
+
+@pytest.mark.parametrize(
+    ("item", "source_channel", "reference_channel", "kwargs", "message"),
+    [
+        ("phase", 1, 2, {"time_s": 0.0}, "--time"),
+        ("phase", 1, 2, {"level": 0.5}, "--level"),
+        ("phase", 1, 2, {"slope": "positive"}, "--slope"),
+        ("phase", 1, 2, {"occurrence": 1}, "--occurrence"),
+        ("vpp", 1, 2, {}, "single channel"),
+        ("phase", 1, 1, {}, "different"),
+        ("delay", 1, 2, {}, "known scope capabilities"),
+        (
+            "delay",
+            1,
+            2,
+            {"capabilities": capabilities_for_model("DSOX3024A")},
+            "4000X",
+        ),
+    ],
+)
+def test_pair_measurement_query_rejects_invalid_pair_args(
+    item, source_channel, reference_channel, kwargs, message
+):
+    with pytest.raises(ParameterValidationError) as excinfo:
+        pair_measurement_query(item, source_channel, reference_channel, **kwargs)
+
+    assert message in str(excinfo.value)
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Sequence
 
+from .acquisition import AcquisitionConfig, AcquisitionController
 from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import ChannelController
 from .errors import ParameterValidationError, UnsupportedModelError
@@ -217,10 +218,49 @@ class KeysightScope:
             occurrence=occurrence,
         )
 
+    def query_pair_measurement(
+        self,
+        source_channel: int,
+        reference_channel: int,
+        item: str,
+    ) -> MeasurementResult:
+        """Query one read-only measurement item comparing two analog channels."""
+
+        return self._measurement_controller().query_pair(
+            source_channel,
+            reference_channel,
+            item,
+        )
+
     def capture_screenshot_png(self, *, background: str = "black") -> ScreenshotCapture:
         """Capture the current screen as a color PNG image."""
 
         return self._screenshot_controller().capture_png(background=background)
+
+    def set_acquisition_type(self, acquisition_type: str) -> None:
+        """Set the acquisition type."""
+
+        self._acquisition_controller().set_type(acquisition_type)
+
+    def query_acquisition_type(self) -> str:
+        """Query the current acquisition type."""
+
+        return self._acquisition_controller().query_type()
+
+    def set_acquisition_count(self, count: int) -> None:
+        """Set the average count for average acquisition mode."""
+
+        self._acquisition_controller().set_count(count)
+
+    def query_acquisition_count(self) -> int:
+        """Query the current average count."""
+
+        return self._acquisition_controller().query_count()
+
+    def query_acquisition_config(self) -> AcquisitionConfig:
+        """Query both acquisition type and count."""
+
+        return self._acquisition_controller().query_config()
 
     def close(self) -> None:
         """Close the underlying backend."""
@@ -268,6 +308,13 @@ class KeysightScope:
                 "Screenshot operations require known capabilities; call query_idn() first."
             )
         return ScreenshotController(self.scpi, self.capabilities)
+
+    def _acquisition_controller(self) -> AcquisitionController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Acquisition operations require known capabilities; call query_idn() first."
+            )
+        return AcquisitionController(self.scpi)
 
     def __enter__(self) -> "KeysightScope":
         return self

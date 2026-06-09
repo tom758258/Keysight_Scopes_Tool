@@ -42,6 +42,11 @@ _MEASUREMENT_QUERY_TEMPLATES = {
     "negative_pulses": ":MEASure:NPULses? CHANnel{channel}",
 }
 
+_PAIR_MEASUREMENT_QUERY_TEMPLATES = {
+    "phase": ":MEASure:PHASe? CHANnel{source_channel},CHANnel{reference_channel}",
+    "delay": ":MEASure:DELay? AUTO,CHANnel{source_channel},CHANnel{reference_channel}",
+}
+
 _PARAMETERIZED_MEASUREMENT_ITEMS = (
     "y_at_x",
     "time_at_edge",
@@ -130,11 +135,15 @@ _MEASUREMENT_UNITS = {
     "y_at_x": "V",
     "time_at_edge": "s",
     "time_at_value": "s",
+    "phase": "deg",
+    "delay": "s",
 }
 
-SUPPORTED_MEASUREMENT_ITEMS = (
+SINGLE_CHANNEL_MEASUREMENT_ITEMS = (
     tuple(_MEASUREMENT_QUERY_TEMPLATES) + _PARAMETERIZED_MEASUREMENT_ITEMS
 )
+PAIR_MEASUREMENT_ITEMS = tuple(_PAIR_MEASUREMENT_QUERY_TEMPLATES)
+SUPPORTED_MEASUREMENT_ITEMS = SINGLE_CHANNEL_MEASUREMENT_ITEMS + PAIR_MEASUREMENT_ITEMS
 MEASUREMENT_ITEM_CHOICES = SUPPORTED_MEASUREMENT_ITEMS + tuple(_MEASUREMENT_ALIASES)
 
 
@@ -149,6 +158,7 @@ class MeasurementResult:
     valid: bool
     unit: str
     reason: str | None = None
+    reference_channel: int | None = None
 
 
 class MeasurementController:
@@ -185,6 +195,33 @@ class MeasurementController:
         )
         return parse_measurement_result(raw, item=item, channel=channel)
 
+    def query_pair(
+        self,
+        source_channel: int,
+        reference_channel: int,
+        item: str,
+    ) -> MeasurementResult:
+        """Query one measurement that compares two analog channels."""
+
+        source_channel, reference_channel = _validate_channel_pair(
+            source_channel, reference_channel, self.capabilities
+        )
+        item = normalize_measurement_item(item)
+        raw = self.scpi.query(
+            pair_measurement_query(
+                item,
+                source_channel,
+                reference_channel,
+                capabilities=self.capabilities,
+            )
+        )
+        return parse_measurement_result(
+            raw,
+            item=item,
+            channel=source_channel,
+            reference_channel=reference_channel,
+        )
+
 
 def normalize_measurement_item(item: str) -> str:
     """Normalize a user-facing measurement item."""
@@ -194,6 +231,7 @@ def normalize_measurement_item(item: str) -> str:
     if (
         normalized not in _MEASUREMENT_QUERY_TEMPLATES
         and normalized not in _PARAMETERIZED_MEASUREMENT_ITEMS
+        and normalized not in _PAIR_MEASUREMENT_QUERY_TEMPLATES
     ):
         supported = ", ".join(MEASUREMENT_ITEM_CHOICES)
         raise ParameterValidationError(f"measurement item must be one of: {supported}.")
@@ -223,6 +261,10 @@ def measurement_query(
             slope=slope,
             occurrence=occurrence,
         )
+    if item in _PAIR_MEASUREMENT_QUERY_TEMPLATES:
+        raise ParameterValidationError(
+            f"{item} measurement requires source and reference channels."
+        )
     _reject_parameterized_measurement_args(
         item,
         time_s=time_s,
@@ -231,6 +273,48 @@ def measurement_query(
         occurrence=occurrence,
     )
     return _MEASUREMENT_QUERY_TEMPLATES[item].format(channel=channel)
+
+
+def pair_measurement_query(
+    item: str,
+    source_channel: int,
+    reference_channel: int,
+    *,
+    capabilities: ScopeCapabilities | None = None,
+    time_s: float | None = None,
+    level: float | None = None,
+    slope: str | None = None,
+    occurrence: int | None = None,
+) -> str:
+    """Build a read-only measurement query for two analog channels."""
+
+    item = normalize_measurement_item(item)
+    if item not in _PAIR_MEASUREMENT_QUERY_TEMPLATES:
+        raise ParameterValidationError(
+            f"{item} measurement uses a single channel; use measurement_query()."
+        )
+    _reject_parameterized_measurement_args(
+        item,
+        time_s=time_s,
+        level=level,
+        slope=slope,
+        occurrence=occurrence,
+    )
+    source_channel, reference_channel = _validate_channel_pair(
+        source_channel, reference_channel, capabilities
+    )
+    if item == "delay":
+        _validate_delay_supported(capabilities)
+    return _PAIR_MEASUREMENT_QUERY_TEMPLATES[item].format(
+        source_channel=source_channel,
+        reference_channel=reference_channel,
+    )
+
+
+def is_pair_measurement_item(item: str) -> bool:
+    """Return whether a supported measurement item needs two channels."""
+
+    return normalize_measurement_item(item) in _PAIR_MEASUREMENT_QUERY_TEMPLATES
 
 
 def measurement_unit(item: str) -> str:
@@ -326,7 +410,39 @@ def _format_scpi_number(value: float) -> str:
     return f"{value:.12g}"
 
 
-def parse_measurement_result(raw: str, *, item: str, channel: int) -> MeasurementResult:
+def _validate_channel_pair(
+    source_channel: int,
+    reference_channel: int,
+    capabilities: ScopeCapabilities | None,
+) -> tuple[int, int]:
+    if capabilities is not None:
+        source_channel = validate_analog_channel(source_channel, capabilities)
+        reference_channel = validate_analog_channel(reference_channel, capabilities)
+    if source_channel == reference_channel:
+        raise ParameterValidationError(
+            "source channel and reference channel must be different."
+        )
+    return source_channel, reference_channel
+
+
+def _validate_delay_supported(capabilities: ScopeCapabilities | None) -> None:
+    if capabilities is None:
+        raise ParameterValidationError(
+            "delay pair measurement requires known scope capabilities."
+        )
+    if capabilities.series != "4000X":
+        raise ParameterValidationError(
+            "delay pair measurement is only supported on 4000X scopes."
+        )
+
+
+def parse_measurement_result(
+    raw: str,
+    *,
+    item: str,
+    channel: int,
+    reference_channel: int | None = None,
+) -> MeasurementResult:
     """Parse a numeric measurement response, preserving invalid sentinels."""
 
     item = normalize_measurement_item(item)
@@ -348,6 +464,7 @@ def parse_measurement_result(raw: str, *, item: str, channel: int) -> Measuremen
             valid=False,
             unit=measurement_unit(item),
             reason=INVALID_MEASUREMENT_REASON,
+            reference_channel=reference_channel,
         )
 
     return MeasurementResult(
@@ -357,4 +474,5 @@ def parse_measurement_result(raw: str, *, item: str, channel: int) -> Measuremen
         raw_value=raw_value,
         valid=True,
         unit=measurement_unit(item),
+        reference_channel=reference_channel,
     )

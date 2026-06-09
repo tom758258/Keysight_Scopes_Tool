@@ -140,7 +140,15 @@ class _MeasurementDummyBackend:
 class _MeasurementDummyScope:
     backend = _MeasurementDummyBackend()
 
-    def __init__(self, result_value, raw_value, unit, valid=True, reason=None):
+    def __init__(
+        self,
+        result_value,
+        raw_value,
+        unit,
+        valid=True,
+        reason=None,
+        model="DSOX4024A",
+    ):
         self.capabilities = None
         self.calls = []
         self.result_value = result_value
@@ -148,6 +156,7 @@ class _MeasurementDummyScope:
         self.unit = unit
         self.valid = valid
         self.reason = reason
+        self.model = model
 
     def __enter__(self):
         return self
@@ -157,8 +166,8 @@ class _MeasurementDummyScope:
 
     def query_idn(self):
         self.calls.append("query_idn")
-        self.capabilities = capabilities_for_model("DSOX4024A")
-        return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+        self.capabilities = capabilities_for_model(self.model)
+        return parse_idn(f"KEYSIGHT TECHNOLOGIES,{self.model},MY123,07.20")
 
     def query_measurement(self, channel, item, **kwargs):
         if kwargs:
@@ -175,13 +184,32 @@ class _MeasurementDummyScope:
             reason=self.reason,
         )
 
+    def query_pair_measurement(self, source_channel, reference_channel, item):
+        self.calls.append(
+            ("query_pair_measurement", source_channel, reference_channel, item)
+        )
+        return MeasurementResult(
+            item=item,
+            channel=source_channel,
+            value=self.result_value,
+            raw_value=self.raw_value,
+            valid=self.valid,
+            unit=self.unit,
+            reason=self.reason,
+            reference_channel=reference_channel,
+        )
+
     def query_system_error(self):
         self.calls.append("query_system_error")
         return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
 
 
-def _install_measurement_scope(monkeypatch, result_value, raw_value, unit, valid=True, reason=None):
-    scope = _MeasurementDummyScope(result_value, raw_value, unit, valid=valid, reason=reason)
+def _install_measurement_scope(
+    monkeypatch, result_value, raw_value, unit, valid=True, reason=None, model="DSOX4024A"
+):
+    scope = _MeasurementDummyScope(
+        result_value, raw_value, unit, valid=valid, reason=reason, model=model
+    )
     monkeypatch.setattr(
         cli.KeysightScope,
         "open",
@@ -2836,6 +2864,129 @@ def test_measure_cli_queries_parameterized_items_then_checks_error(
 
 
 @pytest.mark.parametrize(
+    (
+        "item",
+        "value",
+        "raw_value",
+        "unit",
+        "expected_command",
+        "expected_value_line",
+    ),
+    [
+        (
+            "phase",
+            90.0,
+            "9.0E+1",
+            "deg",
+            ":MEASure:PHASe? CHANnel1,CHANnel2",
+            "Value deg: 90",
+        ),
+        (
+            "delay",
+            0.00000125,
+            "1.25E-6",
+            "s",
+            ":MEASure:DELay? AUTO,CHANnel1,CHANnel2",
+            "Value s: 1.25e-06",
+        ),
+    ],
+)
+def test_measure_cli_queries_pair_items_then_checks_error(
+    monkeypatch,
+    capsys,
+    item,
+    value,
+    raw_value,
+    unit,
+    expected_command,
+    expected_value_line,
+):
+    scope = _install_measurement_scope(monkeypatch, value, raw_value, unit)
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                item,
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_pair_measurement", 1, 2, item),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert f"Planned query: CH1 to CH2 {item} measurement" in out
+    assert f"Command: {expected_command}" in out
+    assert f"Measurement: {item}" in out
+    assert "Channel: 1" in out
+    assert "Reference channel: 2" in out
+    assert expected_value_line in out
+    assert f"Raw response: {raw_value}" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_measure_cli_treats_channel_as_source_alias_for_pair_item(monkeypatch, capsys):
+    scope = _install_measurement_scope(monkeypatch, 90.0, "9.0E+1", "deg")
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "phase",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_pair_measurement", 1, 2, "phase"),
+        "query_system_error",
+    ]
+    assert "Command: :MEASure:PHASe? CHANnel1,CHANnel2" in capsys.readouterr().out
+
+
+def test_measure_cli_accepts_source_channel_for_single_item(monkeypatch, capsys):
+    scope = _install_measurement_scope(monkeypatch, 0.5, "5.0E-1", "V")
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--source-channel",
+                "1",
+                "--item",
+                "vpp",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_measurement", 1, "vpp"), "query_system_error"]
+    assert "Command: :MEASure:VPP? CHANnel1" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
     ("argv", "expected_error"),
     [
         (["--item", "y_at_x"], "requires --time"),
@@ -2866,6 +3017,117 @@ def test_measure_cli_rejects_invalid_parameterized_args_without_query(
     assert scope.calls == ["query_idn"]
     captured = capsys.readouterr()
     assert expected_error in captured.err
+
+
+@pytest.mark.parametrize(
+    ("argv", "expected_error"),
+    [
+        (
+            ["--channel", "1", "--source-channel", "2", "--item", "vpp"],
+            "cannot be combined",
+        ),
+        (
+            ["--source-channel", "1", "--item", "phase"],
+            "requires --source-channel",
+        ),
+        (
+            ["--source-channel", "1", "--reference-channel", "1", "--item", "phase"],
+            "must be different",
+        ),
+        (
+            ["--source-channel", "3", "--reference-channel", "1", "--item", "phase"],
+            "channel 3 is not available",
+        ),
+        (
+            ["--source-channel", "1", "--reference-channel", "2", "--item", "phase", "--time", "0"],
+            "cannot be used with phase or delay",
+        ),
+        (
+            ["--source-channel", "1", "--reference-channel", "2", "--item", "vpp"],
+            "can only be used with phase or delay",
+        ),
+    ],
+)
+def test_measure_cli_rejects_invalid_pair_channel_args_without_query(
+    monkeypatch, capsys, argv, expected_error
+):
+    scope = _install_measurement_scope(monkeypatch, 0.25, "2.5E-1", "V", model="DSOX4022A")
+
+    assert cli.main(["measure", "--resource", "USB0::FAKE::INSTR", *argv]) == 1
+
+    assert scope.calls == ["query_idn"]
+    assert expected_error in capsys.readouterr().err
+
+
+def test_measure_cli_rejects_delay_pair_on_non_4000x_without_query(monkeypatch, capsys):
+    scope = _install_measurement_scope(
+        monkeypatch,
+        0.00000125,
+        "1.25E-6",
+        "s",
+        model="DSOX3024A",
+    )
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "delay",
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    assert "4000X" in capsys.readouterr().err
+
+
+def test_measure_cli_reports_invalid_sentinel_for_pair_item(monkeypatch, capsys):
+    scope = _install_measurement_scope(
+        monkeypatch,
+        None,
+        "9.9E+37",
+        "deg",
+        valid=False,
+        reason="invalid measurement sentinel",
+    )
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "phase",
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_pair_measurement", 1, 2, "phase"),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Command: :MEASure:PHASe? CHANnel1,CHANnel2" in out
+    assert "Reference channel: 2" in out
+    assert "Valid: false" in out
+    assert "Value: unavailable" in out
+    assert "Raw response: 9.9E+37" in out
+    assert "Reason: invalid measurement sentinel" in out
 
 
 @pytest.mark.parametrize(

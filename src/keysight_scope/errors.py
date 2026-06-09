@@ -51,3 +51,7 @@ class WaveformResponseError(KeysightScopeError, ValueError):
 
 class ScreenshotResponseError(KeysightScopeError, ValueError):
     """Raised when screenshot image data cannot be parsed."""
+
+
+class AcquisitionResponseError(KeysightScopeError, ValueError):
+    """Raised when an acquisition query response cannot be parsed."""

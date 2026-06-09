@@ -13,6 +13,8 @@ Current implemented scope:
 - Read one or more entries from the system error queue with
   `:SYSTem:ERRor?`.
 - Send basic acquisition control commands: `:STOP`, `:RUN`, and `:SINGle`.
+- Configure or query acquisition type and average count with
+  `:ACQuire:TYPE` and `:ACQuire:COUNt`.
 - Enable, disable, or query analog channel display state with
   `:CHANnel<n>:DISPlay`.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
@@ -26,12 +28,15 @@ Current implemented scope:
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
 - Query read-only Vpp, frequency, period, display average voltage, display
   DC RMS voltage, minimum, maximum, rise time, fall time, amplitude, top, base,
-  overshoot, preshoot, positive width, negative width, duty cycle, or negative
-  duty cycle or area measurements for one analog channel with explicit
-  invalid-sentinel handling.
+  overshoot, preshoot, positive width, negative width, duty cycle, negative
+  duty cycle, area, edge count, pulse count, parameterized time, phase, and
+  safe 4000X delay measurements with explicit invalid-sentinel handling.
 - Capture one or more analog channel waveforms in BYTE or WORD format and
   export CSV plus JSON metadata, with an optional default timestamped CSV path
   under `data`.
+- Capture a finite batch of waveforms with `capture-batch`, writing per-capture
+  CSV and metadata files, `manifest.json`, and `scpi.log` into one run
+  directory.
 - Capture the current oscilloscope screen as a color PNG image, with an
   optional default timestamped output path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
@@ -56,6 +61,27 @@ PyVISA will use the default VISA backend discovered on the computer. On the
 instrument computer, the preferred backend is the installed Keysight IO
 Libraries vendor VISA backend. `pyvisa-py` is a fallback for systems without a
 usable vendor backend.
+
+## Agent-safe Automation
+
+Commands that accept instrument connections also accept `--json`, `--simulate`,
+`--dry-run`, `--model`, and `--live`. Use `--dry-run --json` to validate
+arguments and inspect planned SCPI without opening VISA or writing files. Use
+`--simulate --json` to run against the deterministic hardware-free simulator;
+capture workflows write fake output files for offline validation.
+
+Agents should only access real hardware after explicit user approval, using
+`--live --resource "USB0::...::INSTR" --json`. SCPI debug logs from
+`--log-scpi` are written to stderr and must not be parsed as JSON.
+
+```powershell
+uv run python -m keysight_scope.cli verify --dry-run --json
+uv run python -m keysight_scope.cli verify --simulate --json
+uv run python -m keysight_scope.cli capture-batch --simulate --json --channel 1 --count 2 --output-dir .tmp_tests\sim_batch
+```
+
+See `docs/agent-integration-plan.md` for the full agent workflow and
+restrictions.
 
 ## Commands
 
@@ -123,6 +149,25 @@ command. The CLI control commands additionally perform a transparent post-check
 by querying one `:SYSTem:ERRor?` entry and printing the result. The
 `:SYSTem:ERRor?` query removes the returned entry from the instrument error
 queue.
+
+Configure or query acquisition type and average count:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition --resource "USB0::...::INSTR" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition --resource "USB0::...::INSTR" --type normal --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition --resource "USB0::...::INSTR" --type average --count 16 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition --resource "USB0::...::INSTR" --type high_resolution --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition --resource "USB0::...::INSTR" --type peak --log-scpi
+```
+
+The `acquisition` command first queries `*IDN?`, then sends only the requested
+`:ACQuire:TYPE` and optional `:ACQuire:COUNt` commands before one
+`:SYSTem:ERRor?` post-check. `--query` reads back both acquisition type and
+average count. `--count` is only valid with average acquisition mode and must be
+between 2 and 65536. Type aliases include `norm`, `aver`, `avg`,
+`high-resolution`, `hresolution`, `hres`, `peak_detect`, and `peak-detect`.
+This command does not change timeout defaults, trigger wait strategy,
+acquisition mode, run/stop state, or return-to-local behavior.
 
 Enable, disable, or query one analog channel display:
 
@@ -215,7 +260,7 @@ slope. Supported slopes are `positive`, `negative`, `either`, and `alternate`.
 Only analog channel sources are supported in this first trigger slice. Trigger
 level must be a finite number in volts.
 
-Query one read-only measurement:
+Query read-only measurements:
 
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item vpp --log-scpi
@@ -247,6 +292,8 @@ Query one read-only measurement:
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item y_at_x --time 0 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item time_at_edge --slope positive --occurrence 1 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item time_at_value --level 0.5 --slope positive --occurrence 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --source-channel 1 --reference-channel 2 --item phase --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --source-channel 1 --reference-channel 2 --item delay --log-scpi
 ```
 
 The current measurement slice supports `vpp`, `frequency` (`freq` alias),
@@ -266,12 +313,16 @@ aliases), `area`, `positive_edges` (`pedges` and `positive-edges` aliases),
 and `negative-pulses` aliases), plus parameterized single-channel queries:
 `y_at_x` (`yatx`, `y-at-x`, `vtime`, `y_at_time`, and `y-at-time` aliases),
 `time_at_edge` (`tedge` and `time-at-edge` aliases), and `time_at_value`
-(`tvalue`, `time-at-value`, `time_at_level`, and `time-at-level` aliases).
+(`tvalue`, `time-at-value`, `time_at_level`, and `time-at-level` aliases),
+plus two-channel `phase` and 4000X-only safe `delay`.
 `y_at_x` requires `--time`; `time_at_value` requires `--level`;
 `time_at_edge` and `time_at_value` accept `--slope positive|negative` and
-`--occurrence N`, defaulting to positive occurrence 1. The command first queries
-`*IDN?`, validates the analog channel, sends one read-only measurement query
-such as `:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?`
+`--occurrence N`, defaulting to positive occurrence 1. Two-channel items require
+a source channel and reference channel; `--channel` remains a compatibility
+alias for `--source-channel`, and cannot be combined with it. Single-channel
+items reject `--reference-channel`. The command first queries `*IDN?`,
+validates the analog channel or channel pair, sends one read-only measurement
+query such as `:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?`
 post-check. The added item queries are
 `:MEASure:VRMS? DISPlay,AC,CHANnelN`, `:MEASure:XMAX? CHANnelN`,
 `:MEASure:XMIN? CHANnelN`,
@@ -284,9 +335,13 @@ post-check. The added item queries are
 `:MEASure:PPULses? CHANnelN`, `:MEASure:NPULses? CHANnelN`,
 `:MEASure:VTIMe? <time>,CHANnelN`,
 `:MEASure:TEDGe? +/-<occurrence>,CHANnelN`, and
-`:MEASure:TVALue? <level>,+/-<occurrence>,CHANnelN`. It does not change
-acquisition mode, trigger settings, measurement source, measurement window,
-display state, VISA timeout, or return-to-local behavior.
+`:MEASure:TVALue? <level>,+/-<occurrence>,CHANnelN`,
+`:MEASure:PHASe? CHANnel<src>,CHANnel<ref>`, and
+`:MEASure:DELay? AUTO,CHANnel<src>,CHANnel<ref>`. `delay` is intentionally
+limited to 4000X models because the 2000X/3000X delay query depends on
+`:MEASure:DEFine` state. It does not change acquisition mode, trigger settings,
+measurement source, measurement window, display state, VISA timeout, or
+return-to-local behavior.
 Invalid measurement sentinels such as `9.9E+37` are printed as
 `Value: unavailable` with `Valid: false` and the original raw response
 preserved; the CLI exits non-zero so automation does not treat the unavailable
@@ -328,6 +383,46 @@ timeout, acquisition mode, trigger waiting, waveform point mode, or
 return-to-local behavior. If the CSV or metadata file cannot be written because
 it is open in another program or the folder is not writable, the CLI reports a
 plain `error:` message instead of a Python traceback.
+
+Capture a finite waveform batch:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture-batch --resource "USB0::...::INSTR" --channel 1 --points 1000 --format byte --count 3 --interval-seconds 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture-batch --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --format word --count 2 --output-dir data\captures\ch1_ch2_batch --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture-batch --resource "USB0::...::INSTR" --channel all --points 1000 --count 2
+```
+
+`capture-batch` is a conservative finite batch capture command. `--count` is
+required and must be a positive integer. `--interval-seconds` defaults to `0`
+and must be a finite non-negative number; when non-zero, the sleep is applied
+only between captures. The command opens one VISA session, queries `*IDN?`,
+validates the detected capabilities, channels, point count, and waveform
+format, then repeats the existing waveform capture APIs the requested number of
+times. It performs one `:SYSTem:ERRor?` post-check after each capture.
+
+If `--output-dir` is omitted, output is written under
+`data/captures/YYYY-MM-DD-HH-mm-ss` using the `UTC+8` timezone. If that default
+directory already exists, the CLI appends `-2`, `-3`, and so on to avoid
+overwriting prior data. If `--output-dir DIR` is provided, `DIR` must not exist
+or must be empty. This prevents new captures from being mixed with old files.
+
+Each batch capture writes `waveform_0001.csv`,
+`waveform_0001_meta.json`, and so on, using a sequence width of at least four
+digits. The run directory also contains `manifest.json` with run parameters,
+IDN fields, capture file paths, actual point counts, and system error results,
+plus `scpi.log`. For `capture-batch`, `scpi.log` is always written; `--log-scpi`
+additionally echoes the same package SCPI debug log to stderr for live hardware
+checks.
+
+If a post-capture system error is reported, the command leaves the already
+written capture files and manifest in place, stops the remaining captures, and
+returns non-zero. If interrupted from Python control flow, it writes a best
+effort manifest with status `interrupted` and returns `130`.
+
+Phase 6A `capture-batch` intentionally does not change acquisition mode, wait
+for a trigger, poll for acquisition completion, change VISA timeout defaults,
+perform return-to-local behavior, start background threads, or run an infinite
+recorder loop.
 
 Capture the current oscilloscope screen as a color PNG image:
 
@@ -390,6 +485,9 @@ validated on DSO-X 4024A.
 
 Multi-channel BYTE and WORD waveform capture is implemented, covered by
 hardware-free tests, and USB validated by user report on .
+
+Finite `capture-batch` waveform capture is implemented and covered by
+hardware-free tests. USB hardware validation remains pending for Phase 6A.
 
 Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and

@@ -362,6 +362,41 @@ def test_scope_parameterized_measurement_uses_capabilities_from_idn():
     assert backend.history == ["*IDN?", ":MEASure:VTIMe? 0,CHANnel1"]
 
 
+def test_scope_pair_measurement_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":MEASure:PHASe? CHANnel1,CHANnel2": "9.0E+1",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    result = scope.query_pair_measurement(1, 2, "phase")
+
+    assert result.valid is True
+    assert result.value == 90.0
+    assert result.reference_channel == 2
+    assert backend.history == ["*IDN?", ":MEASure:PHASe? CHANnel1,CHANnel2"]
+
+
+def test_scope_rejects_delay_pair_on_non_4000x_before_scpi():
+    backend = FakeBackend(
+        responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX3024A,MY1,07.20"}
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    try:
+        scope.query_pair_measurement(1, 2, "delay")
+    except ParameterValidationError:
+        pass
+    else:
+        raise AssertionError("Expected ParameterValidationError")
+
+    assert backend.history == ["*IDN?"]
+
+
 def test_scope_waveform_capture_uses_capabilities_from_idn():
     backend = FakeBackend(
         responses={
