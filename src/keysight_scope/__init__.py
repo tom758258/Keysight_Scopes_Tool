@@ -6,14 +6,20 @@ from .idn import IDN, detect_series, parse_idn
 from .scope import KeysightScope
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
+from .trigger import EdgeTriggerController, EdgeTriggerState
+from .waveform import WaveformCapture, WaveformPreamble
 
 __all__ = [
     "ChannelController",
+    "EdgeTriggerController",
+    "EdgeTriggerState",
     "IDN",
     "KeysightScope",
     "ScopeCapabilities",
     "SystemErrorEntry",
     "TimebaseController",
+    "WaveformCapture",
+    "WaveformPreamble",
     "capabilities_for_model",
     "detect_series",
     "parse_channel_display",

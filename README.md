@@ -19,6 +19,10 @@ Current implemented scope:
   `:CHANnel<n>:OFFSet`.
 - Set or query horizontal timebase scale and position with `:TIMebase:SCALe`
   and `:TIMebase:POSition`.
+- Configure or query analog edge trigger source, level, and slope with
+  `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
+- Capture one analog channel waveform in BYTE format and export CSV plus JSON
+  metadata, with an optional default timestamped CSV path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
@@ -161,6 +165,35 @@ Timebase position must be a finite number in seconds. These commands first
 query `*IDN?` to verify the connected scope model is recognized, then perform
 one `:SYSTem:ERRor?` post-check.
 
+Configure or query analog edge trigger source, level, and slope:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli edge-trigger --resource "USB0::...::INSTR" --source-channel 1 --level 0.25 --slope positive --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli edge-trigger --resource "USB0::...::INSTR" --query --log-scpi
+```
+
+The configure command sends `:TRIGger:MODE EDGE`, then sets source, level, and
+slope. Supported slopes are `positive`, `negative`, `either`, and `alternate`.
+Only analog channel sources are supported in this first trigger slice. Trigger
+level must be a finite number in volts.
+
+Capture one analog channel waveform:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --csv data\ch1.csv --log-scpi
+```
+
+The first capture slice uses BYTE waveform format and supports 1000 points only.
+If `--csv` is omitted, the CLI writes to `data/YYYY-MM-DD-HH-mm-ss.csv` using
+the `UTC+8` timezone. If `--csv PATH` is provided, it writes exactly to
+that path. Metadata JSON defaults to the same stem with `_meta.json` beside the
+CSV. The command performs one `:SYSTem:ERRor?` post-check. It does not change
+VISA timeout, acquisition mode, trigger waiting, waveform point mode, or
+return-to-local behavior. If the CSV or metadata file cannot be written because
+it is open in another program or the folder is not writable, the CLI reports a
+plain `error:` message instead of a Python traceback.
+
 ## Tests
 
 Normal tests are hardware-free:
@@ -181,5 +214,11 @@ Channel scale and offset control is implemented and covered by hardware-free
 tests, and USB validated on DSO-X 4024A.
 
 Timebase scale and position control is implemented and covered by hardware-free
-tests, and USB validated on DSO-X 4024A. Next code step: implement the first
-edge trigger control slice.
+tests, and USB validated on DSO-X 4024A.
+
+Analog edge trigger source, level, and slope control is implemented and covered
+by hardware-free tests, and USB validated on DSO-X 4024A.
+
+Single-channel BYTE waveform capture is implemented and covered by
+hardware-free tests, and USB validated on DSO-X 4024A. The CLI now defaults
+`capture` output to a timestamped CSV under `data` when `--csv` is omitted.

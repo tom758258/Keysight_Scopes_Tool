@@ -35,3 +35,11 @@ class ChannelResponseError(KeysightScopeError, ValueError):
 
 class TimebaseResponseError(KeysightScopeError, ValueError):
     """Raised when a timebase query response cannot be parsed."""
+
+
+class TriggerResponseError(KeysightScopeError, ValueError):
+    """Raised when a trigger query response cannot be parsed."""
+
+
+class WaveformResponseError(KeysightScopeError, ValueError):
+    """Raised when waveform data or metadata cannot be parsed."""

@@ -219,3 +219,79 @@ def test_scope_timebase_scale_and_position_use_capabilities_from_idn():
         ":TIMebase:POSition -0.0005",
         ":TIMebase:POSition?",
     ]
+
+
+def test_scope_edge_trigger_requires_known_capabilities():
+    scope = KeysightScope(FakeBackend())
+
+    try:
+        scope.configure_edge_trigger(source_channel=1, level_volts=0.0, slope="positive")
+    except ParameterValidationError as exc:
+        assert "query_idn" in str(exc)
+    else:
+        raise AssertionError("Expected ParameterValidationError")
+
+
+def test_scope_edge_trigger_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":TRIGger:EDGE:SOURce?": "CHAN1",
+            ":TRIGger:EDGE:LEVel?": "2.5E-1",
+            ":TRIGger:EDGE:SLOPe?": "POS",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    scope.configure_edge_trigger(source_channel=1, level_volts=0.25, slope="positive")
+    state = scope.query_edge_trigger()
+
+    assert state.source_channel == 1
+    assert state.level_volts == 0.25
+    assert state.slope == "positive"
+    assert backend.history == [
+        "*IDN?",
+        ":TRIGger:MODE EDGE",
+        ":TRIGger:EDGE:SOURce CHANnel1",
+        ":TRIGger:EDGE:LEVel 0.25",
+        ":TRIGger:EDGE:SLOPe POSitive",
+        ":TRIGger:EDGE:SOURce?",
+        ":TRIGger:EDGE:LEVel?",
+        ":TRIGger:EDGE:SLOPe?",
+    ]
+
+
+def test_scope_waveform_requires_known_capabilities():
+    scope = KeysightScope(FakeBackend())
+
+    try:
+        scope.capture_waveform_byte(1, points=1000)
+    except ParameterValidationError as exc:
+        assert "query_idn" in str(exc)
+    else:
+        raise AssertionError("Expected ParameterValidationError")
+
+
+def test_scope_waveform_capture_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":WAVeform:PREamble?": "0,0,2,1,1.0E-6,0,0,2.0E-2,-2.56,128",
+        },
+        binary_responses={":WAVeform:DATA?": [128, 129]},
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    capture = scope.capture_waveform_byte(1, points=1000)
+
+    assert capture.raw_samples == (128, 129)
+    assert backend.history == [
+        "*IDN?",
+        ":WAVeform:SOURce CHANnel1",
+        ":WAVeform:FORMat BYTE",
+        ":WAVeform:POINts 1000",
+        ":WAVeform:PREamble?",
+        ":WAVeform:DATA?",
+    ]

@@ -9,7 +9,9 @@ from .idn import IDN, parse_idn
 from .scpi import SCPIBackend, SCPIClient
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
+from .trigger import EdgeTriggerController, EdgeTriggerState
 from .visa_backend import VisaBackend
+from .waveform import WaveformCapture, WaveformController
 
 
 class KeysightScope:
@@ -126,6 +128,21 @@ class KeysightScope:
 
         return self._timebase_controller().query_position()
 
+    def configure_edge_trigger(self, source_channel: int, level_volts: float, slope: str) -> None:
+        """Configure analog edge trigger source, level, and slope."""
+
+        self._edge_trigger_controller().configure(source_channel, level_volts, slope)
+
+    def query_edge_trigger(self) -> EdgeTriggerState:
+        """Query analog edge trigger source, level, and slope."""
+
+        return self._edge_trigger_controller().query()
+
+    def capture_waveform_byte(self, channel: int, points: int = 1000) -> WaveformCapture:
+        """Capture one analog channel using BYTE waveform format."""
+
+        return self._waveform_controller().capture_byte(channel, points=points)
+
     def close(self) -> None:
         """Close the underlying backend."""
 
@@ -142,8 +159,22 @@ class KeysightScope:
         if self.capabilities is None:
             raise ParameterValidationError(
                 "Timebase operations require known capabilities; call query_idn() first."
-            )
+        )
         return TimebaseController(self.scpi)
+
+    def _edge_trigger_controller(self) -> EdgeTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Edge trigger operations require known capabilities; call query_idn() first."
+            )
+        return EdgeTriggerController(self.scpi, self.capabilities)
+
+    def _waveform_controller(self) -> WaveformController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Waveform operations require known capabilities; call query_idn() first."
+            )
+        return WaveformController(self.scpi, self.capabilities)
 
     def __enter__(self) -> "KeysightScope":
         return self

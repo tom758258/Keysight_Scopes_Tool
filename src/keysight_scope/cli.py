@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timedelta, timezone
 import logging
 import os
+from pathlib import Path
 import sys
 from typing import Sequence
 
@@ -30,13 +32,36 @@ from .timebase import (
     validate_timebase_position,
     validate_timebase_scale,
 )
+from .trigger import (
+    edge_trigger_level_command,
+    edge_trigger_level_query,
+    edge_trigger_slope_command,
+    edge_trigger_slope_query,
+    edge_trigger_source_command,
+    edge_trigger_source_query,
+    normalize_edge_slope,
+    trigger_mode_edge_command,
+    validate_trigger_level,
+)
 from .visa_backend import list_visa_resources
+from .waveform import (
+    SUPPORTED_BYTE_POINTS,
+    validate_waveform_points,
+    waveform_data_query,
+    waveform_format_byte_command,
+    waveform_points_command,
+    waveform_preamble_query,
+    waveform_source_command,
+    write_waveform_csv,
+    write_waveform_metadata,
+)
 
 _CONTROL_COMMANDS = {
     "run": ("run", ":RUN"),
     "stop": ("stop", ":STOP"),
     "single": ("single", ":SINGle"),
 }
+_CAPTURE_DEFAULT_TIMEZONE = timezone(timedelta(hours=8), name="UTC+8")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -64,6 +89,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_timebase_scale(args)
         if args.command == "timebase-position":
             return _cmd_timebase_position(args)
+        if args.command == "edge-trigger":
+            return _cmd_edge_trigger(args)
+        if args.command == "capture":
+            return _cmd_capture(args)
     except KeysightScopeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -252,6 +281,66 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="timebase_position_query",
         action="store_true",
         help="query the horizontal position",
+    )
+
+    edge_trigger_parser = subparsers.add_parser(
+        "edge-trigger",
+        help="configure or query analog edge trigger settings",
+    )
+    _add_scope_connection_args(edge_trigger_parser)
+    edge_trigger_parser.add_argument(
+        "--query",
+        dest="edge_query",
+        action="store_true",
+        help="query analog edge trigger source, level, and slope",
+    )
+    edge_trigger_parser.add_argument(
+        "--source-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the edge trigger source",
+    )
+    edge_trigger_parser.add_argument(
+        "--level",
+        type=_trigger_level_float,
+        default=None,
+        help="edge trigger level in volts",
+    )
+    edge_trigger_parser.add_argument(
+        "--slope",
+        choices=("positive", "negative", "either", "alternate"),
+        default=None,
+        help="edge trigger slope",
+    )
+
+    capture_parser = subparsers.add_parser(
+        "capture",
+        help="capture one analog channel waveform to CSV and metadata JSON",
+    )
+    _add_scope_connection_args(capture_parser)
+    capture_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    capture_parser.add_argument(
+        "--points",
+        type=_waveform_points_arg,
+        default=1000,
+        help="waveform point count; first capture slice supports 1000",
+    )
+    capture_parser.add_argument(
+        "--csv",
+        dest="csv_path",
+        default=None,
+        help="output CSV path; defaults to data/<UTC+8 timestamp>.csv",
+    )
+    capture_parser.add_argument(
+        "--meta",
+        dest="meta_path",
+        default=None,
+        help="output metadata JSON path; defaults to <csv stem>_meta.json",
     )
     return parser
 
@@ -540,6 +629,134 @@ def _cmd_timebase_position(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
+def _cmd_edge_trigger(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.edge_query:
+            if any(value is not None for value in (args.source_channel, args.level, args.slope)):
+                raise KeysightScopeError(
+                    "--query cannot be combined with --source-channel, --level, or --slope"
+                )
+            print("Planned query: edge trigger source, level, and slope")
+            state = scope.query_edge_trigger()
+            print(f"Command: {edge_trigger_source_query()}")
+            print(f"Source: CH{state.source_channel}")
+            print(f"Command: {edge_trigger_level_query()}")
+            print(f"Level V: {state.level_volts:.12g}")
+            print(f"Command: {edge_trigger_slope_query()}")
+            print(f"Slope: {state.slope}")
+        else:
+            if args.source_channel is None or args.level is None or args.slope is None:
+                raise KeysightScopeError(
+                    "edge-trigger requires --source-channel, --level, and --slope unless --query is used"
+                )
+            channel = validate_analog_channel(args.source_channel, scope.capabilities)
+            level = validate_trigger_level(args.level)
+            slope = normalize_edge_slope(args.slope)
+            print(
+                f"Planned change: edge trigger CH{channel}, level {level:.12g} V, "
+                f"slope {args.slope}"
+            )
+            scope.configure_edge_trigger(channel, level, slope)
+            print(f"Command: {trigger_mode_edge_command()}")
+            print(f"Command: {edge_trigger_source_command(channel)}")
+            print(f"Command: {edge_trigger_level_command(level)}")
+            print(f"Command: {edge_trigger_slope_command(slope)}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_capture(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    csv_path = Path(args.csv_path) if args.csv_path is not None else _default_capture_csv_path()
+    meta_path = Path(args.meta_path) if args.meta_path is not None else csv_path.with_name(
+        f"{csv_path.stem}_meta.json"
+    )
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        points = validate_waveform_points(args.points, scope.capabilities)
+        print(f"Planned capture: CH{channel}, {points} points, BYTE format")
+        capture = scope.capture_waveform_byte(channel, points=points)
+        print(f"Command: {waveform_source_command(channel)}")
+        print(f"Command: {waveform_format_byte_command()}")
+        print(f"Command: {waveform_points_command(points)}")
+        print(f"Command: {waveform_preamble_query()}")
+        print(f"Command: {waveform_data_query()}")
+        written_csv = _write_capture_csv(capture, csv_path)
+        written_meta = _write_capture_metadata(capture, meta_path, idn=idn, resource=resource)
+        print(f"Actual points: {len(capture.raw_samples)}")
+        print(f"CSV: {written_csv}")
+        print(f"Metadata: {written_meta}")
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _default_capture_csv_path(now: datetime | None = None) -> Path:
+    if now is None:
+        capture_time = datetime.now(_CAPTURE_DEFAULT_TIMEZONE)
+    elif now.tzinfo is None:
+        capture_time = now.replace(tzinfo=_CAPTURE_DEFAULT_TIMEZONE)
+    else:
+        capture_time = now.astimezone(_CAPTURE_DEFAULT_TIMEZONE)
+
+    return Path("data") / capture_time.strftime("%Y-%m-%d-%H-%M-%S.csv")
+
+
+def _write_capture_csv(capture, csv_path: Path) -> Path:
+    try:
+        return write_waveform_csv(capture, csv_path)
+    except OSError as exc:
+        raise KeysightScopeError(_format_output_file_error("CSV", csv_path, exc)) from exc
+
+
+def _write_capture_metadata(capture, meta_path: Path, *, idn, resource: str) -> Path:
+    try:
+        return write_waveform_metadata(capture, meta_path, idn=idn, resource=resource)
+    except OSError as exc:
+        raise KeysightScopeError(_format_output_file_error("metadata JSON", meta_path, exc)) from exc
+
+
+def _format_output_file_error(file_kind: str, path: Path, exc: OSError) -> str:
+    reason = exc.strerror or str(exc)
+    message = f"could not write waveform {file_kind} file {path}: {reason}"
+    if isinstance(exc, PermissionError):
+        message += (
+            ". The file may be open in another program, such as Excel, "
+            "or the folder may not be writable."
+        )
+    return message
+
+
 def _print_capabilities(capabilities: ScopeCapabilities | None) -> None:
     if capabilities is None:
         print("Capabilities: unavailable for this model")
@@ -619,6 +836,30 @@ def _positive_timebase_float(value: str) -> float:
         return validate_timebase_scale(parsed)
     except KeysightScopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _trigger_level_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    try:
+        return validate_trigger_level(parsed)
+    except KeysightScopeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _waveform_points_arg(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed not in SUPPORTED_BYTE_POINTS:
+        supported = ", ".join(str(point_count) for point_count in SUPPORTED_BYTE_POINTS)
+        raise argparse.ArgumentTypeError(
+            f"first waveform capture slice supports only these point counts: {supported}"
+        )
+    return parsed
 
 
 def _print_session_header(scope: KeysightScope, resource: str) -> None:

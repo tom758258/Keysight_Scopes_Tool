@@ -6,6 +6,7 @@ from keysight_scope.errors import KeysightScopeError
 from keysight_scope.idn import parse_idn
 from keysight_scope.status import SystemErrorEntry
 from keysight_scope.visa_backend import VisaResourceListing
+from keysight_scope.waveform import WaveformCapture, WaveformPreamble
 
 
 def test_list_resources_cli_prints_backend_and_resources(monkeypatch, capsys):
@@ -973,3 +974,437 @@ def test_timebase_position_cli_queries_position_then_checks_error(monkeypatch, c
     assert "Planned query: timebase position" in out
     assert "Command: :TIMebase:POSition?" in out
     assert "Timebase position s: -0.0005" in out
+
+
+def test_edge_trigger_cli_configures_edge_trigger_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def configure_edge_trigger(self, source_channel, level_volts, slope):
+            self.calls.append(("configure_edge_trigger", source_channel, level_volts, slope))
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "edge-trigger",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--source-channel",
+                "1",
+                "--level",
+                "0.25",
+                "--slope",
+                "positive",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("configure_edge_trigger", 1, 0.25, "POSitive"),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Planned change: edge trigger CH1, level 0.25 V, slope positive" in out
+    assert "Command: :TRIGger:MODE EDGE" in out
+    assert "Command: :TRIGger:EDGE:SOURce CHANnel1" in out
+    assert "Command: :TRIGger:EDGE:LEVel 0.25" in out
+    assert "Command: :TRIGger:EDGE:SLOPe POSitive" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_edge_trigger_cli_queries_edge_trigger_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyState:
+        source_channel = 1
+        level_volts = 0.25
+        slope = "positive"
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_edge_trigger(self):
+            self.calls.append("query_edge_trigger")
+            return DummyState()
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert cli.main(["edge-trigger", "--resource", "USB0::FAKE::INSTR", "--query"]) == 0
+
+    assert scope.calls == ["query_idn", "query_edge_trigger", "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: edge trigger source, level, and slope" in out
+    assert "Command: :TRIGger:EDGE:SOURce?" in out
+    assert "Source: CH1" in out
+    assert "Command: :TRIGger:EDGE:LEVel?" in out
+    assert "Level V: 0.25" in out
+    assert "Command: :TRIGger:EDGE:SLOPe?" in out
+    assert "Slope: positive" in out
+
+
+def test_edge_trigger_cli_rejects_missing_configuration_args(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert cli.main(["edge-trigger", "--resource", "USB0::FAKE::INSTR", "--source-channel", "1"]) == 1
+
+    assert scope.calls == ["query_idn"]
+    err = capsys.readouterr().err
+    assert "requires --source-channel, --level, and --slope" in err
+
+
+def test_capture_cli_writes_csv_and_metadata_then_checks_error(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveform_byte(self, channel, points=1000):
+            self.calls.append(("capture_waveform_byte", channel, points))
+            preamble = WaveformPreamble(
+                raw="0,0,2,1,1.0E-6,0,0,2.0E-2,-2.56,128",
+                format_code=0,
+                type_code=0,
+                points=2,
+                count=1,
+                x_increment=1e-6,
+                x_origin=0.0,
+                x_reference=0,
+                y_increment=0.02,
+                y_origin=-2.56,
+                y_reference=128,
+            )
+            return WaveformCapture(
+                channel=channel,
+                requested_points=points,
+                format_name="BYTE",
+                preamble=preamble,
+                raw_samples=(128, 129),
+                time_s=(0.0, 1e-6),
+                voltage_v=(-2.56, -2.54),
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--points",
+                "1000",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("capture_waveform_byte", 1, 1000), "query_system_error"]
+    assert (tmp_path / "capture_meta.json").exists()
+    assert csv_path.read_text(encoding="utf-8").splitlines()[0] == "time_s,ch1_v"
+    out = capsys.readouterr().out
+    assert "Planned capture: CH1, 1000 points, BYTE format" in out
+    assert "Command: :WAVeform:SOURce CHANnel1" in out
+    assert "Command: :WAVeform:FORMat BYTE" in out
+    assert "Command: :WAVeform:POINts 1000" in out
+    assert "Command: :WAVeform:PREamble?" in out
+    assert "Command: :WAVeform:DATA?" in out
+    assert "Actual points: 2" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_capture_cli_uses_timestamped_default_csv_when_omitted(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveform_byte(self, channel, points=1000):
+            self.calls.append(("capture_waveform_byte", channel, points))
+            preamble = WaveformPreamble(
+                raw="0,0,2,1,1.0E-6,0,0,2.0E-2,-2.56,128",
+                format_code=0,
+                type_code=0,
+                points=2,
+                count=1,
+                x_increment=1e-6,
+                x_origin=0.0,
+                x_reference=0,
+                y_increment=0.02,
+                y_origin=-2.56,
+                y_reference=128,
+            )
+            return WaveformCapture(
+                channel=channel,
+                requested_points=points,
+                format_name="BYTE",
+                preamble=preamble,
+                raw_samples=(128, 129),
+                time_s=(0.0, 1e-6),
+                voltage_v=(-2.56, -2.54),
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    default_csv_path = tmp_path / "data" / "2026-05-12-14-30-05.csv"
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    monkeypatch.setattr(cli, "_default_capture_csv_path", lambda: default_csv_path)
+
+    assert cli.main(["capture", "--resource", "USB0::FAKE::INSTR", "--channel", "1"]) == 0
+
+    assert scope.calls == ["query_idn", ("capture_waveform_byte", 1, 1000), "query_system_error"]
+    assert default_csv_path.exists()
+    assert (tmp_path / "data" / "2026-05-12-14-30-05_meta.json").exists()
+    assert default_csv_path.read_text(encoding="utf-8").splitlines()[0] == "time_s,ch1_v"
+    out = capsys.readouterr().out
+    assert f"CSV: {default_csv_path}" in out
+    assert f"Metadata: {tmp_path / 'data' / '2026-05-12-14-30-05_meta.json'}" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_capture_cli_reports_csv_permission_error_without_traceback(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveform_byte(self, channel, points=1000):
+            self.calls.append(("capture_waveform_byte", channel, points))
+            preamble = WaveformPreamble(
+                raw="0,0,2,1,1.0E-6,0,0,2.0E-2,-2.56,128",
+                format_code=0,
+                type_code=0,
+                points=2,
+                count=1,
+                x_increment=1e-6,
+                x_origin=0.0,
+                x_reference=0,
+                y_increment=0.02,
+                y_origin=-2.56,
+                y_reference=128,
+            )
+            return WaveformCapture(
+                channel=channel,
+                requested_points=points,
+                format_name="BYTE",
+                preamble=preamble,
+                raw_samples=(128, 129),
+                time_s=(0.0, 1e-6),
+                voltage_v=(-2.56, -2.54),
+            )
+
+    scope = DummyScope()
+    csv_path = tmp_path / "capture.csv"
+
+    def fake_write_waveform_csv(capture, path):
+        del capture
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    monkeypatch.setattr(cli, "write_waveform_csv", fake_write_waveform_csv)
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn", ("capture_waveform_byte", 1, 1000)]
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert "could not write waveform CSV file" in captured.err
+    assert str(csv_path) in captured.err
+    assert "Permission denied" in captured.err
+    assert "file may be open in another program" in captured.err
+    assert "Excel" in captured.err
+
+
+def test_capture_cli_rejects_channel_above_detected_capabilities(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4022A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "3",
+                "--csv",
+                str(tmp_path / "capture.csv"),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    err = capsys.readouterr().err
+    assert "channel 3 is not available" in err
