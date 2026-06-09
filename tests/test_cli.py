@@ -2657,6 +2657,33 @@ def test_screenshot_cli_reports_png_permission_error_without_traceback(monkeypat
             ":MEASure:AREA? CHANnel1",
             "Value V*s: 1.2e-06",
         ),
+        (
+            "acrms",
+            "ac_rms",
+            0.6,
+            "6.00E-1",
+            "V",
+            ":MEASure:VRMS? DISPlay,AC,CHANnel1",
+            "Value V: 0.6",
+        ),
+        (
+            "x-at-max",
+            "x_at_max",
+            0.00000125,
+            "1.25E-6",
+            "s",
+            ":MEASure:XMAX? CHANnel1",
+            "Value s: 1.25e-06",
+        ),
+        (
+            "pedges",
+            "positive_edges",
+            4.0,
+            "4.0E+0",
+            "count",
+            ":MEASure:PEDGes? CHANnel1",
+            "Value count: 4",
+        ),
     ],
 )
 def test_measure_cli_queries_new_items_then_checks_error(
@@ -2707,6 +2734,8 @@ def test_measure_cli_queries_new_items_then_checks_error(
         ("overshoot", "overshoot", "%", ":MEASure:OVERshoot? CHANnel1"),
         ("positive_width", "positive_width", "s", ":MEASure:PWIDth? CHANnel1"),
         ("area", "area", "V*s", ":MEASure:AREA? CHANnel1"),
+        ("x_at_min", "x_at_min", "s", ":MEASure:XMIN? CHANnel1"),
+        ("negative-edges", "negative_edges", "count", ":MEASure:NEDGes? CHANnel1"),
     ],
 )
 def test_measure_cli_reports_invalid_sentinel_for_new_items(

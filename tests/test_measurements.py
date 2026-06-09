@@ -21,8 +21,11 @@ def test_measurement_query_uses_keysight_measure_syntax():
     assert measurement_query("period", 1) == ":MEASure:PERiod? CHANnel1"
     assert measurement_query("vavg", 1) == ":MEASure:VAVerage? DISPlay,CHANnel1"
     assert measurement_query("vrms", 1) == ":MEASure:VRMS? DISPlay,DC,CHANnel1"
+    assert measurement_query("ac_rms", 1) == ":MEASure:VRMS? DISPlay,AC,CHANnel1"
     assert measurement_query("minimum", 1) == ":MEASure:VMIN? CHANnel1"
     assert measurement_query("maximum", 1) == ":MEASure:VMAX? CHANnel1"
+    assert measurement_query("x_at_max", 1) == ":MEASure:XMAX? CHANnel1"
+    assert measurement_query("x_at_min", 1) == ":MEASure:XMIN? CHANnel1"
     assert measurement_query("rise_time", 1) == ":MEASure:RISetime? CHANnel1"
     assert measurement_query("fall_time", 1) == ":MEASure:FALLtime? CHANnel1"
     assert measurement_query("amplitude", 1) == ":MEASure:VAMPlitude? CHANnel1"
@@ -35,8 +38,18 @@ def test_measurement_query_uses_keysight_measure_syntax():
     assert measurement_query("duty_cycle", 1) == ":MEASure:DUTYcycle? CHANnel1"
     assert measurement_query("negative_duty_cycle", 1) == ":MEASure:NDUTy? CHANnel1"
     assert measurement_query("area", 1) == ":MEASure:AREA? CHANnel1"
+    assert measurement_query("positive_edges", 1) == ":MEASure:PEDGes? CHANnel1"
+    assert measurement_query("negative_edges", 1) == ":MEASure:NEDGes? CHANnel1"
+    assert measurement_query("positive_pulses", 1) == ":MEASure:PPULses? CHANnel1"
+    assert measurement_query("negative_pulses", 1) == ":MEASure:NPULses? CHANnel1"
+    assert measurement_query("acrms", 1) == ":MEASure:VRMS? DISPlay,AC,CHANnel1"
+    assert measurement_query("vrms_ac", 1) == ":MEASure:VRMS? DISPlay,AC,CHANnel1"
     assert measurement_query("vmin", 1) == ":MEASure:VMIN? CHANnel1"
     assert measurement_query("vmax", 1) == ":MEASure:VMAX? CHANnel1"
+    assert measurement_query("xmax", 1) == ":MEASure:XMAX? CHANnel1"
+    assert measurement_query("x-at-max", 1) == ":MEASure:XMAX? CHANnel1"
+    assert measurement_query("xmin", 1) == ":MEASure:XMIN? CHANnel1"
+    assert measurement_query("x-at-min", 1) == ":MEASure:XMIN? CHANnel1"
     assert measurement_query("risetime", 1) == ":MEASure:RISetime? CHANnel1"
     assert measurement_query("falltime", 1) == ":MEASure:FALLtime? CHANnel1"
     assert measurement_query("vamp", 1) == ":MEASure:VAMPlitude? CHANnel1"
@@ -54,14 +67,28 @@ def test_measurement_query_uses_keysight_measure_syntax():
     assert measurement_query("nduty", 1) == ":MEASure:NDUTy? CHANnel1"
     assert measurement_query("negative-duty", 1) == ":MEASure:NDUTy? CHANnel1"
     assert measurement_query("negative-duty-cycle", 1) == ":MEASure:NDUTy? CHANnel1"
+    assert measurement_query("pedges", 1) == ":MEASure:PEDGes? CHANnel1"
+    assert measurement_query("positive-edges", 1) == ":MEASure:PEDGes? CHANnel1"
+    assert measurement_query("nedges", 1) == ":MEASure:NEDGes? CHANnel1"
+    assert measurement_query("negative-edges", 1) == ":MEASure:NEDGes? CHANnel1"
+    assert measurement_query("ppulses", 1) == ":MEASure:PPULses? CHANnel1"
+    assert measurement_query("positive-pulses", 1) == ":MEASure:PPULses? CHANnel1"
+    assert measurement_query("npulses", 1) == ":MEASure:NPULses? CHANnel1"
+    assert measurement_query("negative-pulses", 1) == ":MEASure:NPULses? CHANnel1"
 
 
 def test_measurement_item_normalization_accepts_aliases():
     assert normalize_measurement_item("freq") == "frequency"
+    assert normalize_measurement_item("acrms") == "ac_rms"
+    assert normalize_measurement_item("vrms_ac") == "ac_rms"
     assert normalize_measurement_item("min") == "minimum"
     assert normalize_measurement_item("vmin") == "minimum"
     assert normalize_measurement_item("max") == "maximum"
     assert normalize_measurement_item("vmax") == "maximum"
+    assert normalize_measurement_item("xmax") == "x_at_max"
+    assert normalize_measurement_item("x-at-max") == "x_at_max"
+    assert normalize_measurement_item("xmin") == "x_at_min"
+    assert normalize_measurement_item("x-at-min") == "x_at_min"
     assert normalize_measurement_item("risetime") == "rise_time"
     assert normalize_measurement_item("rise-time") == "rise_time"
     assert normalize_measurement_item("falltime") == "fall_time"
@@ -81,13 +108,24 @@ def test_measurement_item_normalization_accepts_aliases():
     assert normalize_measurement_item("nduty") == "negative_duty_cycle"
     assert normalize_measurement_item("negative-duty") == "negative_duty_cycle"
     assert normalize_measurement_item("negative-duty-cycle") == "negative_duty_cycle"
+    assert normalize_measurement_item("pedges") == "positive_edges"
+    assert normalize_measurement_item("positive-edges") == "positive_edges"
+    assert normalize_measurement_item("nedges") == "negative_edges"
+    assert normalize_measurement_item("negative-edges") == "negative_edges"
+    assert normalize_measurement_item("ppulses") == "positive_pulses"
+    assert normalize_measurement_item("positive-pulses") == "positive_pulses"
+    assert normalize_measurement_item("npulses") == "negative_pulses"
+    assert normalize_measurement_item("negative-pulses") == "negative_pulses"
     assert measurement_unit("frequency") == "Hz"
     assert measurement_unit("period") == "s"
     assert measurement_unit("vpp") == "V"
     assert measurement_unit("vavg") == "V"
     assert measurement_unit("vrms") == "V"
+    assert measurement_unit("ac_rms") == "V"
     assert measurement_unit("minimum") == "V"
     assert measurement_unit("maximum") == "V"
+    assert measurement_unit("x_at_max") == "s"
+    assert measurement_unit("x_at_min") == "s"
     assert measurement_unit("rise_time") == "s"
     assert measurement_unit("fall_time") == "s"
     assert measurement_unit("amplitude") == "V"
@@ -100,6 +138,10 @@ def test_measurement_item_normalization_accepts_aliases():
     assert measurement_unit("duty_cycle") == "%"
     assert measurement_unit("negative_duty_cycle") == "%"
     assert measurement_unit("area") == "V*s"
+    assert measurement_unit("positive_edges") == "count"
+    assert measurement_unit("negative_edges") == "count"
+    assert measurement_unit("positive_pulses") == "count"
+    assert measurement_unit("negative_pulses") == "count"
 
 
 def test_measurement_item_normalization_rejects_unknown_item():
@@ -134,6 +176,8 @@ def test_parse_measurement_result_marks_invalid_sentinel_without_losing_raw(raw)
         ("overshoot", "%"),
         ("positive_width", "s"),
         ("area", "V*s"),
+        ("x_at_max", "s"),
+        ("positive_edges", "count"),
     ],
 )
 def test_parse_measurement_result_preserves_invalid_sentinel_for_new_units(item, unit):
@@ -169,8 +213,11 @@ def test_measurement_controller_queries_vpp_for_channel():
         ("period", "1.25E-4", 0.000125, [":MEASure:PERiod? CHANnel1"]),
         ("vavg", "-2.5E-2", -0.025, [":MEASure:VAVerage? DISPlay,CHANnel1"]),
         ("vrms", "7.07E-1", 0.707, [":MEASure:VRMS? DISPlay,DC,CHANnel1"]),
+        ("ac_rms", "6.00E-1", 0.6, [":MEASure:VRMS? DISPlay,AC,CHANnel1"]),
         ("minimum", "-1.25E+0", -1.25, [":MEASure:VMIN? CHANnel1"]),
         ("maximum", "1.25E+0", 1.25, [":MEASure:VMAX? CHANnel1"]),
+        ("x_at_max", "1.25E-6", 0.00000125, [":MEASure:XMAX? CHANnel1"]),
+        ("x_at_min", "2.50E-6", 0.0000025, [":MEASure:XMIN? CHANnel1"]),
         ("rise_time", "1.00E-6", 0.000001, [":MEASure:RISetime? CHANnel1"]),
         ("fall_time", "1.50E-6", 0.0000015, [":MEASure:FALLtime? CHANnel1"]),
         ("amplitude", "1.20E+0", 1.2, [":MEASure:VAMPlitude? CHANnel1"]),
@@ -183,6 +230,10 @@ def test_measurement_controller_queries_vpp_for_channel():
         ("duty_cycle", "4.80E+1", 48.0, [":MEASure:DUTYcycle? CHANnel1"]),
         ("negative_duty_cycle", "5.20E+1", 52.0, [":MEASure:NDUTy? CHANnel1"]),
         ("area", "1.20E-6", 0.0000012, [":MEASure:AREA? CHANnel1"]),
+        ("positive_edges", "4", 4.0, [":MEASure:PEDGes? CHANnel1"]),
+        ("negative_edges", "4", 4.0, [":MEASure:NEDGes? CHANnel1"]),
+        ("positive_pulses", "2", 2.0, [":MEASure:PPULses? CHANnel1"]),
+        ("negative_pulses", "2", 2.0, [":MEASure:NPULses? CHANnel1"]),
     ],
 )
 def test_measurement_controller_queries_additional_read_only_items(

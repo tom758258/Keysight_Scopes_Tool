@@ -223,8 +223,11 @@ Query one read-only measurement:
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item period --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item vavg --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item vrms --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item ac_rms --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item minimum --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item maximum --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item x_at_max --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item x_at_min --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item rise_time --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item fall_time --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item amplitude --log-scpi
@@ -237,27 +240,41 @@ Query one read-only measurement:
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item duty_cycle --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_duty_cycle --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item area --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item positive_edges --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_edges --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item positive_pulses --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_pulses --log-scpi
 ```
 
 The current measurement slice supports `vpp`, `frequency` (`freq` alias),
-`period`, `vavg`, `vrms`, `minimum` (`min` and `vmin` aliases), `maximum`
-(`max` and `vmax` aliases), `rise_time` (`risetime` and `rise-time` aliases),
+`period`, `vavg`, `vrms`, `ac_rms` (`acrms` and `vrms_ac` aliases),
+`minimum` (`min` and `vmin` aliases), `maximum` (`max` and `vmax` aliases),
+`x_at_max` (`xmax` and `x-at-max` aliases), `x_at_min` (`xmin` and
+`x-at-min` aliases), `rise_time` (`risetime` and `rise-time` aliases),
 `fall_time` (`falltime` and `fall-time` aliases), `amplitude` (`vamp` alias),
 `top` (`vtop` alias), `base` (`vbase` alias), `overshoot`, `preshoot`,
 `positive_width` (`pwidth`, `positive-width`, and `pwid` aliases),
 `negative_width` (`nwidth`, `negative-width`, and `nwid` aliases),
 `duty_cycle` (`duty`, `dutycycle`, and `duty-cycle` aliases), and
 `negative_duty_cycle` (`nduty`, `negative-duty`, and `negative-duty-cycle`
-aliases), and `area`. The command first queries `*IDN?`, validates the analog channel,
-sends one read-only measurement query such as `:MEASure:VPP? CHANnel1`, and
-performs one `:SYSTem:ERRor?` post-check. The added item queries are
+aliases), `area`, `positive_edges` (`pedges` and `positive-edges` aliases),
+`negative_edges` (`nedges` and `negative-edges` aliases), `positive_pulses`
+(`ppulses` and `positive-pulses` aliases), and `negative_pulses` (`npulses`
+and `negative-pulses` aliases). The command first queries `*IDN?`, validates
+the analog channel, sends one read-only measurement query such as
+`:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?` post-check. The
+added item queries are
+`:MEASure:VRMS? DISPlay,AC,CHANnelN`, `:MEASure:XMAX? CHANnelN`,
+`:MEASure:XMIN? CHANnelN`,
 `:MEASure:VAMPlitude? CHANnelN`, `:MEASure:VTOP? CHANnelN`,
 `:MEASure:VBASe? CHANnelN`, `:MEASure:OVERshoot? CHANnelN`,
 `:MEASure:PREShoot? CHANnelN`, `:MEASure:PWIDth? CHANnelN`,
 `:MEASure:NWIDth? CHANnelN`, `:MEASure:DUTYcycle? CHANnelN`,
-`:MEASure:NDUTy? CHANnelN`, and `:MEASure:AREA? CHANnelN`. It does not change
-acquisition mode, trigger settings, measurement source, measurement window,
-display state, VISA timeout, or return-to-local behavior.
+`:MEASure:NDUTy? CHANnelN`, `:MEASure:AREA? CHANnelN`,
+`:MEASure:PEDGes? CHANnelN`, `:MEASure:NEDGes? CHANnelN`,
+`:MEASure:PPULses? CHANnelN`, and `:MEASure:NPULses? CHANnelN`. It does not
+change acquisition mode, trigger settings, measurement source, measurement
+window, display state, VISA timeout, or return-to-local behavior.
 Invalid measurement sentinels such as `9.9E+37` are printed as
 `Value: unavailable` with `Valid: false` and the original raw response
 preserved; the CLI exits non-zero so automation does not treat the unavailable
@@ -373,8 +390,11 @@ base, overshoot, preshoot, positive width, negative width, duty cycle, and
 negative duty cycle measurement queries are implemented and covered by
 hardware-free tests; USB CH1 validation passed by user.
 Read-only area measurement query is implemented and covered by hardware-free
-tests; hardware validation remains USB CH1 first. LAN retest is deferred until
-a LAN environment is available.
+tests; USB CH1 validation passed by user. Read-only AC
+RMS, X-at-max, X-at-min, edge count, and pulse count measurement queries are
+implemented and covered by hardware-free tests; USB CH1 validation passed by
+user. LAN retest is deferred until a LAN environment is
+available.
 
 Screenshot PNG capture is implemented and covered by hardware-free tests. USB
 hardware validation passed by user.
