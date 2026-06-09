@@ -350,7 +350,9 @@ def test_verify_cli_uses_environment_resource(monkeypatch, capsys):
     assert "Series: unknown" in out
 
 
-def test_verify_cli_requires_resource(capsys):
+def test_verify_cli_requires_resource(monkeypatch, capsys):
+    monkeypatch.delenv("KEYSIGHT_SCOPE_RESOURCE", raising=False)
+
     assert cli.main(["verify"]) == 2
 
     err = capsys.readouterr().err
@@ -1713,6 +1715,139 @@ def test_capture_cli_writes_multi_channel_csv_and_metadata(monkeypatch, capsys, 
     assert 'System error: +0, "No error"' in out
 
 
+def test_capture_cli_channel_all_expands_to_detected_model_channels(
+    monkeypatch, capsys, tmp_path
+):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveforms_byte(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_byte", channels, points))
+            return MultiChannelWaveformCapture(
+                tuple(_byte_waveform_capture(channel, points=points) for channel in channels)
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "all",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("capture_waveforms_byte", (1, 2, 3, 4), 1000),
+        "query_system_error",
+    ]
+    assert csv_path.read_text(encoding="utf-8").splitlines()[0] == (
+        "time_s,ch1_v,ch2_v,ch3_v,ch4_v"
+    )
+    out = capsys.readouterr().out
+    assert "Planned capture: CH1, CH2, CH3, CH4, 1000 points, BYTE format" in out
+    assert "Actual points: CH1=2, CH2=2, CH3=2, CH4=2" in out
+
+
+def test_capture_cli_channel_all_is_case_insensitive_and_supports_word(
+    monkeypatch, capsys, tmp_path
+):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4022A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+
+        def capture_waveforms_word(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_word", channels, points))
+            return MultiChannelWaveformCapture(
+                tuple(_word_waveform_capture(channel, points=points) for channel in channels)
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "ALL",
+                "--format",
+                "word",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("capture_waveforms_word", (1, 2), 1000),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Planned capture: CH1, CH2, 1000 points, WORD format" in out
+    assert out.count("Command: :WAVeform:FORMat WORD") == 2
+
+
 def test_capture_cli_multi_channel_word_uses_plural_api(monkeypatch, capsys, tmp_path):
     class DummyBackend:
         backend = "backend"
@@ -1911,6 +2046,67 @@ def test_capture_cli_rejects_duplicate_multi_channel_before_capture(monkeypatch,
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
     assert "duplicate waveform channels are not allowed" in err
+
+
+def test_capture_cli_rejects_channel_all_combined_with_explicit_channel(
+    monkeypatch, capsys, tmp_path
+):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveforms_byte(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_byte", channels, points))
+            raise AssertionError("capture should not be called")
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "all",
+                "--channel",
+                "1",
+                "--csv",
+                str(tmp_path / "capture.csv"),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    err = capsys.readouterr().err
+    assert "--channel all cannot be combined with explicit channel numbers" in err
+
+
+def test_capture_cli_rejects_unknown_channel_token():
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["capture", "--resource", "USB0::FAKE::INSTR", "--channel", "abc"])
+
+    assert excinfo.value.code == 2
 
 
 def test_capture_cli_rejects_invalid_multi_channel_before_capture(monkeypatch, capsys, tmp_path):

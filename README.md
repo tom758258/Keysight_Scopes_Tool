@@ -270,14 +270,18 @@ Capture waveform data:
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 10000 --csv data\ch1.csv --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --format word --csv data\ch1_word.csv --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel all --points 1000 --csv data\all_channels.csv --log-scpi
 ```
 
 The current capture slice supports BYTE and WORD waveform formats with 1000,
 5000, and 10000 requested points. BYTE remains the default. WORD capture sets
 `:WAVeform:BYTeorder MSBFirst` and `:WAVeform:UNSigned ON` before reading data.
 Repeat `--channel` to capture multiple analog channels sequentially in one
-session. Multi-channel CSV output uses the first channel's `time_s` axis and
+session. Use `--channel all` to capture every analog channel reported by the
+detected model capability profile; this does not query or filter by displayed
+channels. Multi-channel CSV output uses the first channel's `time_s` axis and
 writes voltage columns in requested order, such as `time_s,ch1_v,ch2_v`.
+`--channel all` cannot be combined with explicit channel numbers.
 Duplicate channels and channels outside the detected model capabilities are
 rejected before waveform SCPI is sent. If the captured channel time axes or
 sample counts do not match, the command fails instead of writing a misleading

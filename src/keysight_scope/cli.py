@@ -460,15 +460,18 @@ def _build_parser() -> argparse.ArgumentParser:
 
     capture_parser = subparsers.add_parser(
         "capture",
-        help="capture one analog channel waveform to CSV and metadata JSON",
+        help="capture one or more analog channel waveforms to CSV and metadata JSON",
     )
     _add_scope_connection_args(capture_parser)
     capture_parser.add_argument(
         "--channel",
-        type=_positive_int,
+        type=_capture_channel_arg,
         action="append",
         required=True,
-        help="analog channel number; repeat for aligned multi-channel CSV output",
+        help=(
+            "analog channel number; repeat for aligned multi-channel CSV output, "
+            "or use all for every analog channel on the detected model"
+        ),
     )
     capture_parser.add_argument(
         "--points",
@@ -1019,7 +1022,7 @@ def _cmd_capture(args: argparse.Namespace) -> int:
             print("Capabilities: unavailable for this model")
             return 1
 
-        channels = validate_waveform_channels(args.channel, scope.capabilities)
+        channels = _resolve_capture_channels(args.channel, scope.capabilities)
         points = validate_waveform_points(args.points, scope.capabilities)
         waveform_format = args.waveform_format.upper()
         if len(channels) == 1:
@@ -1139,6 +1142,21 @@ def _format_actual_points(capture: WaveformCapture | MultiChannelWaveformCapture
     return f"Actual points: {len(capture.raw_samples)}"
 
 
+def _resolve_capture_channels(
+    raw_channels: Sequence[int | str], capabilities: ScopeCapabilities
+) -> tuple[int, ...]:
+    if any(channel == "all" for channel in raw_channels):
+        if len(raw_channels) != 1:
+            raise KeysightScopeError(
+                "error: --channel all cannot be combined with explicit channel numbers"
+            )
+        return validate_waveform_channels(
+            tuple(range(1, capabilities.analog_channels + 1)), capabilities
+        )
+
+    return validate_waveform_channels(raw_channels, capabilities)
+
+
 def _write_capture_csv(
     capture: WaveformCapture | MultiChannelWaveformCapture, csv_path: Path
 ) -> Path:
@@ -1231,6 +1249,15 @@ def _positive_int(value: str) -> int:
     if parsed < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
     return parsed
+
+
+def _capture_channel_arg(value: str) -> int | str:
+    if value.strip().lower() == "all":
+        return "all"
+    try:
+        return _positive_int(value)
+    except argparse.ArgumentTypeError as exc:
+        raise argparse.ArgumentTypeError("must be a positive integer or all") from exc
 
 
 def _finite_float(value: str) -> float:
