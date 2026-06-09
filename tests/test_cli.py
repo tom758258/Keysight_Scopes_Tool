@@ -2067,6 +2067,15 @@ def test_screenshot_cli_reports_png_permission_error_without_traceback(monkeypat
             ":MEASure:DUTYcycle? CHANnel1",
             "Value %: 48",
         ),
+        (
+            "area",
+            "area",
+            0.0000012,
+            "1.20E-6",
+            "V*s",
+            ":MEASure:AREA? CHANnel1",
+            "Value V*s: 1.2e-06",
+        ),
     ],
 )
 def test_measure_cli_queries_new_items_then_checks_error(
@@ -2116,6 +2125,7 @@ def test_measure_cli_queries_new_items_then_checks_error(
     [
         ("overshoot", "overshoot", "%", ":MEASure:OVERshoot? CHANnel1"),
         ("positive_width", "positive_width", "s", ":MEASure:PWIDth? CHANnel1"),
+        ("area", "area", "V*s", ":MEASure:AREA? CHANnel1"),
     ],
 )
 def test_measure_cli_reports_invalid_sentinel_for_new_items(

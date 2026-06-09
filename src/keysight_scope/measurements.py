@@ -32,6 +32,7 @@ _MEASUREMENT_QUERY_TEMPLATES = {
     "negative_width": ":MEASure:NWIDth? CHANnel{channel}",
     "duty_cycle": ":MEASure:DUTYcycle? CHANnel{channel}",
     "negative_duty_cycle": ":MEASure:NDUTy? CHANnel{channel}",
+    "area": ":MEASure:AREA? CHANnel{channel}",
 }
 
 _MEASUREMENT_ALIASES = {
@@ -80,6 +81,7 @@ _MEASUREMENT_UNITS = {
     "negative_width": "s",
     "duty_cycle": "%",
     "negative_duty_cycle": "%",
+    "area": "V*s",
 }
 
 SUPPORTED_MEASUREMENT_ITEMS = tuple(_MEASUREMENT_QUERY_TEMPLATES)

@@ -34,6 +34,7 @@ def test_measurement_query_uses_keysight_measure_syntax():
     assert measurement_query("negative_width", 1) == ":MEASure:NWIDth? CHANnel1"
     assert measurement_query("duty_cycle", 1) == ":MEASure:DUTYcycle? CHANnel1"
     assert measurement_query("negative_duty_cycle", 1) == ":MEASure:NDUTy? CHANnel1"
+    assert measurement_query("area", 1) == ":MEASure:AREA? CHANnel1"
     assert measurement_query("vmin", 1) == ":MEASure:VMIN? CHANnel1"
     assert measurement_query("vmax", 1) == ":MEASure:VMAX? CHANnel1"
     assert measurement_query("risetime", 1) == ":MEASure:RISetime? CHANnel1"
@@ -98,6 +99,7 @@ def test_measurement_item_normalization_accepts_aliases():
     assert measurement_unit("negative_width") == "s"
     assert measurement_unit("duty_cycle") == "%"
     assert measurement_unit("negative_duty_cycle") == "%"
+    assert measurement_unit("area") == "V*s"
 
 
 def test_measurement_item_normalization_rejects_unknown_item():
@@ -126,7 +128,14 @@ def test_parse_measurement_result_marks_invalid_sentinel_without_losing_raw(raw)
     assert result.unit == "Hz"
 
 
-@pytest.mark.parametrize(("item", "unit"), [("overshoot", "%"), ("positive_width", "s")])
+@pytest.mark.parametrize(
+    ("item", "unit"),
+    [
+        ("overshoot", "%"),
+        ("positive_width", "s"),
+        ("area", "V*s"),
+    ],
+)
 def test_parse_measurement_result_preserves_invalid_sentinel_for_new_units(item, unit):
     result = parse_measurement_result("9.9E+37", item=item, channel=1)
 
@@ -173,6 +182,7 @@ def test_measurement_controller_queries_vpp_for_channel():
         ("negative_width", "3.00E-6", 0.000003, [":MEASure:NWIDth? CHANnel1"]),
         ("duty_cycle", "4.80E+1", 48.0, [":MEASure:DUTYcycle? CHANnel1"]),
         ("negative_duty_cycle", "5.20E+1", 52.0, [":MEASure:NDUTy? CHANnel1"]),
+        ("area", "1.20E-6", 0.0000012, [":MEASure:AREA? CHANnel1"]),
     ],
 )
 def test_measurement_controller_queries_additional_read_only_items(

@@ -27,7 +27,7 @@ Current implemented scope:
 - Query read-only Vpp, frequency, period, display average voltage, display
   DC RMS voltage, minimum, maximum, rise time, fall time, amplitude, top, base,
   overshoot, preshoot, positive width, negative width, duty cycle, or negative
-  duty cycle measurements for one analog channel with explicit
+  duty cycle or area measurements for one analog channel with explicit
   invalid-sentinel handling.
 - Capture one analog channel waveform in BYTE or WORD format and export CSV
   plus JSON metadata, with an optional default timestamped CSV path under
@@ -236,6 +236,7 @@ Query one read-only measurement:
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_width --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item duty_cycle --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_duty_cycle --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item area --log-scpi
 ```
 
 The current measurement slice supports `vpp`, `frequency` (`freq` alias),
@@ -247,16 +248,16 @@ The current measurement slice supports `vpp`, `frequency` (`freq` alias),
 `negative_width` (`nwidth`, `negative-width`, and `nwid` aliases),
 `duty_cycle` (`duty`, `dutycycle`, and `duty-cycle` aliases), and
 `negative_duty_cycle` (`nduty`, `negative-duty`, and `negative-duty-cycle`
-aliases). The command first queries `*IDN?`, validates the analog channel,
+aliases), and `area`. The command first queries `*IDN?`, validates the analog channel,
 sends one read-only measurement query such as `:MEASure:VPP? CHANnel1`, and
 performs one `:SYSTem:ERRor?` post-check. The added item queries are
 `:MEASure:VAMPlitude? CHANnelN`, `:MEASure:VTOP? CHANnelN`,
 `:MEASure:VBASe? CHANnelN`, `:MEASure:OVERshoot? CHANnelN`,
 `:MEASure:PREShoot? CHANnelN`, `:MEASure:PWIDth? CHANnelN`,
-`:MEASure:NWIDth? CHANnelN`, `:MEASure:DUTYcycle? CHANnelN`, and
-`:MEASure:NDUTy? CHANnelN`. It does not change acquisition mode, trigger
-settings, measurement source, measurement window, display state, VISA timeout,
-or return-to-local behavior.
+`:MEASure:NWIDth? CHANnelN`, `:MEASure:DUTYcycle? CHANnelN`,
+`:MEASure:NDUTy? CHANnelN`, and `:MEASure:AREA? CHANnelN`. It does not change
+acquisition mode, trigger settings, measurement source, measurement window,
+display state, VISA timeout, or return-to-local behavior.
 Invalid measurement sentinels such as `9.9E+37` are printed as
 `Value: unavailable` with `Valid: false` and the original raw response
 preserved; the CLI exits non-zero so automation does not treat the unavailable
@@ -345,11 +346,13 @@ Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and
 USB validated on DSO-X 4024A. Read-only minimum, maximum, rise time, and fall
 time measurement queries are implemented and covered by hardware-free tests;
-USB validation passed by user. Read-only amplitude, top,
+USB validation passed by user report on. Read-only amplitude, top,
 base, overshoot, preshoot, positive width, negative width, duty cycle, and
 negative duty cycle measurement queries are implemented and covered by
-hardware-free tests; hardware validation remains USB CH1 first. LAN retest is
-deferred until a LAN environment is available.
+hardware-free tests; USB CH1 validation passed by user report on.
+Read-only area measurement query is implemented and covered by hardware-free
+tests; hardware validation remains USB CH1 first. LAN retest is deferred until
+a LAN environment is available.
 
 Screenshot PNG capture is implemented and covered by hardware-free tests. USB
 hardware validation passed by user.
