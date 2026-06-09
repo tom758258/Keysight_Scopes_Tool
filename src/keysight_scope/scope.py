@@ -6,6 +6,7 @@ from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import ChannelController
 from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
+from .measurements import MeasurementController, MeasurementResult
 from .scpi import SCPIBackend, SCPIClient
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
@@ -148,6 +149,11 @@ class KeysightScope:
 
         return self._waveform_controller().capture_word(channel, points=points)
 
+    def query_measurement(self, channel: int, item: str) -> MeasurementResult:
+        """Query one read-only measurement item for one analog channel."""
+
+        return self._measurement_controller().query(channel, item)
+
     def close(self) -> None:
         """Close the underlying backend."""
 
@@ -180,6 +186,13 @@ class KeysightScope:
                 "Waveform operations require known capabilities; call query_idn() first."
             )
         return WaveformController(self.scpi, self.capabilities)
+
+    def _measurement_controller(self) -> MeasurementController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Measurement operations require known capabilities; call query_idn() first."
+            )
+        return MeasurementController(self.scpi, self.capabilities)
 
     def __enter__(self) -> "KeysightScope":
         return self

@@ -4,6 +4,7 @@ from keysight_scope import cli
 from keysight_scope.capabilities import capabilities_for_model
 from keysight_scope.errors import KeysightScopeError
 from keysight_scope.idn import parse_idn
+from keysight_scope.measurements import MeasurementResult
 from keysight_scope.status import SystemErrorEntry
 from keysight_scope.visa_backend import VisaResourceListing
 from keysight_scope.waveform import WaveformCapture, WaveformPreamble
@@ -1495,6 +1496,196 @@ def test_capture_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
                 "3",
                 "--csv",
                 str(tmp_path / "capture.csv"),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    err = capsys.readouterr().err
+    assert "channel 3 is not available" in err
+
+
+def test_measure_cli_queries_vpp_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_measurement(self, channel, item):
+            self.calls.append(("query_measurement", channel, item))
+            return MeasurementResult(
+                item=item,
+                channel=channel,
+                value=0.5,
+                raw_value="5.0E-1",
+                valid=True,
+                unit="V",
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--item",
+                "vpp",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_measurement", 1, "vpp"), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: CH1 vpp measurement" in out
+    assert "Command: :MEASure:VPP? CHANnel1" in out
+    assert "Measurement: vpp" in out
+    assert "Channel: 1" in out
+    assert "Valid: true" in out
+    assert "Value V: 0.5" in out
+    assert "Raw response: 5.0E-1" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_measure_cli_reports_invalid_sentinel_without_losing_raw(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_measurement(self, channel, item):
+            self.calls.append(("query_measurement", channel, item))
+            return MeasurementResult(
+                item=item,
+                channel=channel,
+                value=None,
+                raw_value="9.9E+37",
+                valid=False,
+                unit="Hz",
+                reason="invalid measurement sentinel",
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--item",
+                "frequency",
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_measurement", 1, "frequency"),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Command: :MEASure:FREQuency? CHANnel1" in out
+    assert "Measurement: frequency" in out
+    assert "Valid: false" in out
+    assert "Value: unavailable" in out
+    assert "Raw response: 9.9E+37" in out
+    assert "Reason: invalid measurement sentinel" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_measure_cli_rejects_channel_above_detected_capabilities(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4022A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+
+        def query_measurement(self, channel, item):
+            self.calls.append(("query_measurement", channel, item))
+            raise AssertionError("measurement query should not be sent")
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "3",
+                "--item",
+                "vpp",
             ]
         )
         == 1

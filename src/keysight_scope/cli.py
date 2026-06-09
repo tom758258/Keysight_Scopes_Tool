@@ -23,6 +23,7 @@ from .channel import (
     validate_channel_scale,
 )
 from .errors import KeysightScopeError
+from .measurements import measurement_query, normalize_measurement_item
 from .scope import KeysightScope
 from .timebase import (
     timebase_position_command,
@@ -96,6 +97,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_timebase_position(args)
         if args.command == "edge-trigger":
             return _cmd_edge_trigger(args)
+        if args.command == "measure":
+            return _cmd_measure(args)
         if args.command == "capture":
             return _cmd_capture(args)
     except KeysightScopeError as exc:
@@ -316,6 +319,24 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("positive", "negative", "either", "alternate"),
         default=None,
         help="edge trigger slope",
+    )
+
+    measure_parser = subparsers.add_parser(
+        "measure",
+        help="query one read-only measurement item for one analog channel",
+    )
+    _add_scope_connection_args(measure_parser)
+    measure_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    measure_parser.add_argument(
+        "--item",
+        choices=("vpp", "frequency"),
+        required=True,
+        help="measurement item to query",
     )
 
     capture_parser = subparsers.add_parser(
@@ -691,6 +712,46 @@ def _cmd_edge_trigger(args: argparse.Namespace) -> int:
         entry = scope.query_system_error()
         print(f"System error: {entry.format()}")
         return 1 if entry.is_error else 0
+
+
+def _cmd_measure(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        item = normalize_measurement_item(args.item)
+        print(f"Planned query: CH{channel} {item} measurement")
+        result = scope.query_measurement(channel, item)
+        print(f"Command: {measurement_query(item, channel)}")
+        print(f"Measurement: {result.item}")
+        print(f"Channel: {result.channel}")
+        print(f"Valid: {'true' if result.valid else 'false'}")
+        if result.valid:
+            value = result.value
+            if value is None:
+                raise KeysightScopeError("measurement result was marked valid without a numeric value")
+            print(f"Value {result.unit}: {value:.12g}")
+        else:
+            print("Value: unavailable")
+        print(f"Raw response: {result.raw_value}")
+        if result.reason is not None:
+            print(f"Reason: {result.reason}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error or not result.valid else 0
 
 
 def _cmd_capture(args: argparse.Namespace) -> int:

@@ -21,8 +21,11 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
-- Capture one analog channel waveform in BYTE format and export CSV plus JSON
-  metadata, with an optional default timestamped CSV path under `data`.
+- Query read-only Vpp or frequency measurements for one analog channel with
+  explicit invalid-sentinel handling.
+- Capture one analog channel waveform in BYTE or WORD format and export CSV
+  plus JSON metadata, with an optional default timestamped CSV path under
+  `data`.
 - Provide hardware-free tests through `FakeBackend`.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
@@ -177,6 +180,22 @@ slope. Supported slopes are `positive`, `negative`, `either`, and `alternate`.
 Only analog channel sources are supported in this first trigger slice. Trigger
 level must be a finite number in volts.
 
+Query one read-only measurement:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item vpp --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item frequency --log-scpi
+```
+
+The first measurement slice supports `vpp` and `frequency`. The command first
+queries `*IDN?`, validates the analog channel, sends one read-only measurement
+query such as `:MEASure:VPP? CHANnel1`, and performs one
+`:SYSTem:ERRor?` post-check. It does not change acquisition mode, trigger
+settings, display state, VISA timeout, or return-to-local behavior. Invalid
+measurement sentinels such as `9.9E+37` are printed as `Value: unavailable`
+with `Valid: false` and the original raw response preserved; the CLI exits
+non-zero so automation does not treat the unavailable value as usable data.
+
 Capture one analog channel waveform:
 
 ```powershell
@@ -230,3 +249,7 @@ timestamped CSV under `data` when `--csv` is omitted.
 Single-channel WORD waveform capture is implemented and covered by
 hardware-free tests, and requested point counts 1000, 5000, and 10000 are USB
 validated on DSO-X 4024A.
+
+Read-only Vpp and frequency measurement queries are implemented, covered by
+hardware-free tests, and USB validated on DSO-X 4024A. LAN retest is deferred
+until a LAN environment is available.

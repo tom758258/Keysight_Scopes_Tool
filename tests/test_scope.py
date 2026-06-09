@@ -273,6 +273,34 @@ def test_scope_waveform_requires_known_capabilities():
         raise AssertionError("Expected ParameterValidationError")
 
 
+def test_scope_measurement_requires_known_capabilities():
+    scope = KeysightScope(FakeBackend())
+
+    try:
+        scope.query_measurement(1, "vpp")
+    except ParameterValidationError as exc:
+        assert "query_idn" in str(exc)
+    else:
+        raise AssertionError("Expected ParameterValidationError")
+
+
+def test_scope_measurement_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":MEASure:VPP? CHANnel1": "5.0E-1",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    result = scope.query_measurement(1, "vpp")
+
+    assert result.valid is True
+    assert result.value == 0.5
+    assert backend.history == ["*IDN?", ":MEASure:VPP? CHANnel1"]
+
+
 def test_scope_waveform_capture_uses_capabilities_from_idn():
     backend = FakeBackend(
         responses={
