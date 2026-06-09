@@ -28,6 +28,8 @@ Current implemented scope:
 - Capture one analog channel waveform in BYTE or WORD format and export CSV
   plus JSON metadata, with an optional default timestamped CSV path under
   `data`.
+- Capture the current oscilloscope screen as a color PNG image, with an
+  optional default timestamped output path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
@@ -233,6 +235,27 @@ return-to-local behavior. If the CSV or metadata file cannot be written because
 it is open in another program or the folder is not writable, the CLI reports a
 plain `error:` message instead of a Python traceback.
 
+Capture the current oscilloscope screen as a color PNG image:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli screenshot --resource "USB0::...::INSTR" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli screenshot --resource "USB0::...::INSTR" --output data\screen.png --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli screenshot --resource "USB0::...::INSTR" --background white --log-scpi
+```
+
+The `screenshot` command first queries `*IDN?`, sets `:HARDcopy:INKSaver` for
+the requested image background, reads the current screen with
+`:DISPlay:DATA? PNG, COLor`, restores the previous ink saver setting, and
+performs one `:SYSTem:ERRor?` post-check. The default background is black,
+matching the oscilloscope screen; `--background white` enables the inverted
+white-background hardcopy style. If `--output` is omitted, the CLI writes to
+`data/YYYY-MM-DD-HH-mm-ss.png` using the `UTC+8` timezone. The command validates
+that the returned bytes have a PNG signature. Because screen images are larger
+than normal query responses, screenshot capture temporarily sets the VISA
+timeout to 10000 ms for the image transfer and restores the previous timeout
+afterward. It does not change acquisition state, trigger settings, display
+state, the default timeout, or return-to-local behavior.
+
 ## Tests
 
 Normal tests are hardware-free:
@@ -273,3 +296,6 @@ USB validated on DSO-X 4024A. Read-only minimum, maximum, rise time, and fall
 time measurement queries are implemented and covered by hardware-free tests;
 USB validation passed by user report on 2026-05-13. LAN retest is deferred
 until a LAN environment is available.
+
+Screenshot PNG capture is implemented and covered by hardware-free tests. USB
+hardware validation is the next check for this slice.

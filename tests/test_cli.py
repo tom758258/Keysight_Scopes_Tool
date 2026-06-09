@@ -1,3 +1,6 @@
+from datetime import datetime
+from pathlib import Path
+
 import pytest
 
 from keysight_scope import cli
@@ -5,6 +8,7 @@ from keysight_scope.capabilities import capabilities_for_model
 from keysight_scope.errors import KeysightScopeError
 from keysight_scope.idn import parse_idn
 from keysight_scope.measurements import MeasurementResult
+from keysight_scope.screenshot import ScreenshotCapture
 from keysight_scope.status import SystemErrorEntry
 from keysight_scope.visa_backend import VisaResourceListing
 from keysight_scope.waveform import WaveformCapture, WaveformPreamble
@@ -1504,6 +1508,257 @@ def test_capture_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
     assert "channel 3 is not available" in err
+
+
+def test_screenshot_cli_writes_png_then_checks_error(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_screenshot_png(self, *, background="black"):
+            self.calls.append(("capture_screenshot_png", background))
+            return ScreenshotCapture(
+                format_name="PNG",
+                palette="COLor",
+                data=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+                background=background,
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    output_path = tmp_path / "screen.png"
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "screenshot",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("capture_screenshot_png", "black"), "query_system_error"]
+    assert output_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    out = capsys.readouterr().out
+    assert "Resource: USB0::FAKE::INSTR" in out
+    assert "Timeout ms: 2000" in out
+    assert "Planned capture: current screen PNG image with black background" in out
+    assert "Screenshot timeout ms: 10000 (temporary)" in out
+    assert "Command: :HARDcopy:INKSaver OFF" in out
+    assert "Command: :DISPlay:DATA? PNG, COLor" in out
+    assert "Format: PNG" in out
+    assert "Palette: COLor" in out
+    assert "Background: black" in out
+    assert "Bytes: 16" in out
+    assert f"PNG: {output_path}" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_screenshot_cli_uses_timestamped_default_output_when_omitted(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_screenshot_png(self, *, background="black"):
+            self.calls.append(("capture_screenshot_png", background))
+            return ScreenshotCapture(
+                format_name="PNG",
+                palette="COLor",
+                data=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+                background=background,
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    default_output_path = tmp_path / "data" / "2026-05-13-10-20-30.png"
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    monkeypatch.setattr(cli, "_default_screenshot_path", lambda: default_output_path)
+
+    assert cli.main(["screenshot", "--resource", "USB0::FAKE::INSTR"]) == 0
+
+    assert scope.calls == ["query_idn", ("capture_screenshot_png", "black"), "query_system_error"]
+    assert default_output_path.exists()
+    out = capsys.readouterr().out
+    assert f"PNG: {default_output_path}" in out
+
+
+def test_screenshot_cli_supports_white_background(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_screenshot_png(self, *, background="black"):
+            self.calls.append(("capture_screenshot_png", background))
+            return ScreenshotCapture(
+                format_name="PNG",
+                palette="COLor",
+                data=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+                background=background,
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    output_path = tmp_path / "screen.png"
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "screenshot",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--output",
+                str(output_path),
+                "--background",
+                "white",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("capture_screenshot_png", "white"), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned capture: current screen PNG image with white background" in out
+    assert "Command: :HARDcopy:INKSaver ON" in out
+    assert "Background: white" in out
+
+
+def test_default_screenshot_path_matches_capture_timestamp_format():
+    assert cli._default_screenshot_path(datetime(2026, 5, 13, 10, 20, 30)) == (
+        Path("data") / "2026-05-13-10-20-30.png"
+    )
+
+
+def test_screenshot_cli_reports_png_permission_error_without_traceback(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_screenshot_png(self, *, background="black"):
+            self.calls.append(("capture_screenshot_png", background))
+            return ScreenshotCapture(
+                format_name="PNG",
+                palette="COLor",
+                data=b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR",
+                background=background,
+            )
+
+    scope = DummyScope()
+    output_path = tmp_path / "screen.png"
+
+    def fake_write_screenshot_png(capture, path):
+        del capture
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    monkeypatch.setattr(cli, "write_screenshot_png", fake_write_screenshot_png)
+
+    assert (
+        cli.main(
+            [
+                "screenshot",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn", ("capture_screenshot_png", "black")]
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert "could not write screenshot PNG file" in captured.err
+    assert str(output_path) in captured.err
+    assert "Permission denied" in captured.err
+    assert "file may be open in another program" in captured.err
 
 
 def test_measure_cli_queries_vpp_then_checks_error(monkeypatch, capsys):

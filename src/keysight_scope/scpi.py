@@ -11,6 +11,13 @@ from .log import get_logger
 class SCPIBackend(Protocol):
     """Backend protocol used by `SCPIClient`."""
 
+    @property
+    def timeout(self) -> int | None:
+        """Return the current backend timeout in milliseconds."""
+
+    def set_timeout(self, timeout_ms: int | None) -> None:
+        """Set the current backend timeout in milliseconds."""
+
     def write(self, command: str) -> None:
         """Send a command without reading a response."""
 
@@ -70,6 +77,18 @@ class SCPIClient:
         values = self.backend.query_binary_values(command, **kwargs)
         self.logger.debug("SCPI << %d binary values", len(values))
         return values
+
+    @property
+    def timeout(self) -> int | None:
+        """Return the backend timeout in milliseconds."""
+
+        return self.backend.timeout
+
+    def set_timeout(self, timeout_ms: int | None) -> None:
+        """Set the backend timeout in milliseconds."""
+
+        self.logger.debug("VISA timeout = %s ms", timeout_ms)
+        self.backend.set_timeout(timeout_ms)
 
 
 def _normalize_command(command: str) -> str:

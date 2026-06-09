@@ -47,3 +47,7 @@ class MeasurementResponseError(KeysightScopeError, ValueError):
 
 class WaveformResponseError(KeysightScopeError, ValueError):
     """Raised when waveform data or metadata cannot be parsed."""
+
+
+class ScreenshotResponseError(KeysightScopeError, ValueError):
+    """Raised when screenshot image data cannot be parsed."""

@@ -31,6 +31,7 @@ class FakeBackend:
     resource_name: str = "FAKE::SCOPE"
     backend: str = "fake"
     timeout: int | None = None
+    timeout_history: list[int | None] = field(default_factory=list)
     closed: bool = False
 
     def write(self, command: str) -> None:
@@ -67,6 +68,13 @@ class FakeBackend:
             raise FakeBackendError(
                 f"No fake binary response configured for query: {command}"
             ) from exc
+
+    def set_timeout(self, timeout_ms: int | None) -> None:
+        """Set the fake backend timeout."""
+
+        self._ensure_open()
+        self.timeout = timeout_ms
+        self.timeout_history.append(timeout_ms)
 
     def close(self) -> None:
         """Mark the fake backend as closed."""

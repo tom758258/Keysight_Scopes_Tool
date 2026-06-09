@@ -8,6 +8,7 @@ from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
 from .measurements import MeasurementController, MeasurementResult
 from .scpi import SCPIBackend, SCPIClient
+from .screenshot import ScreenshotCapture, ScreenshotController
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
 from .trigger import EdgeTriggerController, EdgeTriggerState
@@ -154,6 +155,11 @@ class KeysightScope:
 
         return self._measurement_controller().query(channel, item)
 
+    def capture_screenshot_png(self, *, background: str = "black") -> ScreenshotCapture:
+        """Capture the current screen as a color PNG image."""
+
+        return self._screenshot_controller().capture_png(background=background)
+
     def close(self) -> None:
         """Close the underlying backend."""
 
@@ -193,6 +199,13 @@ class KeysightScope:
                 "Measurement operations require known capabilities; call query_idn() first."
             )
         return MeasurementController(self.scpi, self.capabilities)
+
+    def _screenshot_controller(self) -> ScreenshotController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Screenshot operations require known capabilities; call query_idn() first."
+            )
+        return ScreenshotController(self.scpi, self.capabilities)
 
     def __enter__(self) -> "KeysightScope":
         return self

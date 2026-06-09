@@ -50,6 +50,15 @@ class VisaBackend:
 
         return getattr(self._resource, "timeout", None)
 
+    def set_timeout(self, timeout_ms: int | None) -> None:
+        """Set the backend timeout in milliseconds."""
+
+        self._ensure_open()
+        try:
+            self._resource.timeout = timeout_ms
+        except Exception as exc:  # pragma: no cover - depends on installed VISA stack
+            raise VisaBackendError(f"Failed to set VISA timeout to {timeout_ms}: {exc}") from exc
+
     def write(self, command: str) -> None:
         """Write one raw command to the VISA resource."""
 

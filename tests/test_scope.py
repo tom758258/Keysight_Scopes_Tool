@@ -284,6 +284,17 @@ def test_scope_measurement_requires_known_capabilities():
         raise AssertionError("Expected ParameterValidationError")
 
 
+def test_scope_screenshot_requires_known_capabilities():
+    scope = KeysightScope(FakeBackend())
+
+    try:
+        scope.capture_screenshot_png()
+    except ParameterValidationError as exc:
+        assert "query_idn" in str(exc)
+    else:
+        raise AssertionError("Expected ParameterValidationError")
+
+
 def test_scope_measurement_uses_capabilities_from_idn():
     backend = FakeBackend(
         responses={
@@ -350,3 +361,31 @@ def test_scope_word_waveform_capture_uses_capabilities_from_idn():
         ":WAVeform:PREamble?",
         ":WAVeform:DATA?",
     ]
+
+
+def test_scope_screenshot_uses_capabilities_from_idn():
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":HARDcopy:INKSaver?": "1",
+        },
+        binary_responses={":DISPlay:DATA? PNG, COLor": list(png_bytes)},
+        timeout=2000,
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    capture = scope.capture_screenshot_png()
+
+    assert capture.data == png_bytes
+    assert capture.background == "black"
+    assert backend.history == [
+        "*IDN?",
+        ":HARDcopy:INKSaver?",
+        ":HARDcopy:INKSaver OFF",
+        ":DISPlay:DATA? PNG, COLor",
+        ":HARDcopy:INKSaver ON",
+    ]
+    assert backend.timeout_history == [10000, 2000]
+    assert backend.timeout == 2000

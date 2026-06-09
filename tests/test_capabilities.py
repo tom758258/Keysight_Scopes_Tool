@@ -24,6 +24,7 @@ def test_capabilities_for_supported_models(model, series, channels):
     assert capabilities.analog_channels == channels
     assert capabilities.default_waveform_points == 1000
     assert capabilities.safe_max_waveform_points == 10000
+    assert capabilities.supports_screenshot is True
 
 
 def test_capabilities_are_conservative_for_phase_1():

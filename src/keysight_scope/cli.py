@@ -28,6 +28,14 @@ from .measurements import (
     measurement_query,
     normalize_measurement_item,
 )
+from .screenshot import (
+    DEFAULT_SCREENSHOT_BACKGROUND,
+    SCREENSHOT_TIMEOUT_MS,
+    hardcopy_inksaver_command,
+    hardcopy_inksaver_for_background,
+    screenshot_data_query,
+    write_screenshot_png,
+)
 from .scope import KeysightScope
 from .timebase import (
     timebase_position_command,
@@ -105,6 +113,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_measure(args)
         if args.command == "capture":
             return _cmd_capture(args)
+        if args.command == "screenshot":
+            return _cmd_screenshot(args)
     except KeysightScopeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -378,6 +388,24 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="meta_path",
         default=None,
         help="output metadata JSON path; defaults to <csv stem>_meta.json",
+    )
+
+    screenshot_parser = subparsers.add_parser(
+        "screenshot",
+        help="capture the current oscilloscope screen to a PNG file",
+    )
+    _add_scope_connection_args(screenshot_parser)
+    screenshot_parser.add_argument(
+        "--output",
+        dest="output_path",
+        default=None,
+        help="output PNG path; defaults to data/<UTC+8 timestamp>.png",
+    )
+    screenshot_parser.add_argument(
+        "--background",
+        choices=("black", "white"),
+        default=DEFAULT_SCREENSHOT_BACKGROUND,
+        help="screenshot background color; defaults to black",
     )
     return parser
 
@@ -807,6 +835,43 @@ def _cmd_capture(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
+def _cmd_screenshot(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    output_path = (
+        Path(args.output_path) if args.output_path is not None else _default_screenshot_path()
+    )
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        background = args.background
+        print(f"Planned capture: current screen PNG image with {background} background")
+        print(f"Screenshot timeout ms: {SCREENSHOT_TIMEOUT_MS} (temporary)")
+        capture = scope.capture_screenshot_png(background=background)
+        print(f"Command: {hardcopy_inksaver_command(hardcopy_inksaver_for_background(background))}")
+        print(f"Command: {screenshot_data_query()}")
+        written_png = _write_screenshot_png(capture, output_path)
+        print(f"Format: {capture.format_name}")
+        print(f"Palette: {capture.palette}")
+        print(f"Background: {capture.background}")
+        print(f"Bytes: {len(capture.data)}")
+        print(f"PNG: {written_png}")
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
 def _default_capture_csv_path(now: datetime | None = None) -> Path:
     if now is None:
         capture_time = datetime.now(_CAPTURE_DEFAULT_TIMEZONE)
@@ -816,6 +881,17 @@ def _default_capture_csv_path(now: datetime | None = None) -> Path:
         capture_time = now.astimezone(_CAPTURE_DEFAULT_TIMEZONE)
 
     return Path("data") / capture_time.strftime("%Y-%m-%d-%H-%M-%S.csv")
+
+
+def _default_screenshot_path(now: datetime | None = None) -> Path:
+    if now is None:
+        capture_time = datetime.now(_CAPTURE_DEFAULT_TIMEZONE)
+    elif now.tzinfo is None:
+        capture_time = now.replace(tzinfo=_CAPTURE_DEFAULT_TIMEZONE)
+    else:
+        capture_time = now.astimezone(_CAPTURE_DEFAULT_TIMEZONE)
+
+    return Path("data") / capture_time.strftime("%Y-%m-%d-%H-%M-%S.png")
 
 
 def _write_capture_csv(capture, csv_path: Path) -> Path:
@@ -832,14 +908,32 @@ def _write_capture_metadata(capture, meta_path: Path, *, idn, resource: str) -> 
         raise KeysightScopeError(_format_output_file_error("metadata JSON", meta_path, exc)) from exc
 
 
+def _write_screenshot_png(capture, output_path: Path) -> Path:
+    try:
+        return write_screenshot_png(capture, output_path)
+    except OSError as exc:
+        raise KeysightScopeError(
+            _format_output_file_error("screenshot PNG", output_path, exc)
+        ) from exc
+
+
 def _format_output_file_error(file_kind: str, path: Path, exc: OSError) -> str:
     reason = exc.strerror or str(exc)
-    message = f"could not write waveform {file_kind} file {path}: {reason}"
+    if file_kind.startswith("screenshot"):
+        message = f"could not write {file_kind} file {path}: {reason}"
+    else:
+        message = f"could not write waveform {file_kind} file {path}: {reason}"
     if isinstance(exc, PermissionError):
-        message += (
-            ". The file may be open in another program, such as Excel, "
-            "or the folder may not be writable."
-        )
+        if file_kind.startswith("screenshot"):
+            message += (
+                ". The file may be open in another program, "
+                "or the folder may not be writable."
+            )
+        else:
+            message += (
+                ". The file may be open in another program, such as Excel, "
+                "or the folder may not be writable."
+            )
     return message
 
 
