@@ -23,7 +23,11 @@ from .channel import (
     validate_channel_scale,
 )
 from .errors import KeysightScopeError
-from .measurements import measurement_query, normalize_measurement_item
+from .measurements import (
+    MEASUREMENT_ITEM_CHOICES,
+    measurement_query,
+    normalize_measurement_item,
+)
 from .scope import KeysightScope
 from .timebase import (
     timebase_position_command,
@@ -334,7 +338,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     measure_parser.add_argument(
         "--item",
-        choices=("vpp", "frequency"),
+        choices=MEASUREMENT_ITEM_CHOICES,
         required=True,
         help="measurement item to query",
     )

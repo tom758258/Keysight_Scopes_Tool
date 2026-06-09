@@ -1574,6 +1574,139 @@ def test_measure_cli_queries_vpp_then_checks_error(monkeypatch, capsys):
     assert 'System error: +0, "No error"' in out
 
 
+def test_measure_cli_queries_vrms_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_measurement(self, channel, item):
+            self.calls.append(("query_measurement", channel, item))
+            return MeasurementResult(
+                item=item,
+                channel=channel,
+                value=0.707,
+                raw_value="7.07E-1",
+                valid=True,
+                unit="V",
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--item",
+                "vrms",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_measurement", 1, "vrms"), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: CH1 vrms measurement" in out
+    assert "Command: :MEASure:VRMS? DISPlay,DC,CHANnel1" in out
+    assert "Measurement: vrms" in out
+    assert "Value V: 0.707" in out
+    assert "Raw response: 7.07E-1" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_measure_cli_accepts_freq_alias(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_measurement(self, channel, item):
+            self.calls.append(("query_measurement", channel, item))
+            return MeasurementResult(
+                item=item,
+                channel=channel,
+                value=1000.0,
+                raw_value="1.0E+3",
+                valid=True,
+                unit="Hz",
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--item",
+                "freq",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_measurement", 1, "frequency"),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Planned query: CH1 frequency measurement" in out
+    assert "Command: :MEASure:FREQuency? CHANnel1" in out
+    assert "Measurement: frequency" in out
+
+
 def test_measure_cli_reports_invalid_sentinel_without_losing_raw(monkeypatch, capsys):
     class DummyBackend:
         backend = "backend"

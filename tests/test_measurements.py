@@ -17,17 +17,24 @@ from keysight_scope.scpi import SCPIClient
 def test_measurement_query_uses_keysight_measure_syntax():
     assert measurement_query("vpp", 1) == ":MEASure:VPP? CHANnel1"
     assert measurement_query("frequency", 2) == ":MEASure:FREQuency? CHANnel2"
+    assert measurement_query("freq", 2) == ":MEASure:FREQuency? CHANnel2"
+    assert measurement_query("period", 1) == ":MEASure:PERiod? CHANnel1"
+    assert measurement_query("vavg", 1) == ":MEASure:VAVerage? DISPlay,CHANnel1"
+    assert measurement_query("vrms", 1) == ":MEASure:VRMS? DISPlay,DC,CHANnel1"
 
 
 def test_measurement_item_normalization_accepts_freq_alias():
     assert normalize_measurement_item("freq") == "frequency"
     assert measurement_unit("frequency") == "Hz"
+    assert measurement_unit("period") == "s"
     assert measurement_unit("vpp") == "V"
+    assert measurement_unit("vavg") == "V"
+    assert measurement_unit("vrms") == "V"
 
 
 def test_measurement_item_normalization_rejects_unknown_item():
     with pytest.raises(ParameterValidationError):
-        normalize_measurement_item("vrms")
+        normalize_measurement_item("duty")
 
 
 def test_parse_measurement_result_keeps_valid_numeric_value():
@@ -66,6 +73,27 @@ def test_measurement_controller_queries_vpp_for_channel():
     assert result.valid is True
     assert result.value == 1.25
     assert backend.history == [":MEASure:VPP? CHANnel1"]
+
+
+@pytest.mark.parametrize(
+    ("item", "response", "expected_value", "expected_history"),
+    [
+        ("period", "1.25E-4", 0.000125, [":MEASure:PERiod? CHANnel1"]),
+        ("vavg", "-2.5E-2", -0.025, [":MEASure:VAVerage? DISPlay,CHANnel1"]),
+        ("vrms", "7.07E-1", 0.707, [":MEASure:VRMS? DISPlay,DC,CHANnel1"]),
+    ],
+)
+def test_measurement_controller_queries_additional_read_only_items(
+    item, response, expected_value, expected_history
+):
+    backend = FakeBackend(responses={expected_history[0]: response})
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    result = controller.query(1, item)
+
+    assert result.valid is True
+    assert result.value == expected_value
+    assert backend.history == expected_history
 
 
 def test_measurement_controller_rejects_invalid_channel_before_scpi():

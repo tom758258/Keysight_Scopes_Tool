@@ -13,15 +13,28 @@ from .scpi import SCPIClient
 INVALID_MEASUREMENT_SENTINEL_ABS_MIN = 9.0e37
 INVALID_MEASUREMENT_REASON = "invalid measurement sentinel"
 
-_MEASUREMENT_COMMANDS = {
-    "vpp": "VPP",
-    "frequency": "FREQuency",
+_MEASUREMENT_QUERY_TEMPLATES = {
+    "vpp": ":MEASure:VPP? CHANnel{channel}",
+    "frequency": ":MEASure:FREQuency? CHANnel{channel}",
+    "period": ":MEASure:PERiod? CHANnel{channel}",
+    "vavg": ":MEASure:VAVerage? DISPlay,CHANnel{channel}",
+    "vrms": ":MEASure:VRMS? DISPlay,DC,CHANnel{channel}",
+}
+
+_MEASUREMENT_ALIASES = {
+    "freq": "frequency",
 }
 
 _MEASUREMENT_UNITS = {
     "vpp": "V",
     "frequency": "Hz",
+    "period": "s",
+    "vavg": "V",
+    "vrms": "V",
 }
+
+SUPPORTED_MEASUREMENT_ITEMS = tuple(_MEASUREMENT_QUERY_TEMPLATES)
+MEASUREMENT_ITEM_CHOICES = SUPPORTED_MEASUREMENT_ITEMS + tuple(_MEASUREMENT_ALIASES)
 
 
 @dataclass(frozen=True)
@@ -57,10 +70,9 @@ def normalize_measurement_item(item: str) -> str:
     """Normalize a user-facing measurement item."""
 
     normalized = item.strip().lower()
-    if normalized == "freq":
-        normalized = "frequency"
-    if normalized not in _MEASUREMENT_COMMANDS:
-        supported = ", ".join(_MEASUREMENT_COMMANDS)
+    normalized = _MEASUREMENT_ALIASES.get(normalized, normalized)
+    if normalized not in _MEASUREMENT_QUERY_TEMPLATES:
+        supported = ", ".join(MEASUREMENT_ITEM_CHOICES)
         raise ParameterValidationError(f"measurement item must be one of: {supported}.")
     return normalized
 
@@ -69,7 +81,7 @@ def measurement_query(item: str, channel: int) -> str:
     """Build a read-only measurement query for one analog channel."""
 
     item = normalize_measurement_item(item)
-    return f":MEASure:{_MEASUREMENT_COMMANDS[item]}? CHANnel{channel}"
+    return _MEASUREMENT_QUERY_TEMPLATES[item].format(channel=channel)
 
 
 def measurement_unit(item: str) -> str:
