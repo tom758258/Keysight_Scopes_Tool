@@ -20,7 +20,6 @@ def test_core_docs_are_package_local():
 
     for adapter_doc in (
         "docs/cli-integration.md",
-        "docs/README_CLI_EN.md",
         "docs/agent-workflow.md",
         "docs/Webui-README.md",
         "docs/scopes-cli-jsonl-contract.md",

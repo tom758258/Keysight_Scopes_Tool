@@ -26,11 +26,7 @@ def test_cli_docs_are_package_local_and_contracts_are_root_level():
     assert (PACKAGE_ROOT / "README.md").exists()
     assert (PACKAGE_ROOT / "CHANGELOG.md").exists()
 
-    for path in (
-        "docs/cli-integration.md",
-        "docs/README_CLI_EN.md",
-    ):
-        assert (PACKAGE_ROOT / path).exists()
+    assert (PACKAGE_ROOT / "docs" / "cli-integration.md").exists()
 
     for contract in (
         "common-worker-protocol.md",
@@ -49,6 +45,8 @@ def test_cli_docs_are_package_local_and_contracts_are_root_level():
     assert not (PACKAGE_ROOT / "docs" / "agent-workflow.md").exists()
     assert not (PACKAGE_ROOT / "docs" / "session-handoff.md").exists()
     assert not (PACKAGE_ROOT / "docs" / "validation-history.md").exists()
+    removed_command_guide = PACKAGE_ROOT / "docs" / ("README_" + "CLI_EN.md")
+    assert not removed_command_guide.exists()
 
 
 def test_cli_integration_keeps_cli_fields_out_of_core_schema():
@@ -60,7 +58,7 @@ def test_cli_integration_keeps_cli_fields_out_of_core_schema():
 
 
 def test_cli_command_guide_links_root_contracts_and_safe_modes():
-    text = read_doc("docs", "README_CLI_EN.md")
+    text = read_doc("README.md")
 
     assert "--dry-run --json" in text
     assert "--simulate --json" in text
