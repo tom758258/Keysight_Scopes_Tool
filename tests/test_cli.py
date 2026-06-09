@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from pathlib import Path
 
@@ -11,7 +12,65 @@ from keysight_scope.measurements import MeasurementResult
 from keysight_scope.screenshot import ScreenshotCapture
 from keysight_scope.status import SystemErrorEntry
 from keysight_scope.visa_backend import VisaResourceListing
-from keysight_scope.waveform import WaveformCapture, WaveformPreamble
+from keysight_scope.waveform import (
+    MultiChannelWaveformCapture,
+    WaveformCapture,
+    WaveformPreamble,
+)
+
+
+def _byte_waveform_capture(
+    channel, points=1000, raw_samples=(128, 129), voltage_v=(-2.56, -2.54)
+):
+    preamble = WaveformPreamble(
+        raw="0,0,2,1,1.0E-6,0,0,2.0E-2,-2.56,128",
+        format_code=0,
+        type_code=0,
+        points=2,
+        count=1,
+        x_increment=1e-6,
+        x_origin=0.0,
+        x_reference=0,
+        y_increment=0.02,
+        y_origin=-2.56,
+        y_reference=128,
+    )
+    return WaveformCapture(
+        channel=channel,
+        requested_points=points,
+        format_name="BYTE",
+        preamble=preamble,
+        raw_samples=raw_samples,
+        time_s=(0.0, 1e-6),
+        voltage_v=voltage_v,
+    )
+
+
+def _word_waveform_capture(channel, points=1000):
+    preamble = WaveformPreamble(
+        raw="1,0,2,1,1.0E-6,0,0,1.0E-4,0,32768",
+        format_code=1,
+        type_code=0,
+        points=2,
+        count=1,
+        x_increment=1e-6,
+        x_origin=0.0,
+        x_reference=0,
+        y_increment=0.0001,
+        y_origin=0.0,
+        y_reference=32768,
+    )
+    return WaveformCapture(
+        channel=channel,
+        requested_points=points,
+        format_name="WORD",
+        preamble=preamble,
+        raw_samples=(32768, 32769),
+        time_s=(0.0, 1e-6),
+        voltage_v=(0.0, 0.0001),
+        byte_order="MSBFirst",
+        unsigned=True,
+    )
 
 
 class _ChannelParameterDummyBackend:
@@ -1578,6 +1637,332 @@ def test_capture_cli_supports_word_format(monkeypatch, capsys, tmp_path):
     assert "Command: :WAVeform:DATA?" in out
     assert "Actual points: 2" in out
     assert 'System error: +0, "No error"' in out
+
+
+def test_capture_cli_writes_multi_channel_csv_and_metadata(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveforms_byte(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_byte", channels, points))
+            return MultiChannelWaveformCapture(
+                (
+                    _byte_waveform_capture(1, points=points),
+                    _byte_waveform_capture(2, points=points, voltage_v=(-2.52, -2.58)),
+                )
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--channel",
+                "2",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("capture_waveforms_byte", (1, 2), 1000),
+        "query_system_error",
+    ]
+    assert csv_path.read_text(encoding="utf-8").splitlines()[0] == "time_s,ch1_v,ch2_v"
+    metadata = json.loads((tmp_path / "capture_meta.json").read_text(encoding="utf-8"))
+    assert metadata["format"] == "BYTE"
+    assert [item["channel"] for item in metadata["channels"]] == [1, 2]
+    out = capsys.readouterr().out
+    assert "Planned capture: CH1, CH2, 1000 points, BYTE format" in out
+    assert out.count("Command: :WAVeform:SOURce CHANnel1") == 1
+    assert out.count("Command: :WAVeform:SOURce CHANnel2") == 1
+    assert "Actual points: CH1=2, CH2=2" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_capture_cli_multi_channel_word_uses_plural_api(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveforms_word(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_word", channels, points))
+            return MultiChannelWaveformCapture(
+                (
+                    _word_waveform_capture(2, points=points),
+                    _word_waveform_capture(1, points=points),
+                )
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "2",
+                "--channel",
+                "1",
+                "--points",
+                "5000",
+                "--format",
+                "word",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("capture_waveforms_word", (2, 1), 5000),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Planned capture: CH2, CH1, 5000 points, WORD format" in out
+    assert "Command: :WAVeform:SOURce CHANnel2" in out
+    assert "Command: :WAVeform:SOURce CHANnel1" in out
+    assert out.count("Command: :WAVeform:FORMat WORD") == 2
+    assert out.count("Command: :WAVeform:BYTeorder MSBFirst") == 2
+    assert out.count("Command: :WAVeform:UNSigned ON") == 2
+    assert csv_path.read_text(encoding="utf-8").splitlines()[0] == "time_s,ch2_v,ch1_v"
+
+
+def test_capture_cli_reports_multi_channel_metadata_permission_error_without_traceback(
+    monkeypatch, capsys, tmp_path
+):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveforms_byte(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_byte", channels, points))
+            return MultiChannelWaveformCapture(
+                (
+                    _byte_waveform_capture(1, points=points),
+                    _byte_waveform_capture(2, points=points),
+                )
+            )
+
+    scope = DummyScope()
+    csv_path = tmp_path / "capture.csv"
+    meta_path = tmp_path / "capture_meta.json"
+
+    def fake_write_waveforms_metadata(capture, path, *, idn, resource):
+        del capture, idn, resource
+        raise PermissionError(13, "Permission denied", str(path))
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    monkeypatch.setattr(cli, "write_waveforms_metadata", fake_write_waveforms_metadata)
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--channel",
+                "2",
+                "--csv",
+                str(csv_path),
+                "--meta",
+                str(meta_path),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn", ("capture_waveforms_byte", (1, 2), 1000)]
+    captured = capsys.readouterr()
+    assert "Traceback" not in captured.err
+    assert "could not write waveform metadata JSON file" in captured.err
+    assert str(meta_path) in captured.err
+    assert "Permission denied" in captured.err
+
+
+def test_capture_cli_rejects_duplicate_multi_channel_before_capture(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveforms_byte(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_byte", channels, points))
+            raise AssertionError("capture should not be called")
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--channel",
+                "1",
+                "--csv",
+                str(tmp_path / "capture.csv"),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    err = capsys.readouterr().err
+    assert "duplicate waveform channels are not allowed" in err
+
+
+def test_capture_cli_rejects_invalid_multi_channel_before_capture(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4022A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+
+        def capture_waveforms_byte(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_byte", channels, points))
+            raise AssertionError("capture should not be called")
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--channel",
+                "3",
+                "--csv",
+                str(tmp_path / "capture.csv"),
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    err = capsys.readouterr().err
+    assert "channel 3 is not available" in err
 
 
 def test_capture_cli_uses_timestamped_default_csv_when_omitted(monkeypatch, capsys, tmp_path):

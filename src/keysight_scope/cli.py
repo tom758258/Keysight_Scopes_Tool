@@ -66,10 +66,13 @@ from .trigger import (
 )
 from .visa_backend import list_visa_resources
 from .waveform import (
+    MultiChannelWaveformCapture,
     SUPPORTED_WAVEFORM_POINTS,
     WORD_BYTE_ORDER,
     WORD_UNSIGNED,
+    WaveformCapture,
     waveform_byte_order_command,
+    validate_waveform_channels,
     validate_waveform_points,
     waveform_data_query,
     waveform_format_byte_command,
@@ -80,6 +83,8 @@ from .waveform import (
     waveform_unsigned_command,
     write_waveform_csv,
     write_waveform_metadata,
+    write_waveforms_csv,
+    write_waveforms_metadata,
 )
 
 _CONTROL_COMMANDS = {
@@ -461,8 +466,9 @@ def _build_parser() -> argparse.ArgumentParser:
     capture_parser.add_argument(
         "--channel",
         type=_positive_int,
+        action="append",
         required=True,
-        help="analog channel number, validated against the detected scope model",
+        help="analog channel number; repeat for aligned multi-channel CSV output",
     )
     capture_parser.add_argument(
         "--points",
@@ -1013,27 +1019,31 @@ def _cmd_capture(args: argparse.Namespace) -> int:
             print("Capabilities: unavailable for this model")
             return 1
 
-        channel = validate_analog_channel(args.channel, scope.capabilities)
+        channels = validate_waveform_channels(args.channel, scope.capabilities)
         points = validate_waveform_points(args.points, scope.capabilities)
         waveform_format = args.waveform_format.upper()
-        print(f"Planned capture: CH{channel}, {points} points, {waveform_format} format")
-        if args.waveform_format == "word":
-            capture = scope.capture_waveform_word(channel, points=points)
+        if len(channels) == 1:
+            channel = channels[0]
+            print(f"Planned capture: CH{channel}, {points} points, {waveform_format} format")
+            if args.waveform_format == "word":
+                capture: WaveformCapture | MultiChannelWaveformCapture = (
+                    scope.capture_waveform_word(channel, points=points)
+                )
+            else:
+                capture = scope.capture_waveform_byte(channel, points=points)
         else:
-            capture = scope.capture_waveform_byte(channel, points=points)
-        print(f"Command: {waveform_source_command(channel)}")
-        if args.waveform_format == "word":
-            print(f"Command: {waveform_format_word_command()}")
-            print(f"Command: {waveform_byte_order_command(WORD_BYTE_ORDER)}")
-            print(f"Command: {waveform_unsigned_command(WORD_UNSIGNED)}")
-        else:
-            print(f"Command: {waveform_format_byte_command()}")
-        print(f"Command: {waveform_points_command(points)}")
-        print(f"Command: {waveform_preamble_query()}")
-        print(f"Command: {waveform_data_query()}")
+            print(
+                f"Planned capture: {_format_channel_list(channels)}, "
+                f"{points} points, {waveform_format} format"
+            )
+            if args.waveform_format == "word":
+                capture = scope.capture_waveforms_word(channels, points=points)
+            else:
+                capture = scope.capture_waveforms_byte(channels, points=points)
+        _print_waveform_capture_commands(channels, args.waveform_format, points)
         written_csv = _write_capture_csv(capture, csv_path)
         written_meta = _write_capture_metadata(capture, meta_path, idn=idn, resource=resource)
-        print(f"Actual points: {len(capture.raw_samples)}")
+        print(_format_actual_points(capture))
         print(f"CSV: {written_csv}")
         print(f"Metadata: {written_meta}")
         entry = scope.query_system_error()
@@ -1100,18 +1110,61 @@ def _default_screenshot_path(now: datetime | None = None) -> Path:
     return Path("data") / capture_time.strftime("%Y-%m-%d-%H-%M-%S.png")
 
 
-def _write_capture_csv(capture, csv_path: Path) -> Path:
+def _print_waveform_capture_commands(
+    channels: Sequence[int], waveform_format: str, points: int
+) -> None:
+    for channel in channels:
+        print(f"Command: {waveform_source_command(channel)}")
+        if waveform_format == "word":
+            print(f"Command: {waveform_format_word_command()}")
+            print(f"Command: {waveform_byte_order_command(WORD_BYTE_ORDER)}")
+            print(f"Command: {waveform_unsigned_command(WORD_UNSIGNED)}")
+        else:
+            print(f"Command: {waveform_format_byte_command()}")
+        print(f"Command: {waveform_points_command(points)}")
+        print(f"Command: {waveform_preamble_query()}")
+        print(f"Command: {waveform_data_query()}")
+
+
+def _format_channel_list(channels: Sequence[int]) -> str:
+    return ", ".join(f"CH{channel}" for channel in channels)
+
+
+def _format_actual_points(capture: WaveformCapture | MultiChannelWaveformCapture) -> str:
+    if isinstance(capture, MultiChannelWaveformCapture):
+        per_channel = ", ".join(
+            f"CH{item.channel}={len(item.raw_samples)}" for item in capture.captures
+        )
+        return f"Actual points: {per_channel}"
+    return f"Actual points: {len(capture.raw_samples)}"
+
+
+def _write_capture_csv(
+    capture: WaveformCapture | MultiChannelWaveformCapture, csv_path: Path
+) -> Path:
     try:
+        if isinstance(capture, MultiChannelWaveformCapture):
+            return write_waveforms_csv(capture, csv_path)
         return write_waveform_csv(capture, csv_path)
     except OSError as exc:
         raise KeysightScopeError(_format_output_file_error("CSV", csv_path, exc)) from exc
 
 
-def _write_capture_metadata(capture, meta_path: Path, *, idn, resource: str) -> Path:
+def _write_capture_metadata(
+    capture: WaveformCapture | MultiChannelWaveformCapture,
+    meta_path: Path,
+    *,
+    idn,
+    resource: str,
+) -> Path:
     try:
+        if isinstance(capture, MultiChannelWaveformCapture):
+            return write_waveforms_metadata(capture, meta_path, idn=idn, resource=resource)
         return write_waveform_metadata(capture, meta_path, idn=idn, resource=resource)
     except OSError as exc:
-        raise KeysightScopeError(_format_output_file_error("metadata JSON", meta_path, exc)) from exc
+        raise KeysightScopeError(
+            _format_output_file_error("metadata JSON", meta_path, exc)
+        ) from exc
 
 
 def _write_screenshot_png(capture, output_path: Path) -> Path:

@@ -29,9 +29,9 @@ Current implemented scope:
   overshoot, preshoot, positive width, negative width, duty cycle, or negative
   duty cycle or area measurements for one analog channel with explicit
   invalid-sentinel handling.
-- Capture one analog channel waveform in BYTE or WORD format and export CSV
-  plus JSON metadata, with an optional default timestamped CSV path under
-  `data`.
+- Capture one or more analog channel waveforms in BYTE or WORD format and
+  export CSV plus JSON metadata, with an optional default timestamped CSV path
+  under `data`.
 - Capture the current oscilloscope screen as a color PNG image, with an
   optional default timestamped output path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
@@ -263,20 +263,33 @@ Invalid measurement sentinels such as `9.9E+37` are printed as
 preserved; the CLI exits non-zero so automation does not treat the unavailable
 value as usable data.
 
-Capture one analog channel waveform:
+Capture waveform data:
 
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 10000 --csv data\ch1.csv --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --format word --csv data\ch1_word.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --log-scpi
 ```
 
 The current capture slice supports BYTE and WORD waveform formats with 1000,
 5000, and 10000 requested points. BYTE remains the default. WORD capture sets
 `:WAVeform:BYTeorder MSBFirst` and `:WAVeform:UNSigned ON` before reading data.
+Repeat `--channel` to capture multiple analog channels sequentially in one
+session. Multi-channel CSV output uses the first channel's `time_s` axis and
+writes voltage columns in requested order, such as `time_s,ch1_v,ch2_v`.
+Duplicate channels and channels outside the detected model capabilities are
+rejected before waveform SCPI is sent. If the captured channel time axes or
+sample counts do not match, the command fails instead of writing a misleading
+aligned CSV.
 If `--csv` is omitted, the CLI writes to `data/YYYY-MM-DD-HH-mm-ss.csv` using
 the `UTC+8` timezone. If `--csv PATH` is provided, it writes exactly to that
 path. Metadata JSON defaults to the same stem with `_meta.json` beside the CSV.
+Single-channel metadata keeps the existing top-level `channel` and
+`actual_points` fields. Multi-channel metadata has top-level IDN, resource,
+model, series, format, and requested point fields plus ordered `channels`
+entries containing each channel number, actual point count, preamble, and WORD
+byte-order fields where applicable.
 The command performs one `:SYSTem:ERRor?` post-check. It does not change VISA
 timeout, acquisition mode, trigger waiting, waveform point mode, or
 return-to-local behavior. If the CSV or metadata file cannot be written because
@@ -342,14 +355,19 @@ Single-channel WORD waveform capture is implemented and covered by
 hardware-free tests, and requested point counts 1000, 5000, and 10000 are USB
 validated on DSO-X 4024A.
 
+Multi-channel BYTE and WORD waveform capture is implemented and covered by
+hardware-free tests. Hardware validation is pending; it uses the same safe
+sequential SCPI reads as single-channel capture and preserves one post-capture
+system error check.
+
 Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and
 USB validated on DSO-X 4024A. Read-only minimum, maximum, rise time, and fall
 time measurement queries are implemented and covered by hardware-free tests;
-USB validation passed by user report on. Read-only amplitude, top,
+USB validation passed by user. Read-only amplitude, top,
 base, overshoot, preshoot, positive width, negative width, duty cycle, and
 negative duty cycle measurement queries are implemented and covered by
-hardware-free tests; USB CH1 validation passed by user report on.
+hardware-free tests; USB CH1 validation passed by user.
 Read-only area measurement query is implemented and covered by hardware-free
 tests; hardware validation remains USB CH1 first. LAN retest is deferred until
 a LAN environment is available.

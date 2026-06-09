@@ -9,7 +9,7 @@ from .scope import KeysightScope
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
 from .trigger import EdgeTriggerController, EdgeTriggerState
-from .waveform import WaveformCapture, WaveformPreamble
+from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformPreamble
 
 __all__ = [
     "ChannelController",
@@ -19,6 +19,7 @@ __all__ = [
     "KeysightScope",
     "MeasurementController",
     "MeasurementResult",
+    "MultiChannelWaveformCapture",
     "ScreenshotCapture",
     "ScreenshotController",
     "ScopeCapabilities",

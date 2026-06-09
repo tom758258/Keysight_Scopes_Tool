@@ -1,4 +1,4 @@
-"""Single-channel waveform capture helpers."""
+"""Waveform capture helpers."""
 
 from __future__ import annotations
 
@@ -54,8 +54,60 @@ class WaveformCapture:
     unsigned: bool | None = None
 
 
+@dataclass(frozen=True)
+class MultiChannelWaveformCapture:
+    """Converted waveform data for multiple analog channels."""
+
+    captures: tuple[WaveformCapture, ...]
+
+    def __post_init__(self) -> None:
+        captures = tuple(self.captures)
+        if not captures:
+            raise WaveformResponseError(
+                "Multi-channel waveform capture requires at least one channel."
+            )
+
+        channels = tuple(capture.channel for capture in captures)
+        if len(set(channels)) != len(channels):
+            raise WaveformResponseError(
+                "Multi-channel waveform capture contains duplicate channels."
+            )
+
+        formats = {capture.format_name for capture in captures}
+        if len(formats) != 1:
+            raise WaveformResponseError(
+                "Multi-channel waveform capture contains mixed formats."
+            )
+
+        requested_points = {capture.requested_points for capture in captures}
+        if len(requested_points) != 1:
+            raise WaveformResponseError(
+                "Multi-channel waveform capture contains mixed point counts."
+            )
+
+        object.__setattr__(self, "captures", captures)
+
+    @property
+    def channels(self) -> tuple[int, ...]:
+        """Ordered analog channel numbers."""
+
+        return tuple(capture.channel for capture in self.captures)
+
+    @property
+    def requested_points(self) -> int:
+        """Requested point count shared by all channel captures."""
+
+        return self.captures[0].requested_points
+
+    @property
+    def format_name(self) -> str:
+        """Waveform transfer format shared by all channel captures."""
+
+        return self.captures[0].format_name
+
+
 class WaveformController:
-    """Controls for single-channel waveform capture."""
+    """Controls for waveform capture."""
 
     def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
         self.scpi = scpi
@@ -105,6 +157,59 @@ class WaveformController:
         if not raw_samples:
             raise WaveformResponseError("Waveform data query returned no samples.")
         return convert_word_waveform(channel, points, preamble, raw_samples)
+
+    def capture_channels_byte(
+        self, channels: Sequence[int], points: int = 1000
+    ) -> MultiChannelWaveformCapture:
+        """Capture multiple analog channels using BYTE waveform format."""
+
+        channels = validate_waveform_channels(channels, self.capabilities)
+        points = validate_waveform_points(points, self.capabilities)
+        captures = tuple(self.capture_byte(channel, points=points) for channel in channels)
+        return MultiChannelWaveformCapture(captures)
+
+    def capture_channels_word(
+        self, channels: Sequence[int], points: int = 1000
+    ) -> MultiChannelWaveformCapture:
+        """Capture multiple analog channels using WORD waveform format."""
+
+        channels = validate_waveform_channels(channels, self.capabilities)
+        points = validate_waveform_points(points, self.capabilities)
+        captures = tuple(self.capture_word(channel, points=points) for channel in channels)
+        return MultiChannelWaveformCapture(captures)
+
+
+def validate_waveform_channels(
+    channels: Sequence[int], capabilities: ScopeCapabilities
+) -> tuple[int, ...]:
+    """Validate ordered waveform channel selection and reject duplicates."""
+
+    if isinstance(channels, (str, bytes)):
+        raise ParameterValidationError(
+            "waveform channels must be a sequence of integers."
+        )
+    try:
+        normalized = tuple(
+            validate_analog_channel(channel, capabilities) for channel in channels
+        )
+    except TypeError as exc:
+        raise ParameterValidationError(
+            "waveform channels must be a sequence of integers."
+        ) from exc
+    if not normalized:
+        raise ParameterValidationError("waveform capture requires at least one channel.")
+    if len(set(normalized)) != len(normalized):
+        seen: set[int] = set()
+        duplicates = []
+        for channel in normalized:
+            if channel in seen and channel not in duplicates:
+                duplicates.append(channel)
+            seen.add(channel)
+        duplicate_text = ", ".join(f"CH{channel}" for channel in duplicates)
+        raise ParameterValidationError(
+            f"duplicate waveform channels are not allowed: {duplicate_text}."
+        )
+    return normalized
 
 
 def validate_waveform_points(points: int, capabilities: ScopeCapabilities) -> int:
@@ -316,6 +421,100 @@ def write_waveform_metadata(
         json.dump(metadata, handle, indent=2, sort_keys=True)
         handle.write("\n")
     return output_path
+
+
+def write_waveforms_csv(capture: MultiChannelWaveformCapture, path: str | Path) -> Path:
+    """Write aligned multi-channel waveform data to CSV."""
+
+    _validate_aligned_waveforms(capture)
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    reference = capture.captures[0]
+    with output_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(
+            ("time_s", *(f"ch{item.channel}_v" for item in capture.captures))
+        )
+        for index, time_value in enumerate(reference.time_s):
+            writer.writerow(
+                (time_value, *(item.voltage_v[index] for item in capture.captures))
+            )
+    return output_path
+
+
+def write_waveforms_metadata(
+    capture: MultiChannelWaveformCapture,
+    path: str | Path,
+    *,
+    idn: IDN,
+    resource: str,
+) -> Path:
+    """Write multi-channel capture metadata to JSON."""
+
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    metadata = {
+        "idn": idn.raw,
+        "vendor": idn.vendor,
+        "model": idn.model,
+        "series": idn.series,
+        "serial": idn.serial,
+        "firmware": idn.firmware,
+        "resource": resource,
+        "requested_points": capture.requested_points,
+        "format": capture.format_name,
+        "channels": [_waveform_channel_metadata(item) for item in capture.captures],
+    }
+    with output_path.open("w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+    return output_path
+
+
+def _waveform_channel_metadata(capture: WaveformCapture) -> dict[str, object]:
+    metadata: dict[str, object] = {
+        "channel": capture.channel,
+        "actual_points": len(capture.raw_samples),
+        "preamble": asdict(capture.preamble),
+    }
+    if capture.byte_order is not None:
+        metadata["byte_order"] = capture.byte_order
+    if capture.unsigned is not None:
+        metadata["unsigned"] = capture.unsigned
+    return metadata
+
+
+def _validate_aligned_waveforms(capture: MultiChannelWaveformCapture) -> None:
+    reference = capture.captures[0]
+    reference_count = _validate_capture_sample_lengths(reference)
+    for item in capture.captures[1:]:
+        item_count = _validate_capture_sample_lengths(item)
+        if item_count != reference_count:
+            raise WaveformResponseError(
+                "Cannot write multi-channel waveform CSV: "
+                f"CH{item.channel} has {item_count} samples, "
+                f"CH{reference.channel} has {reference_count}."
+            )
+        if item.time_s != reference.time_s:
+            raise WaveformResponseError(
+                "Cannot write multi-channel waveform CSV: "
+                f"CH{item.channel} time axis does not match CH{reference.channel}."
+            )
+
+
+def _validate_capture_sample_lengths(capture: WaveformCapture) -> int:
+    sample_count = len(capture.raw_samples)
+    if len(capture.time_s) != sample_count:
+        raise WaveformResponseError(
+            f"CH{capture.channel} has {sample_count} samples "
+            f"but {len(capture.time_s)} time values."
+        )
+    if len(capture.voltage_v) != sample_count:
+        raise WaveformResponseError(
+            f"CH{capture.channel} has {sample_count} samples "
+            f"but {len(capture.voltage_v)} voltages."
+        )
+    return sample_count
 
 
 def _validate_byte_sample(value: int) -> int:

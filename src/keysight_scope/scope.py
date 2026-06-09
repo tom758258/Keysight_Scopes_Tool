@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Sequence
+
 from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import ChannelController
 from .errors import ParameterValidationError, UnsupportedModelError
@@ -13,7 +15,7 @@ from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
 from .trigger import EdgeTriggerController, EdgeTriggerState
 from .visa_backend import VisaBackend
-from .waveform import WaveformCapture, WaveformController
+from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformController
 
 
 class KeysightScope:
@@ -179,6 +181,20 @@ class KeysightScope:
         """Capture one analog channel using WORD waveform format."""
 
         return self._waveform_controller().capture_word(channel, points=points)
+
+    def capture_waveforms_byte(
+        self, channels: Sequence[int], points: int = 1000
+    ) -> MultiChannelWaveformCapture:
+        """Capture multiple analog channels using BYTE waveform format."""
+
+        return self._waveform_controller().capture_channels_byte(channels, points=points)
+
+    def capture_waveforms_word(
+        self, channels: Sequence[int], points: int = 1000
+    ) -> MultiChannelWaveformCapture:
+        """Capture multiple analog channels using WORD waveform format."""
+
+        return self._waveform_controller().capture_channels_word(channels, points=points)
 
     def query_measurement(self, channel: int, item: str) -> MeasurementResult:
         """Query one read-only measurement item for one analog channel."""
