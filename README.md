@@ -15,6 +15,8 @@ Current implemented scope:
 - Send basic acquisition control commands: `:STOP`, `:RUN`, and `:SINGle`.
 - Enable, disable, or query analog channel display state with
   `:CHANnel<n>:DISPlay`.
+- Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
+  `:CHANnel<n>:OFFSet`.
 - Provide hardware-free tests through `FakeBackend`.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
@@ -116,7 +118,27 @@ Enable, disable, or query one analog channel display:
 The `channel-display` command first queries `*IDN?` so the channel number can be
 validated against the detected model before any channel display command is sent.
 It prints the planned change or query, then performs one `:SYSTem:ERRor?`
-post-check.
+post-check. `--query` only reads back the current display state with
+`:CHANnel<n>:DISPlay?`; it should not change the oscilloscope screen.
+
+Set or query one analog channel vertical scale:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-scale --resource "USB0::...::INSTR" --channel 1 --volts-per-division 0.5 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-scale --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+```
+
+Set or query one analog channel vertical offset:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-offset --resource "USB0::...::INSTR" --channel 1 --volts 0 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-offset --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+```
+
+Scale must be a positive finite number in volts per division. Offset must be a
+finite number in volts. These commands first query `*IDN?` to validate the
+channel number against the detected model, then perform one
+`:SYSTem:ERRor?` post-check.
 
 ## Tests
 
@@ -131,10 +153,9 @@ Real instrument checks are manual and should start with USB. See
 
 ## Next Hardware Check
 
-Phase 3 channel display control is implemented and covered by hardware-free
-tests, but it has not been validated on a real oscilloscope yet.
+Phase 3 channel display control is implemented, covered by hardware-free tests,
+and USB validated on DSO-X 4024A.
 
-Next time an instrument is connected over USB, run the Phase 3 channel-display
-sequence in `docs/session-handoff.md` or `docs/hardware-test-plan.md`, then
-record the model, resource string, full IDN, SCPI log, error queue result, and
-whether LAN retest is requested.
+Channel scale and offset control is implemented and covered by hardware-free
+tests, and USB validated on DSO-X 4024A. Next code step: implement the first
+timebase control slice.

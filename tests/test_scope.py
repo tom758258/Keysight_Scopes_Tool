@@ -139,3 +139,45 @@ def test_scope_rejects_channel_above_capability_before_display_scpi():
         raise AssertionError("Expected ParameterValidationError")
 
     assert backend.history == ["*IDN?"]
+
+
+def test_scope_channel_scale_and_offset_use_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":CHANnel1:SCALe?": "5.0E-1",
+            ":CHANnel1:OFFSet?": "-1.25E-1",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    scope.set_channel_scale(1, 0.5)
+    scale = scope.query_channel_scale(1)
+    scope.set_channel_offset(1, -0.125)
+    offset = scope.query_channel_offset(1)
+
+    assert scale == 0.5
+    assert offset == -0.125
+    assert backend.history == [
+        "*IDN?",
+        ":CHANnel1:SCALe 0.5",
+        ":CHANnel1:SCALe?",
+        ":CHANnel1:OFFSet -0.125",
+        ":CHANnel1:OFFSet?",
+    ]
+
+
+def test_scope_rejects_channel_above_capability_before_scale_scpi():
+    backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20"})
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    try:
+        scope.set_channel_scale(3, 0.5)
+    except ParameterValidationError:
+        pass
+    else:
+        raise AssertionError("Expected ParameterValidationError")
+
+    assert backend.history == ["*IDN?"]

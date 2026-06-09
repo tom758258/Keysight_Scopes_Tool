@@ -85,6 +85,26 @@ class KeysightScope:
 
         return self._channel_controller().query_display(channel)
 
+    def set_channel_scale(self, channel: int, volts_per_division: float) -> None:
+        """Set one analog channel vertical scale in volts per division."""
+
+        self._channel_controller().set_scale(channel, volts_per_division)
+
+    def query_channel_scale(self, channel: int) -> float:
+        """Query one analog channel vertical scale in volts per division."""
+
+        return self._channel_controller().query_scale(channel)
+
+    def set_channel_offset(self, channel: int, volts: float) -> None:
+        """Set one analog channel vertical offset in volts."""
+
+        self._channel_controller().set_offset(channel, volts)
+
+    def query_channel_offset(self, channel: int) -> float:
+        """Query one analog channel vertical offset in volts."""
+
+        return self._channel_controller().query_offset(channel)
+
     def close(self) -> None:
         """Close the underlying backend."""
 

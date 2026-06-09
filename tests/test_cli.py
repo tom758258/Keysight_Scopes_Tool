@@ -492,3 +492,272 @@ def test_channel_display_cli_rejects_channel_above_detected_capabilities(monkeyp
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
     assert "channel 3 is not available" in err
+
+
+def test_channel_scale_cli_sets_scale_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def set_channel_scale(self, channel, volts_per_division):
+            self.calls.append(("set_channel_scale", channel, volts_per_division))
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "channel-scale",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--volts-per-division",
+                "0.5",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_channel_scale", 1, 0.5), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned change: CH1 scale 0.5 V/div" in out
+    assert "Command: :CHANnel1:SCALe 0.5" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_channel_scale_cli_queries_scale_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_channel_scale(self, channel):
+            self.calls.append(("query_channel_scale", channel))
+            return 0.5
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "channel-scale",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "2",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_channel_scale", 2), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: CH2 scale" in out
+    assert "Command: :CHANnel2:SCALe?" in out
+    assert "Scale V/div: 0.5" in out
+
+
+def test_channel_offset_cli_sets_offset_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def set_channel_offset(self, channel, volts):
+            self.calls.append(("set_channel_offset", channel, volts))
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "channel-offset",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--volts",
+                "-0.125",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_channel_offset", 1, -0.125), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned change: CH1 offset -0.125 V" in out
+    assert "Command: :CHANnel1:OFFSet -0.125" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_channel_offset_cli_queries_offset_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_channel_offset(self, channel):
+            self.calls.append(("query_channel_offset", channel))
+            return -0.125
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "channel-offset",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "2",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_channel_offset", 2), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: CH2 offset" in out
+    assert "Command: :CHANnel2:OFFSet?" in out
+    assert "Offset V: -0.125" in out
+
+
+def test_channel_scale_cli_rejects_channel_above_detected_capabilities(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4022A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+
+        def set_channel_scale(self, channel, volts_per_division):
+            self.calls.append(("set_channel_scale", channel, volts_per_division))
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "channel-scale",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "3",
+                "--volts-per-division",
+                "0.5",
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    err = capsys.readouterr().err
+    assert "channel 3 is not available" in err

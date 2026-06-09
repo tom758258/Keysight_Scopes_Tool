@@ -9,7 +9,17 @@ import sys
 from typing import Sequence
 
 from .capabilities import ScopeCapabilities
-from .channel import channel_display_command, channel_display_query, validate_analog_channel
+from .channel import (
+    channel_display_command,
+    channel_display_query,
+    channel_offset_command,
+    channel_offset_query,
+    channel_scale_command,
+    channel_scale_query,
+    validate_analog_channel,
+    validate_channel_offset,
+    validate_channel_scale,
+)
 from .errors import KeysightScopeError
 from .scope import KeysightScope
 from .visa_backend import list_visa_resources
@@ -38,6 +48,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_control(args)
         if args.command == "channel-display":
             return _cmd_channel_display(args)
+        if args.command == "channel-scale":
+            return _cmd_channel_scale(args)
+        if args.command == "channel-offset":
+            return _cmd_channel_offset(args)
     except KeysightScopeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -138,6 +152,56 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_const",
         const="query",
         help="query the channel display state",
+    )
+
+    channel_scale_parser = subparsers.add_parser(
+        "channel-scale",
+        help="set or query one analog channel vertical scale",
+    )
+    _add_scope_connection_args(channel_scale_parser)
+    channel_scale_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    scale_action = channel_scale_parser.add_mutually_exclusive_group(required=True)
+    scale_action.add_argument(
+        "--volts-per-division",
+        dest="scale_value",
+        type=_positive_float,
+        help="vertical scale in volts per division",
+    )
+    scale_action.add_argument(
+        "--query",
+        dest="scale_query",
+        action="store_true",
+        help="query the channel vertical scale",
+    )
+
+    channel_offset_parser = subparsers.add_parser(
+        "channel-offset",
+        help="set or query one analog channel vertical offset",
+    )
+    _add_scope_connection_args(channel_offset_parser)
+    channel_offset_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    offset_action = channel_offset_parser.add_mutually_exclusive_group(required=True)
+    offset_action.add_argument(
+        "--volts",
+        dest="offset_value",
+        type=_finite_float,
+        help="vertical offset in volts",
+    )
+    offset_action.add_argument(
+        "--query",
+        dest="offset_query",
+        action="store_true",
+        help="query the channel vertical offset",
     )
     return parser
 
@@ -288,6 +352,76 @@ def _cmd_channel_display(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
+def _cmd_channel_scale(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        if args.scale_query:
+            command = channel_scale_query(channel)
+            print(f"Planned query: CH{channel} scale")
+            scale = scope.query_channel_scale(channel)
+            print(f"Command: {command}")
+            print(f"Scale V/div: {scale:.12g}")
+        else:
+            scale = validate_channel_scale(args.scale_value)
+            command = channel_scale_command(channel, scale)
+            print(f"Planned change: CH{channel} scale {scale:.12g} V/div")
+            scope.set_channel_scale(channel, scale)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_channel_offset(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        if args.offset_query:
+            command = channel_offset_query(channel)
+            print(f"Planned query: CH{channel} offset")
+            offset = scope.query_channel_offset(channel)
+            print(f"Command: {command}")
+            print(f"Offset V: {offset:.12g}")
+        else:
+            offset = validate_channel_offset(args.offset_value)
+            command = channel_offset_command(channel, offset)
+            print(f"Planned change: CH{channel} offset {offset:.12g} V")
+            scope.set_channel_offset(channel, offset)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
 def _print_capabilities(capabilities: ScopeCapabilities | None) -> None:
     if capabilities is None:
         print("Capabilities: unavailable for this model")
@@ -323,6 +457,28 @@ def _positive_int(value: str) -> int:
     if parsed < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
     return parsed
+
+
+def _finite_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    try:
+        return validate_channel_offset(parsed)
+    except KeysightScopeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _positive_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    try:
+        return validate_channel_scale(parsed)
+    except KeysightScopeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def _print_session_header(scope: KeysightScope, resource: str) -> None:
