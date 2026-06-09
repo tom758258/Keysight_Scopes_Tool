@@ -70,7 +70,7 @@ duplicating them.
 
 ## License and Disclaimer
 
-This project is licensed under the MIT License. See `LICENSE`.
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
 This project is an independent, unofficial project and is not affiliated with,
 endorsed by, or sponsored by Keysight Technologies.
