@@ -1,0 +1,1793 @@
+﻿import json
+from pathlib import Path
+
+from keysight_scope_cli import cli
+from keysight_scope_core.errors import KeysightScopeError
+from keysight_scope_core.simulator_backend import SimulatorBackend
+
+
+def _json_stdout(capsys):
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    return json.loads(captured.out)
+
+
+def test_verify_simulate_json_uses_simulator_without_resource(capsys):
+    assert cli.main(["identify", "--simulate", "--json"]) == 0
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is True
+    assert payload["command"] == "identify"
+    assert payload["mode"] == "simulate"
+    assert payload["resource"] == "SIM::DSOX4024A::INSTR"
+    assert payload["backend"] == "Keysight simulator"
+    assert payload["idn"]["model"] == "DSOX4024A"
+    assert payload["capabilities"]["analog_channels"] == 4
+    assert payload["scpi"]["sent"] == ["*IDN?"]
+
+
+def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("dry-run must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert cli.main(["identify", "--dry-run", "--json", "--model", "DSOX4024A"]) == 0
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is True
+    assert payload["mode"] == "dry_run"
+    assert payload["scpi"]["planned"] == ["*IDN?"]
+    assert payload["scpi"]["sent"] == []
+
+
+def test_capture_dry_run_json_reports_files_without_writing(monkeypatch, capsys, tmp_path):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("dry-run must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--dry-run",
+                "--json",
+                "--channel",
+                "1",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["mode"] == "dry_run"
+    assert payload["files"] == [
+        {"kind": "csv", "path": str(csv_path)},
+        {"kind": "metadata", "path": str(csv_path.with_name("capture_meta.json"))},
+    ]
+    assert not csv_path.exists()
+    assert payload["scpi"]["planned"][-1] == ":SYSTem:ERRor?"
+
+
+def test_acquisition_check_dry_run_json_reports_plan_for_target_models(monkeypatch, capsys, tmp_path):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("dry-run must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    for model in ("DSOX4024A", "DSOX4034A", "DSOX3024A", "DSOX2004A"):
+        output_dir = tmp_path / model
+        assert (
+            cli.main(
+                [
+                    "acquisition-check",
+                    "--dry-run",
+                    "--json",
+                    "--model",
+                    model,
+                    "--output-dir",
+                    str(output_dir),
+                ]
+            )
+            == 0
+        )
+
+        payload = _json_stdout(capsys)
+        planned = payload["scpi"]["planned"]
+        assert payload["mode"] == "dry_run"
+        assert payload["idn"]["model"] == model
+        assert payload["files"] == [
+            {"kind": "report", "path": str(output_dir / "report.json")},
+            {"kind": "scpi_log", "path": str(output_dir / "scpi.log")},
+        ]
+        assert planned == [
+            "*IDN?",
+            ":ACQuire:TYPE?",
+            ":ACQuire:COUNt?",
+            ":SYSTem:ERRor?",
+            ":ACQuire:TYPE NORMal",
+            ":SYSTem:ERRor?",
+            ":ACQuire:TYPE AVERage",
+            ":ACQuire:COUNt 16",
+            ":SYSTem:ERRor?",
+            ":ACQuire:TYPE?",
+            ":ACQuire:COUNt?",
+            ":SYSTem:ERRor?",
+            ":ACQuire:TYPE HRESolution",
+            ":SYSTem:ERRor?",
+            ":ACQuire:TYPE PEAK",
+            ":SYSTem:ERRor?",
+            ":ACQuire:TYPE?",
+            ":ACQuire:COUNt?",
+            ":SYSTem:ERRor?",
+        ]
+        assert not output_dir.exists()
+
+
+def test_acquisition_check_simulate_json_writes_report_and_scpi_log(capsys, tmp_path):
+    output_dir = tmp_path / "acq-check"
+
+    assert (
+        cli.main(
+            [
+                "acquisition-check",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX4034A",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    report_path = output_dir / "report.json"
+    scpi_log_path = output_dir / "scpi.log"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["ok"] is True
+    assert payload["result"]["status"] == "completed"
+    assert payload["result"]["final_acquisition"] == {"type": "peak", "count": 16}
+    assert [step["name"] for step in payload["result"]["steps"]] == [
+        "initial-query",
+        "set-normal",
+        "set-average",
+        "post-average-query",
+        "set-high-resolution",
+        "set-peak",
+        "final-query",
+    ]
+    assert report["status"] == "completed"
+    assert report["idn"]["model"] == "DSOX4034A"
+    assert report["final_acquisition"] == {"type": "peak", "count": 16}
+    assert scpi_log_path.exists()
+    assert ":ACQuire:TYPE PEAK" in payload["scpi"]["sent"]
+
+
+def test_acquisition_check_rejects_nonempty_output_dir(capsys, tmp_path):
+    output_dir = tmp_path / "existing"
+    output_dir.mkdir()
+    (output_dir / "old.txt").write_text("old", encoding="utf-8")
+
+    assert (
+        cli.main(
+            [
+                "acquisition-check",
+                "--simulate",
+                "--json",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert "output directory must be empty" in payload["error"]["message"]
+
+
+def test_acquisition_check_system_error_keeps_report(capsys, tmp_path):
+    output_dir = tmp_path / "system-error"
+
+    assert (
+        cli.main(
+            [
+                "acquisition-check",
+                "--simulate",
+                "--json",
+                "--simulate-system-error",
+                "-113",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert payload["ok"] is False
+    assert payload["result"]["status"] == "instrument_error"
+    assert report["status"] == "instrument_error"
+    assert report["steps"][0]["system_error"]["code"] == -113
+
+
+def test_acquisition_check_check_only_json_reports_initial_state_and_no_writes(
+    capsys, tmp_path
+):
+    output_dir = tmp_path / "check-only"
+
+    assert (
+        cli.main(
+            [
+                "acquisition-check",
+                "--simulate",
+                "--json",
+                "--check-only",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert payload["result"]["check_only"] is True
+    assert payload["result"]["termination_reason"] == "check_only"
+    assert payload["result"]["initial_acquisition"] == {"type": "normal", "count": 8}
+    assert [step["name"] for step in payload["result"]["steps"]] == [
+        "initial-query",
+    ]
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":ACQuire:TYPE?",
+        ":ACQuire:COUNt?",
+        ":SYSTem:ERRor?",
+    ]
+    assert report["check_only"] is True
+    assert report["termination_reason"] == "check_only"
+    assert report["initial_acquisition"] == {"type": "normal", "count": 8}
+
+
+def test_acquisition_check_stop_on_error_stops_after_first_error(monkeypatch, capsys, tmp_path):
+    output_dir = tmp_path / "stop-on-error"
+    backend = SimulatorBackend(
+        system_errors=['+0,"No error"', '-113,"Undefined header"']
+    )
+    monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
+
+    assert (
+        cli.main(
+            [
+                "acquisition-check",
+                "--simulate",
+                "--json",
+                "--stop-on-error",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert payload["result"]["stopped_on_error"] is True
+    assert payload["result"]["termination_reason"] == "stopped_on_error"
+    assert [step["name"] for step in payload["result"]["steps"]] == [
+        "initial-query",
+        "set-normal",
+    ]
+    assert report["stopped_on_error"] is True
+    assert report["termination_reason"] == "stopped_on_error"
+
+
+def test_acquisition_check_restore_type_attempts_restore_and_records_result(
+    monkeypatch, capsys, tmp_path
+):
+    output_dir = tmp_path / "restore-type"
+    backend = SimulatorBackend()
+    monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
+
+    assert (
+        cli.main(
+            [
+                "acquisition-check",
+                "--simulate",
+                "--json",
+                "--restore-type",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert payload["result"]["restore"]["requested"] is True
+    assert payload["result"]["restore"]["attempted"] is True
+    assert payload["result"]["restore"]["succeeded"] is True
+    assert report["restore"]["requested"] is True
+    assert report["restore"]["attempted"] is True
+    assert report["restore"]["succeeded"] is True
+
+
+def test_hardware_report_renders_acquisition_and_smoke_reports(capsys, tmp_path):
+    acq_report = tmp_path / "acq.json"
+    smoke_report = tmp_path / "smoke.json"
+    acq_report.write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "resource": "USB0::FAKE::INSTR",
+                "backend": "Keysight simulator",
+                "idn": {
+                    "model": "DSOX4034A",
+                    "firmware": "07.20",
+                },
+                "average_count": 16,
+                "check_only": False,
+                "stopped_on_error": False,
+                "initial_acquisition": {"type": "normal", "count": 8},
+                "restore": {
+                    "requested": True,
+                    "attempted": True,
+                    "succeeded": True,
+                    "error": None,
+                },
+                "termination_reason": "completed",
+                "steps": [
+                    {
+                        "name": "initial-query",
+                        "commands": [":ACQuire:TYPE?", ":ACQuire:COUNt?", ":SYSTem:ERRor?"],
+                        "system_error": {"is_error": False},
+                    }
+                ],
+                "final_acquisition": {"type": "peak", "count": 16},
+                "files": [{"kind": "report", "path": "report.json"}],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    smoke_report.write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "resource": "USB0::FAKE::INSTR",
+                "backend": "Keysight simulator",
+                "idn": {
+                    "model": "DSOX4034A",
+                    "firmware": "07.20",
+                },
+                "doctor": {},
+                "measurements": [],
+                "capture": {},
+                "screenshot": {},
+                "post_check_error": {"code": 0, "message": "No error"},
+                "warnings": [],
+                "files": [{"kind": "report", "path": "report.json"}],
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    assert cli.main(["hardware-report", str(acq_report), str(smoke_report)]) == 0
+    out = capsys.readouterr().out
+    assert "Hardware Report" in out
+    assert "acquisition-check" in out
+    assert "smoke" in out
+    assert "Restore Requested: True" in out
+    assert "Post Check Error" in out
+
+
+def test_simulate_json_error_is_single_json_object(capsys):
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX4022A",
+                "--channel",
+                "3",
+                "--item",
+                "vpp",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert payload["mode"] == "simulate"
+    assert "channel 3 is not available" in payload["error"]["message"]
+
+
+def test_simulate_json_backend_error_keeps_single_json_object(monkeypatch, capsys):
+    backend = SimulatorBackend(
+        query_failures={
+            ":MEASure:VPP? CHANnel1": KeysightScopeError("configured measurement failure")
+        }
+    )
+    monkeypatch.setattr(cli, "SimulatorBackend", lambda **kwargs: backend)
+
+    assert cli.main(["measure", "--simulate", "--json", "--channel", "1", "--item", "vpp"]) == 1
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert payload["mode"] == "simulate"
+    assert payload["error"]["message"] == "configured measurement failure"
+    assert payload["scpi"]["sent"] == ["*IDN?", ":MEASure:VPP? CHANnel1"]
+
+
+def test_check_error_simulate_json_can_report_injected_error_queue(monkeypatch, capsys):
+    backend = SimulatorBackend(system_errors=['-113,"Undefined header"'])
+    monkeypatch.setattr(cli, "SimulatorBackend", lambda **kwargs: backend)
+
+    assert cli.main(["check-error", "--simulate", "--json", "--all", "--max-reads", "3"]) == 1
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert payload["mode"] == "simulate"
+    assert payload["result"]["entries"] == [
+        {
+            "code": -113,
+            "is_error": True,
+            "message": "Undefined header",
+            "raw": '-113,"Undefined header"',
+        },
+        {
+            "code": 0,
+            "is_error": False,
+            "message": "No error",
+            "raw": '+0,"No error"',
+        },
+    ]
+    assert payload["system_error"]["code"] == 0
+    assert payload["scpi"]["sent"] == [":SYSTem:ERRor?", ":SYSTem:ERRor?"]
+
+
+
+def test_control_simulate_json_reports_action_and_system_error(capsys):
+    assert cli.main(["run", "--simulate", "--json"]) == 0
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["action"] == "run"
+    assert payload["result"]["command"] == ":RUN"
+    assert payload["system_error"]["code"] == 0
+    assert payload["result"]["human_output"]
+
+
+def test_channel_timebase_trigger_json_results(capsys):
+    assert cli.main(["channel-scale", "--simulate", "--json", "--channel", "1", "--volts-per-division", "0.5"]) == 0
+    channel_payload = _json_stdout(capsys)
+    assert channel_payload["result"]["operation"] == "set"
+    assert channel_payload["result"]["channel"] == 1
+    assert channel_payload["result"]["volts_per_division"] == 0.5
+
+    assert cli.main(["timebase-position", "--simulate", "--json", "--seconds", "0.001"]) == 0
+    timebase_payload = _json_stdout(capsys)
+    assert timebase_payload["result"]["operation"] == "set"
+    assert timebase_payload["result"]["position_seconds"] == 0.001
+
+    assert cli.main(["edge-trigger", "--simulate", "--json", "--source-channel", "1", "--level", "0.2", "--slope", "positive"]) == 0
+    trigger_payload = _json_stdout(capsys)
+    assert trigger_payload["result"]["source_channel"] == 1
+    assert trigger_payload["result"]["level_volts"] == 0.2
+    assert trigger_payload["result"]["slope"] == "POSitive"
+
+
+def test_cursor_auto_timebase_dry_run_json_plans_queries(capsys):
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--dry-run",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.01",
+                "--auto-timebase",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["planned"][:2] == [":TIMebase:SCALe?", ":TIMebase:POSition?"]
+    assert not any(command.startswith(":TIMebase:SCALe ") for command in payload["scpi"]["planned"])
+    assert payload["result"]["auto_timebase"]["enabled"] is True
+    assert payload["result"]["auto_timebase"]["strategy"] == "scale_only"
+    assert payload["result"]["auto_timebase"]["changed"] is None
+    assert payload["result"]["auto_timebase"]["target_scale_seconds_per_division"] is None
+
+
+def test_cursor_auto_timebase_simulate_widens_before_cursor_setup(capsys):
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--simulate",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.01",
+                "--auto-timebase",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    sent = payload["scpi"]["sent"]
+    assert sent[1:4] == [
+        ":TIMebase:SCALe?",
+        ":TIMebase:POSition?",
+        ":TIMebase:SCALe 0.0025",
+    ]
+    assert sent.index(":TIMebase:SCALe 0.0025") < sent.index(":MARKer:MODE MANual")
+    assert payload["result"]["auto_timebase"]["changed"] is True
+    assert payload["result"]["auto_timebase"]["original_position_seconds"] == 0.0
+
+
+def test_cursor_auto_vertical_dry_run_json_plans_queries(capsys):
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--dry-run",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.001",
+                "--y1",
+                "10",
+                "--auto-vertical",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["planned"][:2] == [":CHANnel1:SCALe?", ":CHANnel1:OFFSet?"]
+    assert not any(command.startswith(":CHANnel1:SCALe ") for command in payload["scpi"]["planned"])
+    assert payload["result"]["auto_vertical"]["enabled"] is True
+    assert payload["result"]["auto_vertical"]["strategy"] == "scale_then_offset"
+    assert payload["result"]["auto_vertical"]["changed"] is None
+    assert payload["result"]["auto_vertical"]["target_scale_volts_per_division"] is None
+
+
+def test_cursor_auto_vertical_simulate_adjusts_before_cursor_setup(capsys):
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--simulate",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.001",
+                "--y1",
+                "20",
+                "--y2",
+                "21",
+                "--auto-vertical",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    sent = payload["scpi"]["sent"]
+    assert sent[1:5] == [
+        ":CHANnel1:SCALe?",
+        ":CHANnel1:OFFSet?",
+        ":CHANnel1:SCALe 1",
+        ":CHANnel1:OFFSet 20.5",
+    ]
+    assert sent.index(":CHANnel1:OFFSet 20.5") < sent.index(":MARKer:MODE MANual")
+    assert payload["result"]["auto_vertical"]["changed"] is True
+    assert payload["result"]["auto_vertical"]["offset_changed"] is True
+
+
+def test_cursor_auto_timebase_and_auto_vertical_can_combine(capsys):
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--simulate",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.01",
+                "--y1",
+                "20",
+                "--auto-timebase",
+                "--auto-vertical",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    sent = payload["scpi"]["sent"]
+    assert sent[1:4] == [
+        ":TIMebase:SCALe?",
+        ":TIMebase:POSition?",
+        ":TIMebase:SCALe 0.0025",
+    ]
+    assert sent[4:8] == [
+        ":CHANnel1:SCALe?",
+        ":CHANnel1:OFFSet?",
+        ":CHANnel1:SCALe 1",
+        ":CHANnel1:OFFSet 20",
+    ]
+    assert "auto_timebase" in payload["result"]
+    assert "auto_vertical" in payload["result"]
+
+
+def test_cursor_auto_timebase_rejects_query_and_off(capsys):
+    assert cli.main(["cursor", "--dry-run", "--json", "--query", "--auto-timebase"]) == 1
+    payload = _json_stdout(capsys)
+    assert "--auto-timebase is only valid" in payload["error"]["message"]
+
+    assert cli.main(["cursor", "--dry-run", "--json", "--off", "--auto-timebase"]) == 1
+    payload = _json_stdout(capsys)
+    assert "--auto-timebase is only valid" in payload["error"]["message"]
+
+
+def test_cursor_auto_vertical_rejects_query_off_and_missing_y(capsys):
+    assert cli.main(["cursor", "--dry-run", "--json", "--query", "--auto-vertical"]) == 1
+    payload = _json_stdout(capsys)
+    assert "--auto-vertical is only valid" in payload["error"]["message"]
+
+    assert cli.main(["cursor", "--dry-run", "--json", "--off", "--auto-vertical"]) == 1
+    payload = _json_stdout(capsys)
+    assert "--auto-vertical is only valid" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--dry-run",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.001",
+                "--auto-vertical",
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert "--auto-vertical requires --y1 or --y2" in payload["error"]["message"]
+
+
+def test_cursor_without_auto_timebase_reports_range_diagnostic(capsys):
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--simulate",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.01",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["system_error"]["code"] == -222
+    assert "cursor --auto-timebase" in payload["result"]["diagnostic"]
+    assert "cursor --auto-vertical" in payload["result"]["diagnostic"]
+    assert ":TIMebase:SCALe?" not in payload["scpi"]["sent"]
+    assert not any(command.startswith(":TIMebase:SCALe ") for command in payload["scpi"]["sent"])
+
+
+def test_cursor_without_auto_vertical_reports_y_range_diagnostic(capsys):
+    assert (
+        cli.main(
+            [
+                "cursor",
+                "--simulate",
+                "--json",
+                "--source-channel",
+                "1",
+                "--x1",
+                "0",
+                "--x2",
+                "0.001",
+                "--y1",
+                "10",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["system_error"]["code"] == -222
+    assert "cursor --auto-vertical" in payload["result"]["diagnostic"]
+
+
+def test_measure_simulate_json_reports_measurement_fields(capsys):
+    assert cli.main(["measure", "--simulate", "--json", "--channel", "1", "--item", "vpp"]) == 0
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["item"] == "vpp"
+    assert result["channel"] == 1
+    assert result["valid"] is True
+    assert result["value"] == 0.5
+    assert result["unit"] == "V"
+    assert result["raw_value"] == "5.000000E-01"
+    assert result["parameters"] == {}
+    assert payload["system_error"]["is_error"] is False
+
+
+def test_measure_pair_phase_simulate_json_uses_signal_model(capsys):
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "phase",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["item"] == "phase"
+    assert result["channel"] == 1
+    assert result["reference_channel"] == 2
+    assert result["valid"] is True
+    assert result["value"] == 45.0
+    assert result["unit"] == "deg"
+
+
+def test_measure_pair_delay_simulate_json_on_4000x_uses_signal_model(capsys):
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX4034A",
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "delay",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["item"] == "delay"
+    assert result["reference_channel"] == 2
+    assert result["valid"] is True
+    assert result["value"] == 45.0 / 360.0 / 1000.0
+    assert result["unit"] == "s"
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":MEASure:DELay? AUTO,CHANnel1,CHANnel2",
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_measure_pair_delay_simulate_json_rejects_non_4000x_before_measurement(capsys):
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX3024A",
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "delay",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert "4000X" in payload["error"]["message"]
+    assert payload["scpi"]["sent"] == ["*IDN?"]
+
+
+def test_measure_pair_phase_simulate_json_supported_across_target_models(capsys):
+    for model in ("DSOX4024A", "DSOX4034A", "DSOX3024A", "DSOX2004A"):
+        assert (
+            cli.main(
+                [
+                    "measure",
+                    "--simulate",
+                    "--json",
+                    "--model",
+                    model,
+                    "--source-channel",
+                    "1",
+                    "--reference-channel",
+                    "2",
+                    "--item",
+                    "phase",
+                ]
+            )
+            == 0
+        )
+        payload = _json_stdout(capsys)
+        assert payload["idn"]["model"] == model
+        assert payload["result"]["value"] == 45.0
+
+
+def test_fft_query_simulate_json_uses_distinct_fft_operation_field(capsys):
+    assert cli.main(["fft", "--simulate", "--json", "--function", "1", "--query"]) == 0
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["operation"] == "query"
+    assert result["fft_operation"] == "FFT"
+    assert result["function"] == 1
+    assert result["source_channel"] == 1
+    assert payload["system_error"]["is_error"] is False
+
+
+def test_measure_simulate_json_reports_invalid_sentinel(monkeypatch, capsys):
+    backend = SimulatorBackend(invalid_measurement_channels={1})
+    monkeypatch.setattr(cli, "SimulatorBackend", lambda **kwargs: backend)
+
+    assert cli.main(["measure", "--simulate", "--json", "--channel", "1", "--item", "vpp"]) == 1
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert payload["ok"] is False
+    assert result["valid"] is False
+    assert result["value"] is None
+    assert result["raw_value"] == "9.9E+37"
+    assert result["reason"] == "invalid measurement sentinel"
+
+
+def test_measure_pair_simulate_json_reports_reference_channel_invalid_sentinel(
+    monkeypatch, capsys
+):
+    backend = SimulatorBackend(invalid_measurement_channels={2})
+    monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "phase",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert payload["ok"] is False
+    assert result["valid"] is False
+    assert result["value"] is None
+    assert result["raw_value"] == "9.9E+37"
+    assert result["reason"] == "invalid measurement sentinel"
+
+
+def test_capture_simulate_json_reports_files_and_summaries(capsys, tmp_path):
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--channel",
+                "1",
+                "--points",
+                "5000",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert payload["files"] == [
+        {"kind": "csv", "path": str(csv_path)},
+        {"kind": "metadata", "path": str(csv_path.with_name("capture_meta.json"))},
+    ]
+    assert result["requested_points"] == 5000
+    assert result["actual_points"] == 5000
+    assert result["captures"][0]["channel"] == 1
+    assert "raw_samples" not in result["captures"][0]
+    assert result["captures"][0]["preamble"]["points"] == 5000
+
+
+def test_capture_simulate_json_accepts_signal_override(capsys, tmp_path):
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--simulate-signal",
+                "CH1:square:1000:2.0:0.5:0:0.01",
+                "--channel",
+                "1",
+                "--points",
+                "1000",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is True
+    rows = csv_path.read_text(encoding="utf-8").splitlines()
+    assert rows[0] == "time_s,ch1_v"
+    voltages = [float(row.split(",")[1]) for row in rows[1:]]
+    assert max(voltages) > 1.3
+    assert min(voltages) < -0.3
+
+
+def test_capture_simulate_json_accepts_each_preset(capsys, tmp_path):
+    for preset in (
+        "noisy-sine",
+        "square-with-offset",
+        "phase-shifted-pair",
+        "dc-invalid-frequency",
+        "trigger-misaligned",
+    ):
+        csv_path = tmp_path / f"{preset}.csv"
+
+        assert (
+            cli.main(
+                [
+                    "capture",
+                    "--simulate",
+                    "--json",
+                    "--simulate-preset",
+                    preset,
+                    "--channel",
+                    "1",
+                    "--csv",
+                    str(csv_path),
+                ]
+            )
+            == 0
+        )
+
+        payload = _json_stdout(capsys)
+        assert payload["ok"] is True
+        assert csv_path.exists()
+
+
+def test_simulate_json_scenario_drives_measurement(capsys, tmp_path):
+    scenario_path = tmp_path / "scenario.json"
+    scenario_path.write_text(
+        json.dumps(
+            {
+                "preset": "phase-shifted-pair",
+                "signals": {"CH1": {"phase_deg": 30.0}, "CH2": {"phase_deg": 120.0}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--simulate-scenario",
+                str(scenario_path),
+                "--source-channel",
+                "1",
+                "--reference-channel",
+                "2",
+                "--item",
+                "phase",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["value"] == 90.0
+
+
+def test_simulate_json_layered_preset_scenario_signal_override(capsys, tmp_path):
+    scenario_path = tmp_path / "scenario.json"
+    scenario_path.write_text(
+        json.dumps({"signals": {"CH1": {"shape": "sine", "vpp_v": 1.0}}}),
+        encoding="utf-8",
+    )
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--simulate-preset",
+                "noisy-sine",
+                "--simulate-scenario",
+                str(scenario_path),
+                "--simulate-signal",
+                "CH1:dc:0:0:2.5:0",
+                "--channel",
+                "1",
+                "--item",
+                "vavg",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["value"] == 2.5
+
+
+def test_measure_simulate_json_accepts_signal_override(capsys):
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--simulate-signal",
+                "1:dc:0:0:1.25:0",
+                "--channel",
+                "1",
+                "--item",
+                "vavg",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["value"] == 1.25
+
+
+def test_simulate_json_public_error_injection_options(capsys, tmp_path):
+    assert (
+        cli.main(
+            [
+                "check-error",
+                "--simulate",
+                "--json",
+                "--simulate-system-error",
+                "-113",
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert payload["system_error"]["code"] == -113
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--simulate-invalid-measurement",
+                "CH1",
+                "--channel",
+                "1",
+                "--item",
+                "vpp",
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert payload["result"]["raw_value"] == "9.9E+37"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--simulate-display-off",
+                "CH1",
+                "--channel",
+                "1",
+                "--csv",
+                str(tmp_path / "display-off.csv"),
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert "display is off" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--simulate-binary-transfer-failure",
+                "--channel",
+                "1",
+                "--csv",
+                str(tmp_path / "binary-failure.csv"),
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert payload["error"]["message"] == "simulated binary transfer failure"
+
+
+def test_simulate_json_scenario_error_injection_is_single_json_object(capsys, tmp_path):
+    scenario_path = tmp_path / "scenario.json"
+    scenario_path.write_text(
+        json.dumps({"errors": {"binary_transfer_failure": True}}),
+        encoding="utf-8",
+    )
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--simulate-scenario",
+                str(scenario_path),
+                "--channel",
+                "1",
+                "--csv",
+                str(tmp_path / "scenario-failure.csv"),
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert payload["error"]["message"] == "simulated binary transfer failure"
+
+
+def test_simulate_signal_json_errors_are_single_json_objects(capsys, tmp_path):
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--simulate-signal",
+                "CH1:triangle:1000:1:0:0",
+                "--channel",
+                "1",
+                "--item",
+                "vpp",
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert "invalid --simulate-signal" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--simulate",
+                "--json",
+                "--simulate-signal",
+                "CH1:sine:1000:1:0:0",
+                "--simulate-signal",
+                "1:square:1000:1:0:0",
+                "--channel",
+                "1",
+                "--item",
+                "vpp",
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert "duplicate --simulate-signal for CH1" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--dry-run",
+                "--json",
+                "--simulate-signal",
+                "CH1:sine:1000:1:0:0",
+                "--channel",
+                "1",
+                "--csv",
+                str(tmp_path / "capture.csv"),
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert payload["mode"] == "dry_run"
+    assert "--simulate-signal can only be used with --simulate" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--dry-run",
+                "--json",
+                "--simulate-preset",
+                "noisy-sine",
+                "--channel",
+                "1",
+                "--item",
+                "vpp",
+            ]
+        )
+        == 1
+    )
+    payload = _json_stdout(capsys)
+    assert "--simulate-preset can only be used with --simulate" in payload["error"]["message"]
+
+
+def test_capture_simulate_json_multi_channel_word_reflects_distinct_channels(
+    capsys, tmp_path
+):
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--channel",
+                "1",
+                "--channel",
+                "2",
+                "--points",
+                "1000",
+                "--format",
+                "word",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["actual_points"] == {"CH1": 1000, "CH2": 1000}
+    assert [item["channel"] for item in result["captures"]] == [1, 2]
+    rows = csv_path.read_text(encoding="utf-8").splitlines()
+    assert rows[0] == "time_s,ch1_v,ch2_v"
+    _, ch1_v, ch2_v = rows[1].split(",")
+    assert float(ch1_v) != float(ch2_v)
+
+
+def test_capture_simulate_json_binary_failure_reports_single_json_object(
+    monkeypatch, capsys, tmp_path
+):
+    backend = SimulatorBackend(
+        binary_failures={":WAVeform:DATA?": KeysightScopeError("configured binary failure")}
+    )
+    monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--channel",
+                "1",
+                "--csv",
+                str(tmp_path / "capture.csv"),
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert payload["error"]["message"] == "configured binary failure"
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":WAVeform:SOURce CHANnel1",
+        ":WAVeform:FORMat BYTE",
+        ":WAVeform:POINts 1000",
+        ":WAVeform:PREamble?",
+        ":WAVeform:DATA?",
+    ]
+
+
+def test_screenshot_simulate_json_reports_png_metadata(capsys, tmp_path):
+    black_path = tmp_path / "screen-black.png"
+    white_path = tmp_path / "screen-white.png"
+
+    assert cli.main(["screenshot", "--simulate", "--json", "--output", str(black_path)]) == 0
+
+    black_payload = _json_stdout(capsys)
+    black_result = black_payload["result"]
+    assert black_payload["files"] == [{"kind": "png", "path": str(black_path)}]
+    assert black_result["format"] == "PNG"
+    assert black_result["background"] == "black"
+    assert black_result["byte_count"] > 1000
+    assert black_result["png_path"] == str(black_path)
+    assert black_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+    assert (
+        cli.main(
+            [
+                "screenshot",
+                "--simulate",
+                "--json",
+                "--background",
+                "white",
+                "--output",
+                str(white_path),
+            ]
+        )
+        == 0
+    )
+
+    white_payload = _json_stdout(capsys)
+    white_result = white_payload["result"]
+    assert white_payload["files"] == [{"kind": "png", "path": str(white_path)}]
+    assert white_result["background"] == "white"
+    assert white_result["byte_count"] > 1000
+    assert white_result["png_path"] == str(white_path)
+    assert white_path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert black_path.read_bytes() != white_path.read_bytes()
+
+
+def test_capture_batch_simulate_json_reports_manifest_and_entries(capsys, tmp_path):
+    output_dir = tmp_path / "batch"
+
+    assert (
+        cli.main(
+            [
+                "capture-batch",
+                "--simulate",
+                "--json",
+                "--channel",
+                "1",
+                "--count",
+                "2",
+                "--points",
+                "10000",
+                "--format",
+                "word",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["status"] == "completed"
+    assert result["requested_count"] == 2
+    assert result["completed_count"] == 2
+    assert result["manifest_path"] == str(output_dir / "manifest.json")
+    assert result["scpi_log_path"] == str(output_dir / "scpi.log")
+    assert len(result["captures"]) == 2
+    assert result["captures"][0]["actual_points"] == {"CH1": 10000}
+    assert {item["kind"] for item in payload["files"]} >= {"manifest", "scpi_log", "csv", "metadata"}
+
+
+def test_capture_batch_simulate_json_stops_after_injected_system_error(
+    monkeypatch, capsys, tmp_path
+):
+    output_dir = tmp_path / "batch"
+    backend = SimulatorBackend(
+        system_errors=['+0,"No error"', '-113,"Undefined header"']
+    )
+    monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
+
+    assert (
+        cli.main(
+            [
+                "capture-batch",
+                "--simulate",
+                "--json",
+                "--channel",
+                "1",
+                "--count",
+                "3",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert payload["ok"] is False
+    assert result["status"] == "instrument_error"
+    assert result["completed_count"] == 2
+    assert len(result["captures"]) == 2
+    assert result["captures"][1]["system_error"]["code"] == -113
+    assert (output_dir / "waveform_0001.csv").exists()
+    assert (output_dir / "waveform_0002.csv").exists()
+    assert not (output_dir / "waveform_0003.csv").exists()
+    manifest = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["status"] == "instrument_error"
+    assert len(manifest["captures"]) == 2
+    assert ":WAVeform:DATA?" in (output_dir / "scpi.log").read_text(encoding="utf-8")
+
+
+def test_acquisition_dry_run_json_reports_structured_plan(capsys):
+    assert cli.main(["acquisition", "--dry-run", "--json", "--type", "average", "--count", "16"]) == 0
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["operation"] == "set"
+    assert payload["result"]["scpi_type"] == "AVERage"
+    assert payload["result"]["count"] == 16
+    assert payload["scpi"]["planned"] == [":ACQuire:TYPE AVERage", ":ACQuire:COUNt 16", ":SYSTem:ERRor?"]
+
+
+def test_acquisition_simulate_json_query_reports_readback_and_sent_scpi(capsys):
+    assert cli.main(["acquisition", "--simulate", "--json", "--query"]) == 0
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["operation"] == "query"
+    assert payload["result"]["type"] == "normal"
+    assert payload["result"]["count"] == 8
+    assert payload["result"]["commands"] == [":ACQuire:TYPE?", ":ACQuire:COUNt?"]
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":ACQuire:TYPE?",
+        ":ACQuire:COUNt?",
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_acquisition_simulate_json_bad_readback_reports_error(monkeypatch, capsys):
+    backend = SimulatorBackend(query_overrides={":ACQuire:TYPE?": "bad-type"})
+    monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
+
+    assert cli.main(["acquisition", "--simulate", "--json", "--query"]) == 1
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert "Could not parse acquisition type" in payload["error"]["message"]
+    assert payload["scpi"]["sent"] == ["*IDN?", ":ACQuire:TYPE?"]
+
+
+def test_acquisition_simulate_json_normal_reports_sent_scpi(capsys):
+    assert cli.main(["acquisition", "--simulate", "--json", "--type", "normal"]) == 0
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["operation"] == "set"
+    assert payload["result"]["type"] == "normal"
+    assert payload["result"]["scpi_type"] == "NORMal"
+    assert payload["result"]["count"] is None
+    assert payload["result"]["commands"] == [":ACQuire:TYPE NORMal"]
+    assert payload["scpi"]["sent"] == ["*IDN?", ":ACQuire:TYPE NORMal", ":SYSTem:ERRor?"]
+
+
+def test_acquisition_simulate_json_average_count_reports_sent_scpi(capsys):
+    assert (
+        cli.main(
+            [
+                "acquisition",
+                "--simulate",
+                "--json",
+                "--type",
+                "average",
+                "--count",
+                "16",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["operation"] == "set"
+    assert payload["result"]["type"] == "average"
+    assert payload["result"]["scpi_type"] == "AVERage"
+    assert payload["result"]["count"] == 16
+    assert payload["result"]["commands"] == [":ACQuire:TYPE AVERage", ":ACQuire:COUNt 16"]
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":ACQuire:TYPE AVERage",
+        ":ACQuire:COUNt 16",
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_acquisition_simulate_json_high_resolution_reports_sent_scpi(capsys):
+    assert (
+        cli.main(
+            ["acquisition", "--simulate", "--json", "--type", "high_resolution"]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["operation"] == "set"
+    assert payload["result"]["type"] == "high_resolution"
+    assert payload["result"]["scpi_type"] == "HRESolution"
+    assert payload["result"]["count"] is None
+    assert payload["result"]["commands"] == [":ACQuire:TYPE HRESolution"]
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":ACQuire:TYPE HRESolution",
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_acquisition_simulate_json_peak_reports_sent_scpi(capsys):
+    assert cli.main(["acquisition", "--simulate", "--json", "--type", "peak"]) == 0
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["operation"] == "set"
+    assert payload["result"]["type"] == "peak"
+    assert payload["result"]["scpi_type"] == "PEAK"
+    assert payload["result"]["count"] is None
+    assert payload["result"]["commands"] == [":ACQuire:TYPE PEAK"]
+    assert payload["scpi"]["sent"] == ["*IDN?", ":ACQuire:TYPE PEAK", ":SYSTem:ERRor?"]
+
+
+def test_doctor_dry_run_json_reports_snapshot_plan(capsys):
+    assert cli.main(["doctor", "--dry-run", "--json", "--model", "DSOX4034A"]) == 0
+
+    payload = _json_stdout(capsys)
+    planned = payload["scpi"]["planned"]
+    assert planned[0] == "*IDN?"
+    assert ":ACQuire:TYPE?" in planned
+    assert ":CHANnel4:BWLimit?" in planned
+    assert planned[-1] == ":SYSTem:ERRor?"
+    assert payload["result"]["channels"] == []
+
+
+def test_doctor_simulate_json_reports_four_channels(capsys):
+    assert cli.main(["doctor", "--simulate", "--json", "--model", "DSOX4034A"]) == 0
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["backend"] == "Keysight simulator"
+    assert result["timeout_ms"] == 2000
+    assert result["acquisition"] == {"type": "normal", "count": 8}
+    assert len(result["channels"]) == 4
+    assert result["channels"][0]["channel"] == 1
+    assert result["timebase"]["scale_seconds_per_division"] == 0.001
+    assert result["edge_trigger"]["source_channel"] == 1
+    assert payload["system_error"]["is_error"] is False
+
+
+def test_measure_sweep_simulate_json_all_channels(capsys):
+    assert cli.main(["measure-sweep", "--simulate", "--json", "--channel", "all"]) == 0
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert result["channels"] == [1, 2, 3, 4]
+    assert result["items"] == ["vpp", "frequency", "period", "vrms"]
+    assert len(result["measurements"]) == 16
+    assert result["summary"] == {
+        "valid_count": 16,
+        "invalid_count": 0,
+        "error_count": 0,
+    }
+
+
+def test_measure_sweep_simulate_json_pair_items_on_4000x(capsys):
+    assert (
+        cli.main(
+            [
+                "measure-sweep",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX4034A",
+                "--channel",
+                "1",
+                "--items",
+                "vpp",
+                "--pair",
+                "1:2",
+                "--pair-items",
+                "phase,delay",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    measurements = payload["result"]["measurements"]
+    assert [item["item"] for item in measurements] == ["vpp", "phase", "delay"]
+    assert measurements[1]["reference_channel"] == 2
+    assert measurements[2]["valid"] is True
+    assert payload["result"]["summary"]["valid_count"] == 3
+
+
+def test_measure_sweep_invalid_measurement_continues_and_exits_one(capsys):
+    assert (
+        cli.main(
+            [
+                "measure-sweep",
+                "--simulate",
+                "--json",
+                "--simulate-invalid-measurement",
+                "CH2",
+                "--channel",
+                "all",
+                "--items",
+                "vpp",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    result = payload["result"]
+    assert len(result["measurements"]) == 4
+    assert result["measurements"][1]["channel"] == 2
+    assert result["measurements"][1]["valid"] is False
+    assert result["measurements"][1]["reason"] == "invalid measurement sentinel"
+    assert result["summary"] == {
+        "valid_count": 3,
+        "invalid_count": 1,
+        "error_count": 0,
+    }
+
+
+def test_smoke_dry_run_json_reports_files_without_writing(capsys, tmp_path):
+    output_dir = tmp_path / "smoke"
+
+    assert (
+        cli.main(
+            [
+                "smoke",
+                "--dry-run",
+                "--json",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["status"] == "planned"
+    assert payload["files"] == [
+        {"kind": "report", "path": str(output_dir / "report.json")},
+        {"kind": "scpi_log", "path": str(output_dir / "scpi.log")},
+        {"kind": "csv", "path": str(output_dir / "capture.csv")},
+        {"kind": "metadata", "path": str(output_dir / "capture_meta.json")},
+        {"kind": "png", "path": str(output_dir / "screen.png")},
+    ]
+    assert not output_dir.exists()
+
+
+def test_smoke_dry_run_json_default_output_dir_does_not_crash(capsys):
+    assert cli.main(["smoke", "--dry-run", "--json"]) == 0
+
+    payload = _json_stdout(capsys)
+    output_dir = Path("data") / "hardware_smoke" / "DRY-RUN"
+    assert payload["result"]["status"] == "planned"
+    assert payload["result"]["output_dir"] == str(output_dir)
+    assert payload["files"][0] == {
+        "kind": "report",
+        "path": str(output_dir / "report.json"),
+    }
+
+
+def test_smoke_simulate_json_writes_report_and_artifacts(capsys, tmp_path):
+    output_dir = tmp_path / "smoke"
+
+    assert (
+        cli.main(["smoke", "--simulate", "--json", "--output-dir", str(output_dir)])
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["status"] == "completed"
+    for name in ("report.json", "scpi.log", "capture.csv", "capture_meta.json", "screen.png"):
+        assert (output_dir / name).exists()
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert report["status"] == "completed"
+    assert report["doctor"]["acquisition"]["type"] == "normal"
+    assert report["capture"]["actual_points"] == 1000
+    assert report["screenshot"]["byte_count"] > 1000
+
+
+def test_smoke_simulate_binary_failure_exits_one_and_keeps_report(capsys, tmp_path):
+    output_dir = tmp_path / "smoke"
+
+    assert (
+        cli.main(
+            [
+                "smoke",
+                "--simulate",
+                "--json",
+                "--simulate-binary-transfer-failure",
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert payload["result"]["status"] == "error"
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert report["status"] == "error"
+    assert report["error"] == "simulated binary transfer failure"

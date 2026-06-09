@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keysight-scope-cli"
+version = "0.1.0"
+description = "CLI adapter for Keysight InfiniiVision oscilloscope control."
+requires-python = ">=3.10"
+dependencies = ["keysight-scope-core==0.1.0"]
+
+[project.scripts]
+keysight-scopes = "keysight_scope_cli.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

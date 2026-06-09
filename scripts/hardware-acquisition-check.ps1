@@ -24,10 +24,19 @@ function Invoke-Cli {
         [string[]] $Arguments
     )
 
-    & $Python -m keysight_scope.cli @Arguments
+    $output = & $Python -m keysight_scope_cli.cli @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $Python -m keysight_scope.cli $($Arguments -join ' ')"
+        throw "Command failed with exit code ${LASTEXITCODE}: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
     }
+    try {
+        $payload = $output | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        throw "Command did not return JSON: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
+    }
+    if (-not $payload.ok) {
+        throw "Command JSON reported ok=false: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
+    }
+    return $payload
 }
 
 if (-not (Get-Command $Python -ErrorAction SilentlyContinue)) {
@@ -72,7 +81,6 @@ if ($RestoreType) {
 Write-Host "Please confirm the front-panel acquisition mode/count changes and final state."
 [void](Read-Host "Press Enter to start live acquisition-check")
 
-$before = Get-Date
 $liveArgs = @(
     "acquisition-check",
     "--live",
@@ -85,20 +93,22 @@ if ($RestoreType) {
     $liveArgs += "--restore-type"
 }
 
-Invoke-Cli -Arguments $liveArgs
-
-$reports = Get-ChildItem -Path (Join-Path "data" "hardware_acquisition") -Filter "report.json" -Recurse -ErrorAction SilentlyContinue |
-    Where-Object { $_.LastWriteTime -ge $before } |
-    Sort-Object LastWriteTime -Descending
-
-if (-not $reports) {
-    throw "Could not find report.json created after ${before}"
+$live = Invoke-Cli -Arguments $liveArgs
+if ($live.result.status -ne "completed") {
+    throw "Live acquisition-check did not complete: $($live.result.status)"
 }
 
-$reportPath = $reports[0].FullName
-$summaryPath = Join-Path $reports[0].DirectoryName "summary.md"
+$reportPath = $live.result.report_path
+if ([string]::IsNullOrWhiteSpace($reportPath)) {
+    throw "Live command JSON did not include result.report_path."
+}
+if (-not (Test-Path -LiteralPath $reportPath)) {
+    throw "Reported live report.json does not exist: ${reportPath}"
+}
+
+$summaryPath = Join-Path (Split-Path -Parent $reportPath) "summary.md"
 Write-Host "Rendering summary: ${summaryPath}"
-$summary = & $Python -m keysight_scope.cli hardware-report $reportPath
+$summary = & $Python -m keysight_scope_cli.cli hardware-report $reportPath
 if ($LASTEXITCODE -ne 0) {
     throw "hardware-report failed for ${reportPath}"
 }

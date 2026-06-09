@@ -1,6 +1,6 @@
 """List VISA resources visible to PyVISA."""
 
-from keysight_scope.visa_backend import list_visa_resources
+from keysight_scope_core.visa_backend import list_visa_resources
 
 
 def main() -> None:

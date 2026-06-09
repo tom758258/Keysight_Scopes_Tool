@@ -17,10 +17,19 @@ function Invoke-Cli {
         [string[]] $Arguments
     )
 
-    & $Python -m keysight_scope.cli @Arguments
+    $output = & $Python -m keysight_scope_cli.cli @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $Python -m keysight_scope.cli $($Arguments -join ' ')"
+        throw "Command failed with exit code ${LASTEXITCODE}: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
     }
+    try {
+        $payload = $output | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        throw "Command did not return JSON: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
+    }
+    if (-not $payload.ok) {
+        throw "Command JSON reported ok=false: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
+    }
+    return $payload
 }
 
 function Remove-ModelOutput {
@@ -55,7 +64,7 @@ foreach ($targetModel in $Model) {
 
     Write-Host "== Acquisition preflight: ${targetModel} =="
     Write-Host "Dry-run: no VISA backend will be opened."
-    Invoke-Cli -Arguments @(
+    $dry = Invoke-Cli -Arguments @(
         "acquisition-check",
         "--dry-run",
         "--json",
@@ -64,11 +73,14 @@ foreach ($targetModel in $Model) {
         "--output-dir",
         $outputDir
     )
+    if ($dry.mode -ne "dry_run") {
+        throw "Expected dry_run mode for ${targetModel}."
+    }
 
     Remove-ModelOutput -Root $OutputRoot -Path $outputDir
 
     Write-Host "Simulate: writing ${outputDir}"
-    Invoke-Cli -Arguments @(
+    $sim = Invoke-Cli -Arguments @(
         "acquisition-check",
         "--simulate",
         "--json",
@@ -77,13 +89,19 @@ foreach ($targetModel in $Model) {
         "--output-dir",
         $outputDir
     )
+    if ($sim.result.status -ne "completed") {
+        throw "Simulated acquisition-check did not complete for ${targetModel}: $($sim.result.status)"
+    }
 
     if (-not (Test-Path -LiteralPath $reportPath)) {
         throw "Expected report was not created: ${reportPath}"
     }
+    if ($sim.result.report_path -and -not (Test-Path -LiteralPath $sim.result.report_path)) {
+        throw "Reported report_path does not exist: $($sim.result.report_path)"
+    }
 
     Write-Host "Rendering summary: ${summaryPath}"
-    $summary = & $Python -m keysight_scope.cli hardware-report $reportPath
+    $summary = & $Python -m keysight_scope_cli.cli hardware-report $reportPath
     if ($LASTEXITCODE -ne 0) {
         throw "hardware-report failed for ${reportPath}"
     }

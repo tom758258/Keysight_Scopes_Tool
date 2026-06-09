@@ -13,8 +13,7 @@ venv/
 .coverage
 coverage/
 htmlcov/
-.test-output/
-.tmp_tests/
+pytest-cache-files-*/
 
 # IDE files
 .vscode/
@@ -35,7 +34,6 @@ target/
 # Dependency cache
 .mypy_cache/
 .pytest_cache/
-uv.lock
 
 #NoteBook file
 .obsidian
@@ -43,5 +41,5 @@ uv.lock
 #Data file
 data
 
-# Local private project notes and validation records
+# Local/private publication prep
 Local/
