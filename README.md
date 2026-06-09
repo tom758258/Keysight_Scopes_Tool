@@ -22,11 +22,30 @@ From PowerShell:
 ```powershell
 uv venv .venv
 uv pip install -e "packages/core[dev]" -e packages/cli -e packages/webui
-.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+.\scripts\run-tests.ps1
 ```
 
 The repository uses editable package installs for local development. It is not
 configured as a committed `uv` workspace.
+
+The PowerShell test script gives each pytest run an isolated temporary
+directory. This avoids Windows permission conflicts when tests are run by both
+the local user and a sandboxed tool. It removes the directory after a successful
+run and preserves it after a failure for inspection. Additional pytest
+arguments are forwarded:
+
+```powershell
+.\scripts\run-tests.ps1 packages/cli/tests/test_worker_cli.py -vv
+```
+
+Running pytest directly may fail with `PermissionError: [WinError 5]` if
+`$env:TEMP\pytest-of-$env:USERNAME` was created by another Windows identity.
+The test script bypasses that shared directory. To restore direct pytest usage,
+remove the conflicting directory from an administrator PowerShell:
+
+```powershell
+Remove-Item -LiteralPath "$env:TEMP\pytest-of-$env:USERNAME" -Recurse -Force
+```
 
 ## Documentation Index
 
@@ -34,6 +53,7 @@ Project-level docs:
 
 - `docs/architecture/monorepo-layout.md`
 - `docs/contracts/`
+- `docs/testing-guidelines.md`
 
 Package docs:
 

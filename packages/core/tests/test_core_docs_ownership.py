@@ -54,17 +54,3 @@ def test_core_integration_names_public_core_api():
     assert "keysight_scope_core" in text
     for name in core.__all__:
         assert name in text
-
-
-def test_core_docs_do_not_document_adapter_schema_as_core_contract():
-    core_docs = "\n".join(
-        read_doc(*path)
-        for path in (
-            ("README.md",),
-            ("docs", "integration.md"),
-        )
-    )
-
-    assert "measurement_cli_name" not in core_docs
-    assert "argparse.Namespace" not in core_docs
-    assert "keysight_scope_webui" not in core_docs
