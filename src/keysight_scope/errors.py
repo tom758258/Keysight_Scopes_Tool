@@ -19,3 +19,15 @@ class IDNParseError(KeysightScopeError, ValueError):
 
 class UnsupportedModelError(KeysightScopeError, ValueError):
     """Raised when a model cannot be mapped to a capability profile."""
+
+
+class SystemErrorParseError(KeysightScopeError, ValueError):
+    """Raised when `:SYSTem:ERRor?` cannot be parsed."""
+
+
+class ParameterValidationError(KeysightScopeError, ValueError):
+    """Raised when a setting would be invalid for the selected instrument."""
+
+
+class ChannelResponseError(KeysightScopeError, ValueError):
+    """Raised when a channel query response cannot be parsed."""
