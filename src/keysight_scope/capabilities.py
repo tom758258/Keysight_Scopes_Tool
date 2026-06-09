@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 import re
 
 from .errors import UnsupportedModelError
-from .idn import detect_series
+from .idn import detect_series, normalize_model_key
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ def capabilities_for_model(model: str) -> ScopeCapabilities:
 
 
 def _channel_count_from_model(model: str) -> int | None:
-    match = _CHANNEL_COUNT_RE.match(model.strip().upper())
+    match = _CHANNEL_COUNT_RE.match(normalize_model_key(model))
     if match is None:
         return None
     return int(match.group("channels"))

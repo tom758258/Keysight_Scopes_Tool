@@ -8,6 +8,7 @@ import re
 from .errors import IDNParseError
 
 _MODEL_RE = re.compile(r"^(?:DSO|MSO)X(?P<series>[234])\d{3}[A-Z]?$", re.IGNORECASE)
+_MODEL_KEY_RE = re.compile(r"[^A-Z0-9]")
 
 
 @dataclass(frozen=True)
@@ -50,7 +51,13 @@ def parse_idn(response: str) -> IDN:
 def detect_series(model: str) -> str | None:
     """Detect 2000X, 3000X, or 4000X series from a Keysight model string."""
 
-    match = _MODEL_RE.match(model.strip().upper())
+    match = _MODEL_RE.match(normalize_model_key(model))
     if match is None:
         return None
     return f"{match.group('series')}000X"
+
+
+def normalize_model_key(model: str) -> str:
+    """Return a punctuation-free model key for matching Keysight IDN variants."""
+
+    return _MODEL_KEY_RE.sub("", model.strip().upper())

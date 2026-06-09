@@ -8,8 +8,11 @@ from keysight_scope.errors import UnsupportedModelError
     ("model", "series", "channels"),
     [
         ("DSOX2004A", "2000X", 4),
+        ("DSO-X 2004A", "2000X", 4),
         ("DSOX3024A", "3000X", 4),
+        ("DSO-X 3024A", "3000X", 4),
         ("DSOX4024A", "4000X", 4),
+        ("DSO-X 4024A", "4000X", 4),
         ("DSOX4034A", "4000X", 4),
         ("DSOX4022A", "4000X", 2),
     ],

@@ -18,10 +18,15 @@ def test_parse_keysight_idn():
     ("model", "series"),
     [
         ("DSOX2004A", "2000X"),
+        ("DSO-X 2004A", "2000X"),
         ("DSOX3024A", "3000X"),
+        ("DSO-X 3024A", "3000X"),
         ("DSOX4024A", "4000X"),
+        ("DSO-X 4024A", "4000X"),
+        ("DSO-X-4024A", "4000X"),
         ("DSOX4034A", "4000X"),
         ("MSOX3024A", "3000X"),
+        ("MSO-X 3024A", "3000X"),
     ],
 )
 def test_detect_series(model, series):
