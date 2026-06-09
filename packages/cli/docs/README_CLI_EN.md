@@ -90,20 +90,18 @@ editable installs, but it is not configured as a `uv` workspace and does not use
 a committed `uv.lock`. Do not commit a generated `uv.lock` unless the root
 `pyproject.toml` is later changed to define an explicit uv workspace.
 
-Use the Python executable inside `.venv` for project commands:
+Run the repository test wrapper from the root directory:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+.\scripts\run-tests.ps1
 ```
 
 This runs tests from all three packages: `packages/core/tests`,
 `packages/cli/tests`, and `packages/webui/tests`.
 
-The final command runs the repository's pytest suite in quiet mode.
-`-p no:cacheprovider` disables pytest's cache plugin so the run does not create
-or depend on `.pytest_cache`. On this Windows setup, run this command from an
-Administrator PowerShell; otherwise pytest can fail with a permission error
-while creating or cleaning temporary test files.
+The wrapper creates an isolated pytest temporary directory, removes it after a
+successful run, and preserves it after a failure for inspection. Additional
+pytest arguments can be passed after the script path.
 
 PyVISA will use the default VISA backend discovered on the computer. On the
 instrument computer, the preferred backend is the installed Keysight IO
@@ -643,17 +641,20 @@ state, the default timeout, or return-to-local behavior.
 Normal tests are hardware-free:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider
+.\scripts\run-tests.ps1
 ```
 
 This runs tests from all three packages: `packages/core/tests`,
 `packages/cli/tests`, and `packages/webui/tests`.
 
-For a full hardware-free run with an explicit temporary directory:
+For a filtered hardware-free run, pass pytest arguments after the script path:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q --basetemp=.tmp_tests\pytest-temp-simulator-scenarios
+.\scripts\run-tests.ps1 packages/cli/tests -q
 ```
+
+Do not pass `--basetemp`; the wrapper creates an isolated pytest temporary
+directory and preserves it only when the run fails.
 
 Real instrument checks are manual. Start with `--dry-run --json`, then
 `--simulate --json`, and only use `--live --resource <RESOURCE> --json` after
