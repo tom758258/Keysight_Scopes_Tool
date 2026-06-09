@@ -1,7 +1,9 @@
 # Keysight Scope Tool
 
 Python package and CLI for safe communication with Keysight
-InfiniiVision oscilloscopes through PyVISA.
+InfiniiVision oscilloscopes through PyVISA. The installed console command is
+`scope-tool`; examples below also use the equivalent module form,
+`python -m keysight_scope.cli`.
 
 Current implemented scope:
 
@@ -26,14 +28,26 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
+- Query, hide, or configure manual cursors; set/query trigger holdoff; run
+  explicit autoscale; save/recall setup slots or `.scp` files; and configure
+  FFT math functions.
 - Query read-only Vpp, frequency, period, display average voltage, display
   DC RMS voltage, minimum, maximum, rise time, fall time, amplitude, top, base,
   overshoot, preshoot, positive width, negative width, duty cycle, negative
   duty cycle, area, edge count, pulse count, parameterized time, phase, and
   safe 4000X delay measurements with explicit invalid-sentinel handling.
+- Rebuild front-panel quick measurements and query measurement statistics with
+  `measure-stats`.
+- Collect read-only diagnostic snapshots with `doctor`.
+- Query multi-channel and optional pair measurement sweeps with
+  continue-and-summarize failure handling.
+- Log a finite batch of read-only measurements with `measure-log`, writing a
+  CSV, `manifest.json`, and `scpi.log` into one run directory.
+- Run capture-safe hardware smoke checks that write a report directory with
+  JSON, SCPI log, waveform CSV, metadata, and screenshot artifacts.
 - Capture one or more analog channel waveforms in BYTE or WORD format and
-  export CSV plus JSON metadata, with an optional default timestamped CSV path
-  under `data`.
+  export CSV plus JSON metadata, with optional PNG plot output and an optional
+  default timestamped CSV path under `data`.
 - Capture a finite batch of waveforms with `capture-batch`, writing per-capture
   CSV and metadata files, `manifest.json`, and `scpi.log` into one run
   directory.
@@ -42,20 +56,42 @@ Current implemented scope:
 - Provide hardware-free tests through `FakeBackend`.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
-does not perform return-to-local behavior. The Phase 2 control helpers only
-send `:STOP`, `:RUN`, `:SINGle`, and system error queue queries.
+does not perform return-to-local behavior. State-changing commands are exposed
+only through explicit CLI commands; `doctor`, `smoke`, and `acquisition-check`
+do not call the new cursor, holdoff, autoscale, setup, statistics, or FFT paths.
 
 No acquisition run-state query is currently exposed. `:RSTate?` timed out on
 tested 4000X instruments and is not used by the CLI.
 
-## Setup
+## Development
 
-Use the project virtual environment workflow:
+From PowerShell, change into the project directory, create or reuse the local
+virtual environment, install the package with development dependencies, then
+run the default hardware-free tests:
 
 ```powershell
-uv venv
+cd path\to\Keysight_Scopes
+```
+
+```powershell
+uv venv .venv
+```
+
+```powershell
 uv pip install -e ".[dev]"
 ```
+
+Use the Python executable inside `.venv` for project commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
+```
+
+The final command runs the repository's pytest suite from the `tests` folder in
+quiet mode. `-p no:cacheprovider` disables pytest's cache plugin so the run does
+not create or depend on `.pytest_cache`. On this Windows setup, run this command
+from an Administrator PowerShell; otherwise pytest can fail with a permission
+error while creating or cleaning temporary test files.
 
 PyVISA will use the default VISA backend discovered on the computer. On the
 instrument computer, the preferred backend is the installed Keysight IO
@@ -70,6 +106,26 @@ arguments and inspect planned SCPI without opening VISA or writing files. Use
 `--simulate --json` to run against the deterministic hardware-free simulator;
 capture workflows write fake output files for offline validation.
 
+Simulator commands also accept presets, JSON scenarios, repeated signal
+overrides, and error injection options, but only with `--simulate`.
+
+```text
+--simulate-preset noisy-sine
+--simulate-scenario path\to\scenario.json
+--simulate-signal CH:shape:frequency_hz:vpp_v:offset_v:phase_deg[:noise_rms_v]
+--simulate-system-error -113
+--simulate-binary-transfer-failure
+--simulate-invalid-measurement CH2
+--simulate-display-off CH1
+```
+
+`CH` may be `CH1` or `1`. Supported shapes are `sine`, `square`, `ramp`, `dc`,
+and `noise`. Built-in presets are `noisy-sine`, `square-with-offset`,
+`phase-shifted-pair`, `dc-invalid-frequency`, and `trigger-misaligned`.
+Simulator configuration layers are applied in this order: built-in defaults,
+`--simulate-preset`, `--simulate-scenario`, then explicit CLI overrides such as
+`--simulate-signal` and error injection options. Scenario files are JSON only.
+
 Agents should only access real hardware after explicit user approval, using
 `--live --resource "USB0::...::INSTR" --json`. SCPI debug logs from
 `--log-scpi` are written to stderr and must not be parsed as JSON.
@@ -77,7 +133,12 @@ Agents should only access real hardware after explicit user approval, using
 ```powershell
 uv run python -m keysight_scope.cli verify --dry-run --json
 uv run python -m keysight_scope.cli verify --simulate --json
+uv run python -m keysight_scope.cli capture --simulate --json --simulate-preset phase-shifted-pair --channel 1 --channel 2 --csv .tmp_tests\preset.csv
+uv run python -m keysight_scope.cli measure --simulate --json --simulate-scenario path\to\scenario.json --channel 1 --item frequency
+uv run python -m keysight_scope.cli measure --simulate --json --simulate-signal CH1:square:1000:1.0:0:0:0.02 --channel 1 --item vpp
+uv run python -m keysight_scope.cli capture --simulate --json --simulate-binary-transfer-failure --channel 1 --csv .tmp_tests\failure.csv
 uv run python -m keysight_scope.cli capture-batch --simulate --json --channel 1 --count 2 --output-dir .tmp_tests\sim_batch
+uv run python -m keysight_scope.cli measure-log --simulate --json --channel 1 --items vpp,frequency --count 2 --output-dir .tmp_tests\sim_measure_log
 ```
 
 See `docs/agent-integration-plan.md` for the full agent workflow and
@@ -168,6 +229,24 @@ between 2 and 65536. Type aliases include `norm`, `aver`, `avg`,
 `high-resolution`, `hresolution`, `hres`, `peak_detect`, and `peak-detect`.
 This command does not change timeout defaults, trigger wait strategy,
 acquisition mode, run/stop state, or return-to-local behavior.
+
+Run the acquisition configuration validation workflow and write a report
+directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition-check --dry-run --json --model DSOX4034A
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition-check --simulate --json --model DSOX4034A --output-dir .tmp_tests\acquisition_check
+.\.venv\Scripts\python.exe -m keysight_scope.cli acquisition-check --live --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --json --log-scpi
+```
+
+`acquisition-check` runs the fixed validation sequence
+`query -> normal -> average count 16 -> query -> high_resolution -> peak ->
+final query`. It writes `report.json` and `scpi.log` under
+`data/hardware_acquisition/YYYY-MM-DD-HH-mm-ss` unless `--output-dir` is
+supplied. Use `--average-count N` to override the default count of 16. The
+workflow intentionally leaves the instrument in `peak` acquisition mode after a
+successful run so the command sequence matches the hardware checklist without a
+hidden restore write.
 
 Enable, disable, or query one analog channel display:
 
@@ -347,13 +426,84 @@ Invalid measurement sentinels such as `9.9E+37` are printed as
 preserved; the CLI exits non-zero so automation does not treat the unavailable
 value as usable data.
 
+Collect a read-only diagnostic snapshot:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli doctor --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --json --log-scpi
+```
+
+`doctor` queries `*IDN?`, backend and timeout metadata, acquisition type and
+count, every analog channel's display, scale, offset, coupling, probe ratio,
+and bandwidth limit, horizontal scale and position, and analog edge trigger
+source, level, and slope. It performs one final `:SYSTem:ERRor?` post-check and
+does not drain the full error queue.
+
+Sweep common measurements across channels:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure-sweep --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel all --items vpp,frequency,period,vrms --json --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure-sweep --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel all --items vpp,frequency,period,vrms,rise_time,fall_time --pair 1:2 --pair-items phase,delay --json --log-scpi
+```
+
+`measure-sweep` defaults to `--channel all` and
+`--items vpp,frequency,period,vrms`. Repeat `--channel` for explicit channels,
+or add `--pair SRC:REF` with `--pair-items phase,delay` for pair measurements.
+Each measurement record preserves validity, value, unit, raw response, reason,
+SCPI command, and system error result. Invalid sentinels or per-item query
+errors do not stop the sweep; the command returns non-zero after completing if
+any invalid or error records were observed.
+
+Log a finite batch of measurements:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure-log --resource "USB0::...::INSTR" --channel 1 --items vpp,frequency --count 10 --interval-seconds 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure-log --resource "USB0::...::INSTR" --channel 1 --channel 2 --items vpp,frequency --pair 1:2 --pair-items phase --count 5 --output-dir data\measure_logs\ch1_ch2 --log-scpi
+```
+
+`measure-log` is a finite read-only measurement logger. It requires `--count`
+or `--duration-seconds` so an agent cannot accidentally start an unbounded
+recorder. It defaults to `--channel all`, `--items vpp,frequency`,
+`--pair-items phase,delay`, and `--interval-seconds 1.0`; pair measurements
+run only when `--pair SRC:REF` is supplied. The command opens one session,
+queries `*IDN?`, validates channels and measurement items, then writes
+`measurements.csv`, `manifest.json`, and `scpi.log` under
+`data/measure_logs/YYYY-MM-DD-HH-mm-ss` unless `--output-dir` is supplied.
+The output directory must not exist or must be empty.
+
+Each CSV row contains `timestamp_iso`, `elapsed_seconds`, one column per
+requested measurement, and `NaN` for invalid measurement sentinels or per-item
+query failures. One `:SYSTem:ERRor?` post-check is read after each row and
+recorded in the manifest. With `--stop-on-error`, the command stops after the
+row that reports an instrument error, leaves existing files in place, and
+returns non-zero. It does not send `*RST`, change acquisition mode, wait for a
+trigger, change timeout defaults, use background threads, or perform
+return-to-local behavior.
+
+Run a capture-safe smoke check:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli smoke --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --json --log-scpi
+```
+
+`smoke` writes `report.json`, `scpi.log`, `capture.csv`,
+`capture_meta.json`, and `screen.png` under
+`data/hardware_smoke/YYYY-MM-DD-HH-mm-ss`, appending `-2`, `-3`, and so on if a
+default directory already exists. Use `--output-dir DIR` to choose a directory;
+it must not exist or must be empty. The default flow runs a doctor snapshot,
+queries CH1 `vpp` and `vrms`, captures CH1 BYTE waveform data at 1000 points,
+captures a black-background screenshot, and performs a final system error
+post-check. Invalid measurement sentinels are warnings; capture, screenshot,
+backend, output, or system-error failures make the command return non-zero.
+
 Capture waveform data:
 
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 10000 --csv data\ch1.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --csv data\ch1.csv --plot data\ch1.png --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --format word --csv data\ch1_word.csv --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --allow-time-axis-tolerance --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel all --points 1000 --csv data\all_channels.csv --log-scpi
 ```
 
@@ -369,7 +519,13 @@ writes voltage columns in requested order, such as `time_s,ch1_v,ch2_v`.
 Duplicate channels and channels outside the detected model capabilities are
 rejected before waveform SCPI is sent. If the captured channel time axes or
 sample counts do not match, the command fails instead of writing a misleading
-aligned CSV.
+aligned CSV. For `capture` only, `--allow-time-axis-tolerance` keeps sample
+count checks strict but allows a small multi-channel time-axis drift when every
+non-canonical channel is within half of CH1's sample interval at every point
+when CH1 is included. The CSV still writes only the canonical `time_s` axis; the
+command does not interpolate or resample. Metadata and `--json` output include
+the canonical channel, max allowed delta, and per-channel max observed delta
+when the opt-in tolerance is enabled.
 If `--csv` is omitted, the CLI writes to `data/YYYY-MM-DD-HH-mm-ss.csv` using
 the `UTC+8` timezone. If `--csv PATH` is provided, it writes exactly to that
 path. Metadata JSON defaults to the same stem with `_meta.json` beside the CSV.
@@ -419,6 +575,25 @@ written capture files and manifest in place, stops the remaining captures, and
 returns non-zero. If interrupted from Python control flow, it writes a best
 effort manifest with status `interrupted` and returns `130`.
 
+Additional DSO-X 4024A controls:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli cursor --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli cursor --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --x1 0 --x2 1e-3 --y1 0 --y2 0.5 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli trigger-holdoff --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --seconds 1e-6 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure-stats --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --items vpp,frequency --mode all --reset --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli autoscale --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --source-channel 2 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli setup-save --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --slot 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli setup-recall --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --file "\usb\setup.scp" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli fft --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --function 1 --source-channel 1 --units decibel --window hanning --center-hz 1000 --span-hz 10000 --display on --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli fft --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --function 1 --source-channel 1 --display off --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli fft --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --function 1 --query --log-scpi
+```
+
+These commands are explicit user actions and are never called by `doctor`,
+`smoke`, or `acquisition-check`. Some change front-panel state, such as cursor,
+holdoff, autoscale, setup, FFT, and front-panel measurement statistics.
+
 Phase 6A `capture-batch` intentionally does not change acquisition mode, wait
 for a trigger, poll for acquisition completion, change VISA timeout defaults,
 perform return-to-local behavior, start background threads, or run an infinite
@@ -450,7 +625,13 @@ state, the default timeout, or return-to-local behavior.
 Normal tests are hardware-free:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
+```
+
+The full hardware-free suite last passed on 2026-05-19 with 593 tests:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q --basetemp=.tmp_tests\pytest-temp-simulator-scenarios
 ```
 
 Real instrument checks are manual and should start with USB. See
@@ -460,6 +641,15 @@ Real instrument checks are manual and should start with USB. See
 
 Phase 3 channel display control is implemented, covered by hardware-free tests,
 and USB validated on DSO-X 4024A.
+
+Acquisition type and average-count configuration is implemented and covered by
+hardware-free tests. USB validation passed on DSO-X 4024A by user report on
+2026-05-15 and was repeated successfully by user report on 2026-05-19.
+The `acquisition-check` workflow is implemented and covered by hardware-free
+dry-run/simulate tests for DSO-X 4034A, DSO-X 3024A, and DSO-X 2004A.
+Acquisition configuration checks on DSO-X 4034A, DSO-X 3024A, and DSO-X 2004A
+are deferred until those instruments are available. LAN acquisition checks have
+not been run.
 
 Channel scale and offset control is implemented and covered by hardware-free
 tests, and USB validated on DSO-X 4024A.
@@ -485,9 +675,16 @@ validated on DSO-X 4024A.
 
 Multi-channel BYTE and WORD waveform capture is implemented, covered by
 hardware-free tests, and USB validated by user report on .
+The opt-in `capture --allow-time-axis-tolerance` workaround for tiny CH1/CH2
+time-axis drift was USB validated on DSO-X 4024A by user report on 2026-05-21.
 
 Finite `capture-batch` waveform capture is implemented and covered by
-hardware-free tests. USB hardware validation remains pending for Phase 6A.
+hardware-free tests. Phase 6A USB hardware validation passed by user report on
+DSO-X 4024A on 2026-05-19.
+
+Finite `measure-log` read-only measurement logging is implemented and covered
+by hardware-free tests. USB validation passed on DSO-X 4024A by user report on
+2026-05-22.
 
 Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and
@@ -504,7 +701,12 @@ implemented and covered by hardware-free tests; USB CH1 validation passed by
 user report on . Read-only parameterized single-channel y-at-x,
 time-at-edge, and time-at-value measurement queries are implemented and covered
 by hardware-free tests; USB CH1 validation passed by user report on 2026-05-14.
-LAN retest is deferred until a LAN environment is available.
+5M-C pair measurements (`phase` and 4000X-only `delay`) are implemented and
+covered by hardware-free tests; USB validation passed by user report on
+DSO-X 4024A on 2026-05-19.
+The DSO-X 4024A USB checklist in `docs/hardware-test-plan.md` is complete by
+user report on 2026-05-22. LAN retests and other oscilloscope models remain
+deferred until explicitly requested and available.
 
 Screenshot PNG capture is implemented and covered by hardware-free tests. USB
 hardware validation passed by user report on .

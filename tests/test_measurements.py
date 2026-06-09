@@ -11,6 +11,10 @@ from keysight_scope.measurements import (
     normalize_measurement_item,
     pair_measurement_query,
     parse_measurement_result,
+    parse_statistics_results,
+    statistics_install_command,
+    statistics_mode_scpi,
+    validate_statistics_items,
 )
 from keysight_scope.scpi import SCPIClient
 
@@ -259,6 +263,55 @@ def test_parse_measurement_result_preserves_invalid_sentinel_for_new_units(item,
 def test_parse_measurement_result_rejects_unparseable_response(raw):
     with pytest.raises(MeasurementResponseError):
         parse_measurement_result(raw, item="vpp", channel=1)
+
+
+def test_statistics_helpers_reject_parameterized_or_pair_items():
+    with pytest.raises(ParameterValidationError):
+        validate_statistics_items(("vpp", "y_at_x"))
+    with pytest.raises(ParameterValidationError):
+        validate_statistics_items(("phase",))
+
+
+def test_statistics_install_command_uses_measure_command_without_query_suffix():
+    assert statistics_install_command("frequency") == ":MEASure:FREQuency"
+
+
+def test_statistics_all_mode_uses_keysight_on_keyword():
+    assert statistics_mode_scpi("all") == "ON"
+
+
+def test_parse_statistics_results_with_item_labels():
+    result = parse_statistics_results(
+        "vpp,5.0E-1,4.9E-1,5.1E-1,5.0E-1,2.5E-3,16",
+        channel=1,
+        items=("vpp",),
+        mode="all",
+    )
+
+    assert result.channel == 1
+    assert result.records[0].item == "vpp"
+    assert result.records[0].current == pytest.approx(0.5)
+    assert result.records[0].count == 16
+
+
+def test_parse_statistics_results_accepts_keysight_front_panel_labels():
+    result = parse_statistics_results(
+        (
+            "Pk-Pk(1),9.9E+37,9.9E+37,9.9E+37,9.9E+37,9.9E+37,0,"
+            "Frequency(1),1.0E+3,9.9E+37,9.9E+37,9.9E+37,9.9E+37,1"
+        ),
+        channel=1,
+        items=("vpp", "frequency"),
+        mode="all",
+    )
+
+    assert result.records[0].item == "vpp"
+    assert result.records[0].current is None
+    assert result.records[0].count == 0
+    assert result.records[1].item == "frequency"
+    assert result.records[1].current == pytest.approx(1000.0)
+    assert result.records[1].minimum is None
+    assert result.records[1].count == 1
 
 
 def test_measurement_controller_queries_vpp_for_channel():

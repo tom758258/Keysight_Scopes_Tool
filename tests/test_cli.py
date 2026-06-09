@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
@@ -1772,6 +1773,90 @@ def test_capture_cli_writes_multi_channel_csv_and_metadata(monkeypatch, capsys, 
     assert out.count("Command: :WAVeform:SOURce CHANnel2") == 1
     assert "Actual points: CH1=2, CH2=2" in out
     assert 'System error: +0, "No error"' in out
+
+
+def test_capture_cli_allows_opt_in_time_axis_tolerance(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveforms_byte(self, channels, points=1000):
+            self.calls.append(("capture_waveforms_byte", channels, points))
+            return MultiChannelWaveformCapture(
+                (
+                    _byte_waveform_capture(1, points=points),
+                    replace(
+                        _byte_waveform_capture(
+                            2,
+                            points=points,
+                            voltage_v=(-2.52, -2.58),
+                        ),
+                        time_s=(0.0000004, 0.0000014),
+                    ),
+                )
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--channel",
+                "2",
+                "--csv",
+                str(csv_path),
+                "--allow-time-axis-tolerance",
+                "--json",
+            ]
+        )
+        == 0
+    )
+
+    assert csv_path.read_text(encoding="utf-8").splitlines() == [
+        "time_s,ch1_v,ch2_v",
+        "0.0,-2.56,-2.52",
+        "1e-06,-2.54,-2.58",
+    ]
+    metadata = json.loads((tmp_path / "capture_meta.json").read_text(encoding="utf-8"))
+    assert metadata["time_axis_tolerance"]["canonical_channel"] == 1
+    assert metadata["time_axis_tolerance"]["max_allowed_delta_s"] == pytest.approx(
+        0.5e-6
+    )
+    assert metadata["time_axis_tolerance"]["channels"][1]["channel"] == 2
+    assert metadata["time_axis_tolerance"]["channels"][1][
+        "max_observed_delta_s"
+    ] == pytest.approx(0.4e-6)
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["result"]["time_axis_tolerance"] == metadata["time_axis_tolerance"]
 
 
 def test_capture_cli_channel_all_expands_to_detected_model_channels(

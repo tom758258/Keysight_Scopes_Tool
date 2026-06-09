@@ -4,8 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
+import time
 
 from .capabilities import ScopeCapabilities
+from typing import Sequence
+
 from .channel import validate_analog_channel
 from .errors import MeasurementResponseError, ParameterValidationError
 from .scpi import SCPIClient
@@ -54,6 +57,8 @@ _PARAMETERIZED_MEASUREMENT_ITEMS = (
 )
 
 _MEASUREMENT_ALIASES = {
+    "pk-pk": "vpp",
+    "pkpk": "vpp",
     "freq": "frequency",
     "acrms": "ac_rms",
     "vrms_ac": "ac_rms",
@@ -161,6 +166,30 @@ class MeasurementResult:
     reference_channel: int | None = None
 
 
+@dataclass(frozen=True)
+class MeasurementStatisticsRecord:
+    """One front-panel statistics row returned by :MEASure:RESults?."""
+
+    item: str
+    current: float | None
+    minimum: float | None
+    maximum: float | None
+    mean: float | None
+    stddev: float | None
+    count: int | None
+    raw_values: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MeasurementStatisticsResult:
+    """Parsed front-panel measurement statistics."""
+
+    channel: int
+    mode: str
+    records: tuple[MeasurementStatisticsRecord, ...]
+    raw_response: str
+
+
 class MeasurementController:
     """Read-only measurement query controls."""
 
@@ -222,6 +251,43 @@ class MeasurementController:
             reference_channel=reference_channel,
         )
 
+    def statistics(
+        self,
+        channel: int,
+        items: Sequence[str],
+        *,
+        mode: str = "all",
+        reset: bool = False,
+        max_count: int | None = None,
+        settle_seconds: float | None = None,
+    ) -> MeasurementStatisticsResult:
+        channel = validate_analog_channel(channel, self.capabilities)
+        normalized_items = validate_statistics_items(items)
+        mode = normalize_statistics_mode(mode)
+        if max_count is not None:
+            max_count = validate_statistics_max_count(max_count)
+        if settle_seconds is not None:
+            settle_seconds = validate_statistics_settle_seconds(settle_seconds)
+
+        self.scpi.write(":MEASure:CLEar")
+        self.scpi.write(f":MEASure:SOURce CHANnel{channel}")
+        for item in normalized_items:
+            self.scpi.write(statistics_install_command(item))
+        if reset:
+            self.scpi.write(":MEASure:STATistics:RESet")
+        if max_count is not None:
+            self.scpi.write(f":MEASure:STATistics:COUNt {max_count}")
+        self.scpi.write(f":MEASure:STATistics {statistics_mode_scpi(mode)}")
+        if settle_seconds:
+            time.sleep(settle_seconds)
+        raw = self.scpi.query(":MEASure:RESults?")
+        return parse_statistics_results(
+            raw,
+            channel=channel,
+            items=normalized_items,
+            mode=mode,
+        )
+
 
 def normalize_measurement_item(item: str) -> str:
     """Normalize a user-facing measurement item."""
@@ -236,6 +302,67 @@ def normalize_measurement_item(item: str) -> str:
         supported = ", ".join(MEASUREMENT_ITEM_CHOICES)
         raise ParameterValidationError(f"measurement item must be one of: {supported}.")
     return normalized
+
+
+def validate_statistics_items(items: Sequence[str]) -> tuple[str, ...]:
+    normalized = tuple(normalize_measurement_item(item) for item in items)
+    if not normalized:
+        raise ParameterValidationError("--items must contain at least one measurement item.")
+    unsupported = [
+        item
+        for item in normalized
+        if item in _PARAMETERIZED_MEASUREMENT_ITEMS or item in _PAIR_MEASUREMENT_QUERY_TEMPLATES
+    ]
+    if unsupported:
+        joined = ", ".join(unsupported)
+        raise ParameterValidationError(
+            f"measure-stats supports only non-parameterized single-channel items; rejected: {joined}."
+        )
+    return normalized
+
+
+def normalize_statistics_mode(mode: str) -> str:
+    normalized = mode.strip().lower()
+    if normalized not in {"all", "current", "min", "max", "mean", "stddev", "count"}:
+        raise ParameterValidationError(
+            "--mode must be all, current, min, max, mean, stddev, or count."
+        )
+    return normalized
+
+
+def statistics_mode_scpi(mode: str) -> str:
+    return {
+        "all": "ON",
+        "current": "CURRent",
+        "min": "MINimum",
+        "max": "MAXimum",
+        "mean": "MEAN",
+        "stddev": "STDDev",
+        "count": "COUNt",
+    }[normalize_statistics_mode(mode)]
+
+
+def statistics_install_command(item: str) -> str:
+    item = normalize_measurement_item(item)
+    if item not in _MEASUREMENT_QUERY_TEMPLATES:
+        raise ParameterValidationError(
+            f"{item} cannot be installed as a single-channel statistics measurement."
+        )
+    query = _MEASUREMENT_QUERY_TEMPLATES[item]
+    command = query.replace("?", "", 1).split(" ", 1)[0]
+    return command
+
+
+def validate_statistics_max_count(value: int) -> int:
+    if value < 1:
+        raise ParameterValidationError("--max-count must be at least 1.")
+    return value
+
+
+def validate_statistics_settle_seconds(value: float) -> float:
+    if not math.isfinite(value) or value < 0:
+        raise ParameterValidationError("--settle-seconds must be a non-negative finite number.")
+    return value
 
 
 def measurement_query(
@@ -476,3 +603,89 @@ def parse_measurement_result(
         unit=measurement_unit(item),
         reference_channel=reference_channel,
     )
+
+
+def parse_statistics_results(
+    raw: str,
+    *,
+    channel: int,
+    items: Sequence[str],
+    mode: str,
+) -> MeasurementStatisticsResult:
+    """Parse :MEASure:RESults? into one row per requested item.
+
+    Keysight returns comma-separated front-panel statistics. The simulator and
+    common firmware shape are item/current/min/max/mean/stddev/count repeated.
+    If the instrument omits item labels, requested item order is used.
+    """
+
+    tokens = tuple(token.strip().strip('"') for token in raw.split(",") if token.strip())
+    records: list[MeasurementStatisticsRecord] = []
+    index = 0
+    requested = tuple(items)
+    while index < len(tokens):
+        remaining = len(tokens) - index
+        item = requested[len(records)] if len(records) < len(requested) else f"item_{len(records) + 1}"
+        if remaining >= 7 and not _looks_numeric(tokens[index]):
+            item = _normalize_statistics_result_label(tokens[index])
+            values = tokens[index + 1 : index + 7]
+            index += 7
+        elif remaining >= 6:
+            values = tokens[index : index + 6]
+            index += 6
+        else:
+            raise MeasurementResponseError(
+                f"Could not parse measurement statistics response: {raw!r}"
+            )
+        records.append(
+            MeasurementStatisticsRecord(
+                item=item,
+                current=_parse_optional_float(values[0]),
+                minimum=_parse_optional_float(values[1]),
+                maximum=_parse_optional_float(values[2]),
+                mean=_parse_optional_float(values[3]),
+                stddev=_parse_optional_float(values[4]),
+                count=_parse_optional_count(values[5]),
+                raw_values=tuple(values),
+            )
+        )
+    return MeasurementStatisticsResult(
+        channel=channel,
+        mode=normalize_statistics_mode(mode),
+        records=tuple(records),
+        raw_response=raw,
+    )
+
+
+def _normalize_statistics_result_label(label: str) -> str:
+    """Normalize front-panel labels returned by :MEASure:RESults?."""
+
+    normalized = label.strip().lower()
+    if normalized.endswith(")") and "(" in normalized:
+        normalized = normalized.rsplit("(", 1)[0]
+    normalized = normalized.replace(" ", "_")
+    return normalize_measurement_item(normalized)
+
+
+def _looks_numeric(value: str) -> bool:
+    try:
+        float(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _parse_optional_float(value: str) -> float | None:
+    parsed = float(value)
+    if not math.isfinite(parsed):
+        raise MeasurementResponseError(f"Could not parse measurement statistics value: {value!r}")
+    if abs(parsed) >= INVALID_MEASUREMENT_SENTINEL_ABS_MIN:
+        return None
+    return parsed
+
+
+def _parse_optional_count(value: str) -> int | None:
+    parsed = _parse_optional_float(value)
+    if parsed is None:
+        return None
+    return int(parsed)

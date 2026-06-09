@@ -5,11 +5,19 @@ from __future__ import annotations
 from typing import Sequence
 
 from .acquisition import AcquisitionConfig, AcquisitionController
+from .advanced import (
+    CursorController,
+    CursorState,
+    FFTController,
+    FFTState,
+    SetupController,
+    TriggerHoldoffController,
+)
 from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import ChannelController
 from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
-from .measurements import MeasurementController, MeasurementResult
+from .measurements import MeasurementController, MeasurementResult, MeasurementStatisticsResult
 from .scpi import SCPIBackend, SCPIClient
 from .screenshot import ScreenshotCapture, ScreenshotController
 from .status import SystemErrorEntry, parse_system_error
@@ -232,6 +240,102 @@ class KeysightScope:
             item,
         )
 
+    def configure_cursor(
+        self,
+        source_channel: int,
+        x1_seconds: float,
+        x2_seconds: float,
+        *,
+        y1_volts: float | None = None,
+        y2_volts: float | None = None,
+        auto_timebase: bool = False,
+        auto_vertical: bool = False,
+    ) -> None:
+        self._cursor_controller().set_manual(
+            source_channel,
+            x1_seconds,
+            x2_seconds,
+            y1_volts=y1_volts,
+            y2_volts=y2_volts,
+            auto_timebase=auto_timebase,
+            auto_vertical=auto_vertical,
+        )
+
+    def cursor_off(self) -> None:
+        self._cursor_controller().off()
+
+    def query_cursor(self) -> CursorState:
+        return self._cursor_controller().query()
+
+    def set_trigger_holdoff(self, seconds: float) -> None:
+        self._trigger_holdoff_controller().set_seconds(seconds)
+
+    def query_trigger_holdoff(self) -> float:
+        return self._trigger_holdoff_controller().query_seconds()
+
+    def query_measurement_statistics(
+        self,
+        channel: int,
+        items: Sequence[str],
+        *,
+        mode: str = "all",
+        reset: bool = False,
+        max_count: int | None = None,
+        settle_seconds: float | None = None,
+    ) -> MeasurementStatisticsResult:
+        return self._measurement_controller().statistics(
+            channel,
+            items,
+            mode=mode,
+            reset=reset,
+            max_count=max_count,
+            settle_seconds=settle_seconds,
+        )
+
+    def autoscale(
+        self,
+        channels: Sequence[int] | None,
+        *,
+        acquire_mode: str | None = None,
+        channels_mode: str | None = None,
+    ) -> None:
+        self._setup_controller().autoscale(
+            channels,
+            acquire_mode=acquire_mode,
+            channels_mode=channels_mode,
+            capabilities=self.capabilities,
+        )
+
+    def save_setup(self, *, slot: int | None = None, file_spec: str | None = None) -> None:
+        self._setup_controller().save(slot=slot, file_spec=file_spec)
+
+    def recall_setup(self, *, slot: int | None = None, file_spec: str | None = None) -> None:
+        self._setup_controller().recall(slot=slot, file_spec=file_spec)
+
+    def configure_fft(
+        self,
+        function: int,
+        source_channel: int,
+        *,
+        units: str | None = None,
+        window: str | None = None,
+        center_hz: float | None = None,
+        span_hz: float | None = None,
+        display: bool | None = None,
+    ) -> None:
+        self._fft_controller().configure(
+            function,
+            source_channel,
+            units=units,
+            window=window,
+            center_hz=center_hz,
+            span_hz=span_hz,
+            display=display,
+        )
+
+    def query_fft(self, function: int) -> FFTState:
+        return self._fft_controller().query(function)
+
     def capture_screenshot_png(self, *, background: str = "black") -> ScreenshotCapture:
         """Capture the current screen as a color PNG image."""
 
@@ -301,6 +405,34 @@ class KeysightScope:
                 "Measurement operations require known capabilities; call query_idn() first."
             )
         return MeasurementController(self.scpi, self.capabilities)
+
+    def _cursor_controller(self) -> CursorController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Cursor operations require known capabilities; call query_idn() first."
+            )
+        return CursorController(self.scpi, self.capabilities)
+
+    def _trigger_holdoff_controller(self) -> TriggerHoldoffController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Trigger holdoff operations require known capabilities; call query_idn() first."
+            )
+        return TriggerHoldoffController(self.scpi)
+
+    def _setup_controller(self) -> SetupController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Setup operations require known capabilities; call query_idn() first."
+            )
+        return SetupController(self.scpi)
+
+    def _fft_controller(self) -> FFTController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "FFT operations require known capabilities; call query_idn() first."
+            )
+        return FFTController(self.scpi, self.capabilities)
 
     def _screenshot_controller(self) -> ScreenshotController:
         if self.capabilities is None:

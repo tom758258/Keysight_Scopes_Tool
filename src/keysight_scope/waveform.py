@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import csv
+import binascii
 from dataclasses import asdict, dataclass
 import json
 import math
 from pathlib import Path
+import struct
 from typing import Sequence
+import zlib
 
 from .capabilities import ScopeCapabilities
 from .channel import validate_analog_channel
@@ -423,13 +426,23 @@ def write_waveform_metadata(
     return output_path
 
 
-def write_waveforms_csv(capture: MultiChannelWaveformCapture, path: str | Path) -> Path:
+def write_waveforms_csv(
+    capture: MultiChannelWaveformCapture,
+    path: str | Path,
+    *,
+    allow_time_axis_tolerance: bool = False,
+) -> Path:
     """Write aligned multi-channel waveform data to CSV."""
 
-    _validate_aligned_waveforms(capture)
+    _validate_aligned_waveforms(
+        capture, allow_time_axis_tolerance=allow_time_axis_tolerance
+    )
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    reference = capture.captures[0]
+    reference = _time_axis_reference(
+        capture,
+        allow_time_axis_tolerance=allow_time_axis_tolerance,
+    )
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
@@ -448,6 +461,7 @@ def write_waveforms_metadata(
     *,
     idn: IDN,
     resource: str,
+    time_axis_tolerance: dict[str, object] | None = None,
 ) -> Path:
     """Write multi-channel capture metadata to JSON."""
 
@@ -465,9 +479,57 @@ def write_waveforms_metadata(
         "format": capture.format_name,
         "channels": [_waveform_channel_metadata(item) for item in capture.captures],
     }
+    if time_axis_tolerance is not None:
+        metadata["time_axis_tolerance"] = time_axis_tolerance
     with output_path.open("w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2, sort_keys=True)
         handle.write("\n")
+    return output_path
+
+
+def waveform_time_axis_tolerance_summary(
+    capture: MultiChannelWaveformCapture,
+) -> dict[str, object]:
+    """Return compact time-axis tolerance details for a multi-channel capture."""
+
+    reference = _time_axis_reference(capture, allow_time_axis_tolerance=True)
+    reference_count = _validate_capture_sample_lengths(reference)
+    max_allowed_delta = _time_axis_max_allowed_delta(reference)
+    channels: list[dict[str, object]] = []
+    for item in capture.captures:
+        item_count = _validate_capture_sample_lengths(item)
+        max_delta = 0.0
+        if item_count == reference_count:
+            max_delta = _time_axis_max_delta(item.time_s, reference.time_s)
+        channels.append(
+            {
+                "channel": item.channel,
+                "max_observed_delta_s": max_delta,
+            }
+        )
+    return {
+        "enabled": True,
+        "canonical_channel": reference.channel,
+        "max_allowed_delta_s": max_allowed_delta,
+        "channels": channels,
+    }
+
+
+def write_waveform_plot_png(
+    capture: WaveformCapture | MultiChannelWaveformCapture,
+    path: str | Path,
+    *,
+    width: int = 1000,
+    height: int = 600,
+) -> Path:
+    """Write a simple waveform line plot PNG without third-party dependencies."""
+
+    if width < 100 or height < 100:
+        raise ValueError("plot dimensions must be at least 100x100 pixels.")
+    captures = capture.captures if isinstance(capture, MultiChannelWaveformCapture) else (capture,)
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_bytes(_plot_png_bytes(captures, width=width, height=height))
     return output_path
 
 
@@ -484,10 +546,20 @@ def _waveform_channel_metadata(capture: WaveformCapture) -> dict[str, object]:
     return metadata
 
 
-def _validate_aligned_waveforms(capture: MultiChannelWaveformCapture) -> None:
-    reference = capture.captures[0]
+def _validate_aligned_waveforms(
+    capture: MultiChannelWaveformCapture,
+    *,
+    allow_time_axis_tolerance: bool,
+) -> None:
+    reference = _time_axis_reference(
+        capture,
+        allow_time_axis_tolerance=allow_time_axis_tolerance,
+    )
     reference_count = _validate_capture_sample_lengths(reference)
-    for item in capture.captures[1:]:
+    max_allowed_delta = _time_axis_max_allowed_delta(reference)
+    for item in capture.captures:
+        if item is reference:
+            continue
         item_count = _validate_capture_sample_lengths(item)
         if item_count != reference_count:
             raise WaveformResponseError(
@@ -496,6 +568,9 @@ def _validate_aligned_waveforms(capture: MultiChannelWaveformCapture) -> None:
                 f"CH{reference.channel} has {reference_count}."
             )
         if item.time_s != reference.time_s:
+            max_delta = _time_axis_max_delta(item.time_s, reference.time_s)
+            if allow_time_axis_tolerance and max_delta <= max_allowed_delta:
+                continue
             raise WaveformResponseError(
                 "Cannot write multi-channel waveform CSV: "
                 f"CH{item.channel} time axis does not match CH{reference.channel}."
@@ -515,6 +590,142 @@ def _validate_capture_sample_lengths(capture: WaveformCapture) -> int:
             f"but {len(capture.voltage_v)} voltages."
         )
     return sample_count
+
+
+def _time_axis_reference(
+    capture: MultiChannelWaveformCapture,
+    *,
+    allow_time_axis_tolerance: bool,
+) -> WaveformCapture:
+    if allow_time_axis_tolerance:
+        for item in capture.captures:
+            if item.channel == 1:
+                return item
+    return capture.captures[0]
+
+
+def _time_axis_max_allowed_delta(capture: WaveformCapture) -> float:
+    return 0.5 * abs(capture.preamble.x_increment)
+
+
+def _time_axis_max_delta(
+    time_s: Sequence[float],
+    reference_time_s: Sequence[float],
+) -> float:
+    if not time_s:
+        return 0.0
+    return max(
+        abs(time_value - reference_value)
+        for time_value, reference_value in zip(time_s, reference_time_s)
+    )
+
+
+def _plot_png_bytes(
+    captures: Sequence[WaveformCapture],
+    *,
+    width: int,
+    height: int,
+) -> bytes:
+    margin_left = 64
+    margin_right = 20
+    margin_top = 20
+    margin_bottom = 48
+    plot_width = width - margin_left - margin_right
+    plot_height = height - margin_top - margin_bottom
+    xs = [value for capture in captures for value in capture.time_s]
+    ys = [value for capture in captures for value in capture.voltage_v]
+    if not xs or not ys:
+        raise ValueError("cannot plot an empty waveform capture.")
+    xmin, xmax = min(xs), max(xs)
+    ymin, ymax = min(ys), max(ys)
+    if xmin == xmax:
+        xmin -= 0.5
+        xmax += 0.5
+    if ymin == ymax:
+        ymin -= 0.5
+        ymax += 0.5
+    ypad = (ymax - ymin) * 0.08
+    ymin -= ypad
+    ymax += ypad
+
+    pixels = bytearray([255, 255, 255] * width * height)
+    axis_color = (70, 70, 70)
+    grid_color = (225, 225, 225)
+    colors = ((31, 119, 180), (214, 39, 40), (44, 160, 44), (148, 103, 189))
+
+    def point(time_s: float, voltage_v: float) -> tuple[int, int]:
+        x = margin_left + round((time_s - xmin) / (xmax - xmin) * (plot_width - 1))
+        y = margin_top + round((ymax - voltage_v) / (ymax - ymin) * (plot_height - 1))
+        return x, y
+
+    for index in range(6):
+        x = margin_left + round(index * (plot_width - 1) / 5)
+        _draw_line(pixels, width, height, x, margin_top, x, margin_top + plot_height, grid_color)
+    for index in range(5):
+        y = margin_top + round(index * (plot_height - 1) / 4)
+        _draw_line(pixels, width, height, margin_left, y, margin_left + plot_width, y, grid_color)
+    _draw_line(pixels, width, height, margin_left, margin_top, margin_left, margin_top + plot_height, axis_color)
+    _draw_line(pixels, width, height, margin_left, margin_top + plot_height, margin_left + plot_width, margin_top + plot_height, axis_color)
+
+    for capture_index, capture in enumerate(captures):
+        color = colors[capture_index % len(colors)]
+        points = [
+            point(time_s, voltage_v)
+            for time_s, voltage_v in zip(capture.time_s, capture.voltage_v)
+        ]
+        for first, second in zip(points, points[1:]):
+            _draw_line(pixels, width, height, first[0], first[1], second[0], second[1], color)
+
+    rows = []
+    stride = width * 3
+    for y in range(height):
+        rows.append(b"\x00" + bytes(pixels[y * stride : (y + 1) * stride]))
+    raw = b"".join(rows)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+        + _png_chunk(b"IDAT", zlib.compress(raw, 9))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def _draw_line(
+    pixels: bytearray,
+    width: int,
+    height: int,
+    x0: int,
+    y0: int,
+    x1: int,
+    y1: int,
+    color: tuple[int, int, int],
+) -> None:
+    dx = abs(x1 - x0)
+    dy = -abs(y1 - y0)
+    sx = 1 if x0 < x1 else -1
+    sy = 1 if y0 < y1 else -1
+    error = dx + dy
+    while True:
+        if 0 <= x0 < width and 0 <= y0 < height:
+            offset = (y0 * width + x0) * 3
+            pixels[offset : offset + 3] = bytes(color)
+        if x0 == x1 and y0 == y1:
+            break
+        twice_error = 2 * error
+        if twice_error >= dy:
+            error += dy
+            x0 += sx
+        if twice_error <= dx:
+            error += dx
+            y0 += sy
+
+
+def _png_chunk(kind: bytes, data: bytes) -> bytes:
+    return (
+        struct.pack(">I", len(data))
+        + kind
+        + data
+        + struct.pack(">I", binascii.crc32(kind + data) & 0xFFFFFFFF)
+    )
 
 
 def _validate_byte_sample(value: int) -> int:

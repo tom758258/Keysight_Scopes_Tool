@@ -1,4 +1,5 @@
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -24,6 +25,7 @@ from keysight_scope.waveform import (
     waveform_unsigned_command,
     write_waveform_csv,
     write_waveform_metadata,
+    write_waveform_plot_png,
     write_waveforms_csv,
     write_waveforms_metadata,
 )
@@ -78,6 +80,18 @@ def test_convert_byte_waveform_rejects_out_of_range_byte():
 
     with pytest.raises(WaveformResponseError):
         convert_byte_waveform(1, 1000, preamble, [256])
+
+
+def test_write_waveform_plot_png_writes_png_header_and_dimensions(tmp_path):
+    preamble = parse_waveform_preamble(PREAMBLE)
+    capture = convert_byte_waveform(1, 1000, preamble, [128, 129, 130, 127])
+
+    path = write_waveform_plot_png(capture, tmp_path / "plot.png", width=320, height=200)
+    data = path.read_bytes()
+
+    assert data.startswith(b"\x89PNG\r\n\x1a\n")
+    assert int.from_bytes(data[16:20], "big") == 320
+    assert int.from_bytes(data[20:24], "big") == 200
 
 
 def test_convert_word_waveform_uses_preamble_scaling():
@@ -330,6 +344,64 @@ def test_multi_channel_waveform_export_rejects_mismatched_time_axis(tmp_path):
 
     with pytest.raises(WaveformResponseError, match="time axis does not match"):
         write_waveforms_csv(capture, tmp_path / "waveform.csv")
+
+    assert not (tmp_path / "waveform.csv").exists()
+
+
+def test_multi_channel_waveform_export_tolerates_half_sample_time_axis_drift(tmp_path):
+    preamble = parse_waveform_preamble(PREAMBLE)
+    ch1 = convert_byte_waveform(1, 1000, preamble, [128, 129])
+    ch2 = replace(
+        convert_byte_waveform(2, 1000, preamble, [130, 127]),
+        time_s=(-0.5e-6, 0.5e-6),
+    )
+    capture = MultiChannelWaveformCapture((ch2, ch1))
+    csv_path = tmp_path / "waveform.csv"
+
+    write_waveforms_csv(capture, csv_path, allow_time_axis_tolerance=True)
+
+    assert csv_path.read_text(encoding="utf-8").splitlines() == [
+        "time_s,ch2_v,ch1_v",
+        "-1e-06,-2.52,-2.56",
+        "0.0,-2.58,-2.54",
+    ]
+
+
+def test_multi_channel_waveform_export_rejects_time_axis_drift_beyond_tolerance(
+    tmp_path,
+):
+    preamble = parse_waveform_preamble(PREAMBLE)
+    ch1 = convert_byte_waveform(1, 1000, preamble, [128, 129])
+    ch2 = replace(
+        convert_byte_waveform(2, 1000, preamble, [130, 127]),
+        time_s=(-0.9999994e-6, 0.0000006),
+    )
+    capture = MultiChannelWaveformCapture((ch1, ch2))
+
+    with pytest.raises(WaveformResponseError, match="time axis does not match"):
+        write_waveforms_csv(
+            capture,
+            tmp_path / "waveform.csv",
+            allow_time_axis_tolerance=True,
+        )
+
+    assert not (tmp_path / "waveform.csv").exists()
+
+
+def test_multi_channel_waveform_export_rejects_sample_count_mismatch_with_tolerance(
+    tmp_path,
+):
+    preamble = parse_waveform_preamble(PREAMBLE)
+    ch1 = convert_byte_waveform(1, 1000, preamble, [128, 129])
+    ch2 = convert_byte_waveform(2, 1000, preamble, [130])
+    capture = MultiChannelWaveformCapture((ch1, ch2))
+
+    with pytest.raises(WaveformResponseError, match="has 1 samples"):
+        write_waveforms_csv(
+            capture,
+            tmp_path / "waveform.csv",
+            allow_time_axis_tolerance=True,
+        )
 
     assert not (tmp_path / "waveform.csv").exists()
 

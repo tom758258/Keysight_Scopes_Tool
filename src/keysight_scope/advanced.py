@@ -1,0 +1,654 @@
+"""Advanced DSO-X 4000A controls."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import math
+from pathlib import PureWindowsPath
+from typing import Sequence
+
+from .capabilities import ScopeCapabilities
+from .channel import (
+    channel_offset_command,
+    channel_offset_query,
+    channel_scale_command,
+    channel_scale_query,
+    validate_analog_channel,
+)
+from .errors import ParameterValidationError
+from .scpi import SCPIClient
+
+
+TRIGGER_HOLDOFF_MIN_SECONDS = 40e-9
+TRIGGER_HOLDOFF_MAX_SECONDS = 10.0
+
+_AUTOSCALE_ACQUIRE_MODES = {"normal": "NORMal", "current": "CURRent"}
+_AUTOSCALE_CHANNEL_MODES = {"all": "ALL", "displayed": "DISPlayed"}
+_FFT_UNITS = {"decibel": "DECibel", "vrms": "VRMS"}
+_FFT_WINDOWS = {
+    "rectangular": "RECTangular",
+    "hanning": "HANNing",
+    "flattop": "FLATtop",
+    "bharris": "BHARris",
+    "bartlett": "BARTlett",
+}
+
+
+@dataclass(frozen=True)
+class CursorState:
+    mode: str
+    x1_seconds: float
+    x2_seconds: float
+    y1_volts: float
+    y2_volts: float
+    x_delta_seconds: float
+    y_delta_volts: float
+    dydx: float
+
+
+@dataclass(frozen=True)
+class CursorAutoTimebaseResult:
+    enabled: bool
+    strategy: str
+    changed: bool | None
+    original_scale_seconds_per_division: float | None
+    original_position_seconds: float | None
+    target_scale_seconds_per_division: float | None
+    commands: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
+class CursorAutoVerticalResult:
+    enabled: bool
+    strategy: str
+    changed: bool | None
+    offset_changed: bool | None
+    original_scale_volts_per_division: float | None
+    original_offset_volts: float | None
+    target_scale_volts_per_division: float | None
+    target_offset_volts: float | None
+    commands: tuple[str, ...]
+    reason: str
+
+
+@dataclass(frozen=True)
+class FFTState:
+    function: int
+    operation: str
+    source_channel: int
+    units: str
+    window: str
+    center_hz: float
+    span_hz: float
+    display: bool
+
+
+class CursorController:
+    """Manual marker/cursor controls."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def set_manual(
+        self,
+        source_channel: int,
+        x1_seconds: float,
+        x2_seconds: float,
+        *,
+        y1_volts: float | None = None,
+        y2_volts: float | None = None,
+        auto_timebase: bool = False,
+        auto_vertical: bool = False,
+    ) -> None:
+        source_channel = validate_analog_channel(source_channel, self.capabilities)
+        if auto_timebase:
+            scale = self.scpi.query_float(":TIMebase:SCALe?")
+            position = self.scpi.query_float(":TIMebase:POSition?")
+            auto_result = cursor_auto_timebase_plan(
+                scale,
+                position,
+                x1_seconds,
+                x2_seconds,
+            )
+            if auto_result.changed and auto_result.target_scale_seconds_per_division is not None:
+                self.scpi.write(
+                    f":TIMebase:SCALe {_format_scpi_number(auto_result.target_scale_seconds_per_division)}"
+                )
+        if auto_vertical:
+            scale = self.scpi.query_float(channel_scale_query(source_channel))
+            offset = self.scpi.query_float(channel_offset_query(source_channel))
+            auto_vertical_result = cursor_auto_vertical_plan(
+                source_channel,
+                scale,
+                offset,
+                y1_volts=y1_volts,
+                y2_volts=y2_volts,
+                capabilities=self.capabilities,
+            )
+            if auto_vertical_result.changed:
+                assert auto_vertical_result.target_scale_volts_per_division is not None
+                assert auto_vertical_result.target_offset_volts is not None
+                self.scpi.write(
+                    channel_scale_command(
+                        source_channel,
+                        auto_vertical_result.target_scale_volts_per_division,
+                    )
+                )
+                if auto_vertical_result.offset_changed:
+                    self.scpi.write(
+                        channel_offset_command(
+                            source_channel,
+                            auto_vertical_result.target_offset_volts,
+                        )
+                    )
+        for command in cursor_configure_commands(
+            source_channel,
+            x1_seconds,
+            x2_seconds,
+            y1_volts=y1_volts,
+            y2_volts=y2_volts,
+            capabilities=self.capabilities,
+        ):
+            self.scpi.write(command)
+
+    def off(self) -> None:
+        self.scpi.write(":MARKer:MODE OFF")
+
+    def query(self) -> CursorState:
+        return CursorState(
+            mode=self.scpi.query(":MARKer:MODE?"),
+            x1_seconds=self.scpi.query_float(":MARKer:X1Position?"),
+            x2_seconds=self.scpi.query_float(":MARKer:X2Position?"),
+            y1_volts=self.scpi.query_float(":MARKer:Y1Position?"),
+            y2_volts=self.scpi.query_float(":MARKer:Y2Position?"),
+            x_delta_seconds=self.scpi.query_float(":MARKer:XDELta?"),
+            y_delta_volts=self.scpi.query_float(":MARKer:YDELta?"),
+            dydx=self.scpi.query_float(":MARKer:DYDX?"),
+        )
+
+
+class TriggerHoldoffController:
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def set_seconds(self, seconds: float) -> None:
+        for command in trigger_holdoff_commands(seconds):
+            self.scpi.write(command)
+
+    def query_seconds(self) -> float:
+        return self.scpi.query_float(trigger_holdoff_query())
+
+
+class SetupController:
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def autoscale(
+        self,
+        channels: Sequence[int] | None,
+        *,
+        acquire_mode: str | None = None,
+        channels_mode: str | None = None,
+        capabilities: ScopeCapabilities | None = None,
+    ) -> None:
+        for command in autoscale_commands(
+            channels,
+            acquire_mode=acquire_mode,
+            channels_mode=channels_mode,
+            capabilities=capabilities,
+        ):
+            self.scpi.write(command)
+
+    def save(self, *, slot: int | None = None, file_spec: str | None = None) -> None:
+        self.scpi.write(setup_save_command(slot=slot, file_spec=file_spec))
+
+    def recall(self, *, slot: int | None = None, file_spec: str | None = None) -> None:
+        self.scpi.write(setup_recall_command(slot=slot, file_spec=file_spec))
+
+
+class FFTController:
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        function: int,
+        source_channel: int,
+        *,
+        units: str | None = None,
+        window: str | None = None,
+        center_hz: float | None = None,
+        span_hz: float | None = None,
+        display: bool | None = None,
+    ) -> None:
+        for command in fft_configure_commands(
+            function,
+            source_channel,
+            units=units,
+            window=window,
+            center_hz=center_hz,
+            span_hz=span_hz,
+            display=display,
+            capabilities=self.capabilities,
+        ):
+            self.scpi.write(command)
+
+    def query(self, function: int) -> FFTState:
+        function = validate_function_number(function)
+        source = self.scpi.query(f":FUNCtion{function}:SOURce1?").strip()
+        return FFTState(
+            function=function,
+            operation=self.scpi.query(f":FUNCtion{function}:OPERation?"),
+            source_channel=int("".join(ch for ch in source if ch.isdigit()) or "0"),
+            units=self.scpi.query(f":FUNCtion{function}:FFT:VTYPe?"),
+            window=self.scpi.query(f":FUNCtion{function}:FFT:WINDow?"),
+            center_hz=self.scpi.query_float(f":FUNCtion{function}:FFT:CENTer?"),
+            span_hz=self.scpi.query_float(f":FUNCtion{function}:FFT:SPAN?"),
+            display=self.scpi.query(f":FUNCtion{function}:DISPlay?").strip() in {"1", "ON"},
+        )
+
+
+def trigger_holdoff_command(seconds: float) -> str:
+    seconds = validate_trigger_holdoff(seconds)
+    return f":TRIGger:HOLDoff {_format_scpi_number(seconds)}"
+
+
+def trigger_holdoff_commands(seconds: float) -> list[str]:
+    return [":TRIGger:HOLDoff:RANDom OFF", trigger_holdoff_command(seconds)]
+
+
+def trigger_holdoff_query() -> str:
+    return ":TRIGger:HOLDoff?"
+
+
+def validate_trigger_holdoff(seconds: float) -> float:
+    seconds = validate_finite_number(seconds, "--seconds")
+    if seconds < TRIGGER_HOLDOFF_MIN_SECONDS or seconds > TRIGGER_HOLDOFF_MAX_SECONDS:
+        raise ParameterValidationError("--seconds must be between 40e-9 and 10.")
+    return seconds
+
+
+def cursor_configure_commands(
+    source_channel: int,
+    x1_seconds: float,
+    x2_seconds: float,
+    *,
+    y1_volts: float | None = None,
+    y2_volts: float | None = None,
+    capabilities: ScopeCapabilities | None = None,
+) -> list[str]:
+    channel = (
+        validate_analog_channel(source_channel, capabilities)
+        if capabilities is not None
+        else source_channel
+    )
+    x1_seconds = validate_finite_number(x1_seconds, "--x1")
+    x2_seconds = validate_finite_number(x2_seconds, "--x2")
+    commands = [
+        ":MARKer:MODE MANual",
+        f":MARKer:X1Y1source CHANnel{channel}",
+        f":MARKer:X2Y2source CHANnel{channel}",
+        f":MARKer:X1Position {_format_scpi_number(x1_seconds)}",
+        f":MARKer:X2Position {_format_scpi_number(x2_seconds)}",
+    ]
+    if y1_volts is not None:
+        commands.append(
+            f":MARKer:Y1Position {_format_scpi_number(validate_finite_number(y1_volts, '--y1'))}"
+        )
+    if y2_volts is not None:
+        commands.append(
+            f":MARKer:Y2Position {_format_scpi_number(validate_finite_number(y2_volts, '--y2'))}"
+        )
+    return commands
+
+
+def cursor_auto_timebase_plan(
+    current_scale_seconds_per_division: float,
+    current_position_seconds: float,
+    x1_seconds: float,
+    x2_seconds: float,
+) -> CursorAutoTimebaseResult:
+    current_scale_seconds_per_division = validate_finite_number(
+        current_scale_seconds_per_division,
+        "timebase scale",
+    )
+    current_position_seconds = validate_finite_number(
+        current_position_seconds,
+        "timebase position",
+    )
+    if current_scale_seconds_per_division <= 0:
+        raise ParameterValidationError("timebase scale must be greater than 0 s/div.")
+    x1_seconds = validate_finite_number(x1_seconds, "--x1")
+    x2_seconds = validate_finite_number(x2_seconds, "--x2")
+
+    visible_half_span_seconds = current_scale_seconds_per_division * 4.5
+    max_delta_seconds = max(
+        abs(x1_seconds - current_position_seconds),
+        abs(x2_seconds - current_position_seconds),
+    )
+    changed = max_delta_seconds > visible_half_span_seconds
+    target_scale = (
+        max(current_scale_seconds_per_division, max_delta_seconds / 4.0)
+        if changed
+        else current_scale_seconds_per_division
+    )
+    commands = [":TIMebase:SCALe?", ":TIMebase:POSition?"]
+    if changed:
+        commands.append(f":TIMebase:SCALe {_format_scpi_number(target_scale)}")
+    reason = (
+        "requested X cursor position is outside the current visible half-span"
+        if changed
+        else "requested X cursor positions fit within the current visible half-span"
+    )
+    return CursorAutoTimebaseResult(
+        enabled=True,
+        strategy="scale_only",
+        changed=changed,
+        original_scale_seconds_per_division=current_scale_seconds_per_division,
+        original_position_seconds=current_position_seconds,
+        target_scale_seconds_per_division=target_scale,
+        commands=tuple(commands),
+        reason=reason,
+    )
+
+
+def cursor_auto_timebase_dry_run_plan() -> CursorAutoTimebaseResult:
+    return CursorAutoTimebaseResult(
+        enabled=True,
+        strategy="scale_only",
+        changed=None,
+        original_scale_seconds_per_division=None,
+        original_position_seconds=None,
+        target_scale_seconds_per_division=None,
+        commands=(":TIMebase:SCALe?", ":TIMebase:POSition?"),
+        reason=(
+            "dry-run will query the current timebase and widen scale only if the "
+            "requested X cursor positions are outside the visible range"
+        ),
+    )
+
+
+def cursor_auto_timebase_json(result: CursorAutoTimebaseResult) -> dict[str, object]:
+    return {
+        "enabled": result.enabled,
+        "strategy": result.strategy,
+        "changed": result.changed,
+        "original_scale_seconds_per_division": result.original_scale_seconds_per_division,
+        "original_position_seconds": result.original_position_seconds,
+        "target_scale_seconds_per_division": result.target_scale_seconds_per_division,
+        "commands": list(result.commands),
+        "reason": result.reason,
+    }
+
+
+def cursor_auto_vertical_plan(
+    source_channel: int,
+    current_scale_volts_per_division: float,
+    current_offset_volts: float,
+    *,
+    y1_volts: float | None = None,
+    y2_volts: float | None = None,
+    capabilities: ScopeCapabilities | None = None,
+) -> CursorAutoVerticalResult:
+    channel = (
+        validate_analog_channel(source_channel, capabilities)
+        if capabilities is not None
+        else source_channel
+    )
+    current_scale_volts_per_division = validate_finite_number(
+        current_scale_volts_per_division,
+        "channel scale",
+    )
+    current_offset_volts = validate_finite_number(
+        current_offset_volts,
+        "channel offset",
+    )
+    if current_scale_volts_per_division <= 0:
+        raise ParameterValidationError("channel scale must be greater than 0 V/div.")
+    targets = _cursor_y_targets(y1_volts=y1_volts, y2_volts=y2_volts)
+    min_y = min(targets)
+    max_y = max(targets)
+    usable_half_span_volts = current_scale_volts_per_division * 3.5
+    max_delta_volts = max(abs(value - current_offset_volts) for value in targets)
+    changed = max_delta_volts > usable_half_span_volts
+    target_scale = current_scale_volts_per_division
+    target_offset = current_offset_volts
+    offset_changed = False
+    commands = [channel_scale_query(channel), channel_offset_query(channel)]
+    if changed:
+        scale_only = max(current_scale_volts_per_division, max_delta_volts / 3.5)
+        midpoint = (min_y + max_y) / 2.0
+        midpoint_half_span = max(abs(min_y - midpoint), abs(max_y - midpoint))
+        midpoint_scale = max(current_scale_volts_per_division, midpoint_half_span / 3.5)
+        if scale_only >= midpoint_scale * 1.5:
+            target_scale = midpoint_scale
+            target_offset = midpoint
+            offset_changed = target_offset != current_offset_volts
+        else:
+            target_scale = scale_only
+        commands.append(channel_scale_command(channel, target_scale))
+        if offset_changed:
+            commands.append(channel_offset_command(channel, target_offset))
+    reason = (
+        "requested Y cursor position is outside the current vertical display range"
+        if changed
+        else "requested Y cursor positions fit within the current vertical display range"
+    )
+    return CursorAutoVerticalResult(
+        enabled=True,
+        strategy="scale_then_offset",
+        changed=changed,
+        offset_changed=offset_changed,
+        original_scale_volts_per_division=current_scale_volts_per_division,
+        original_offset_volts=current_offset_volts,
+        target_scale_volts_per_division=target_scale,
+        target_offset_volts=target_offset,
+        commands=tuple(commands),
+        reason=reason,
+    )
+
+
+def cursor_auto_vertical_dry_run_plan(source_channel: int) -> CursorAutoVerticalResult:
+    return CursorAutoVerticalResult(
+        enabled=True,
+        strategy="scale_then_offset",
+        changed=None,
+        offset_changed=None,
+        original_scale_volts_per_division=None,
+        original_offset_volts=None,
+        target_scale_volts_per_division=None,
+        target_offset_volts=None,
+        commands=(channel_scale_query(source_channel), channel_offset_query(source_channel)),
+        reason=(
+            "dry-run will query the source channel vertical settings and adjust "
+            "scale/offset only if requested Y cursor positions are outside the "
+            "visible range"
+        ),
+    )
+
+
+def cursor_auto_vertical_json(result: CursorAutoVerticalResult) -> dict[str, object]:
+    return {
+        "enabled": result.enabled,
+        "strategy": result.strategy,
+        "changed": result.changed,
+        "offset_changed": result.offset_changed,
+        "original_scale_volts_per_division": result.original_scale_volts_per_division,
+        "original_offset_volts": result.original_offset_volts,
+        "target_scale_volts_per_division": result.target_scale_volts_per_division,
+        "target_offset_volts": result.target_offset_volts,
+        "commands": list(result.commands),
+        "reason": result.reason,
+    }
+
+
+def _cursor_y_targets(*, y1_volts: float | None, y2_volts: float | None) -> tuple[float, ...]:
+    targets = []
+    if y1_volts is not None:
+        targets.append(validate_finite_number(y1_volts, "--y1"))
+    if y2_volts is not None:
+        targets.append(validate_finite_number(y2_volts, "--y2"))
+    if not targets:
+        raise ParameterValidationError("--auto-vertical requires --y1 or --y2.")
+    return tuple(targets)
+
+
+def autoscale_commands(
+    channels: Sequence[int] | None,
+    *,
+    acquire_mode: str | None = None,
+    channels_mode: str | None = None,
+    capabilities: ScopeCapabilities | None = None,
+) -> list[str]:
+    commands: list[str] = []
+    if acquire_mode is not None:
+        commands.append(f":AUToscale:AMODe {normalize_autoscale_acquire_mode(acquire_mode)}")
+    if channels_mode is not None:
+        commands.append(f":AUToscale:CHANnels {normalize_autoscale_channels_mode(channels_mode)}")
+    if channels:
+        validated = [
+            validate_analog_channel(channel, capabilities) if capabilities is not None else channel
+            for channel in channels
+        ]
+        joined = ",".join(f"CHANnel{channel}" for channel in validated)
+        commands.append(f":AUToscale {joined}")
+    else:
+        commands.append(":AUToscale")
+    return commands
+
+
+def normalize_autoscale_acquire_mode(value: str) -> str:
+    try:
+        return _AUTOSCALE_ACQUIRE_MODES[value.strip().lower()]
+    except KeyError as exc:
+        raise ParameterValidationError("--acquire-mode must be normal or current.") from exc
+
+
+def normalize_autoscale_channels_mode(value: str) -> str:
+    try:
+        return _AUTOSCALE_CHANNEL_MODES[value.strip().lower()]
+    except KeyError as exc:
+        raise ParameterValidationError("--channels must be all or displayed.") from exc
+
+
+def setup_save_command(*, slot: int | None = None, file_spec: str | None = None) -> str:
+    target = setup_target(slot=slot, file_spec=file_spec)
+    return f":SAVE:SETup {target}"
+
+
+def setup_recall_command(*, slot: int | None = None, file_spec: str | None = None) -> str:
+    target = setup_target(slot=slot, file_spec=file_spec)
+    return f":RECall:SETup {target}"
+
+
+def setup_target(*, slot: int | None = None, file_spec: str | None = None) -> str:
+    if (slot is None) == (file_spec is None):
+        raise ParameterValidationError("setup commands require exactly one of --slot or --file.")
+    if slot is not None:
+        if slot < 0 or slot > 9:
+            raise ParameterValidationError("--slot must be between 0 and 9.")
+        return str(slot)
+    assert file_spec is not None
+    if '"' in file_spec or "'" in file_spec:
+        raise ParameterValidationError("--file must not contain quotes.")
+    suffix = PureWindowsPath(file_spec).suffix
+    if suffix and suffix.lower() != ".scp":
+        raise ParameterValidationError("--file extension must be .scp when provided.")
+    return f'"{file_spec}"'
+
+
+def fft_configure_commands(
+    function: int,
+    source_channel: int,
+    *,
+    units: str | None = None,
+    window: str | None = None,
+    center_hz: float | None = None,
+    span_hz: float | None = None,
+    display: bool | None = None,
+    capabilities: ScopeCapabilities | None = None,
+) -> list[str]:
+    function = validate_function_number(function)
+    channel = validate_analog_channel(source_channel, capabilities) if capabilities is not None else source_channel
+    commands = [
+        f":FUNCtion{function}:OPERation FFT",
+        f":FUNCtion{function}:SOURce1 CHANnel{channel}",
+    ]
+    if units is not None:
+        commands.append(f":FUNCtion{function}:FFT:VTYPe {normalize_fft_units(units)}")
+    if window is not None:
+        commands.append(f":FUNCtion{function}:FFT:WINDow {normalize_fft_window(window)}")
+    if center_hz is not None:
+        commands.append(f":FUNCtion{function}:FFT:CENTer {_format_number(validate_nonnegative(center_hz, '--center-hz'))}")
+    if span_hz is not None:
+        commands.append(f":FUNCtion{function}:FFT:SPAN {_format_number(validate_positive(span_hz, '--span-hz'))}")
+    if display is not None:
+        commands.append(f":FUNCtion{function}:DISPlay {'ON' if display else 'OFF'}")
+    return commands
+
+
+def fft_query_commands(function: int) -> list[str]:
+    function = validate_function_number(function)
+    return [
+        f":FUNCtion{function}:OPERation?",
+        f":FUNCtion{function}:SOURce1?",
+        f":FUNCtion{function}:FFT:VTYPe?",
+        f":FUNCtion{function}:FFT:WINDow?",
+        f":FUNCtion{function}:FFT:CENTer?",
+        f":FUNCtion{function}:FFT:SPAN?",
+        f":FUNCtion{function}:DISPlay?",
+    ]
+
+
+def validate_function_number(function: int) -> int:
+    if function < 1 or function > 4:
+        raise ParameterValidationError("--function must be between 1 and 4.")
+    return function
+
+
+def normalize_fft_units(value: str) -> str:
+    try:
+        return _FFT_UNITS[value.strip().lower()]
+    except KeyError as exc:
+        raise ParameterValidationError("--units must be decibel or vrms.") from exc
+
+
+def normalize_fft_window(value: str) -> str:
+    try:
+        return _FFT_WINDOWS[value.strip().lower()]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "--window must be rectangular, hanning, flattop, bharris, or bartlett."
+        ) from exc
+
+
+def validate_finite_number(value: float, option: str) -> float:
+    if not math.isfinite(value):
+        raise ParameterValidationError(f"{option} must be a finite number.")
+    return value
+
+
+def validate_nonnegative(value: float, option: str) -> float:
+    value = validate_finite_number(value, option)
+    if value < 0:
+        raise ParameterValidationError(f"{option} must be non-negative.")
+    return value
+
+
+def validate_positive(value: float, option: str) -> float:
+    value = validate_finite_number(value, option)
+    if value <= 0:
+        raise ParameterValidationError(f"{option} must be greater than zero.")
+    return value
+
+
+def _format_number(value: float) -> str:
+    return f"{value:.12g}"
+
+
+def _format_scpi_number(value: float) -> str:
+    value = validate_finite_number(value, "SCPI numeric value")
+    return f"{value:.12g}".replace("e-0", "e-").replace("e+0", "e+")
