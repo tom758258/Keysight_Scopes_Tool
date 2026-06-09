@@ -22,6 +22,14 @@ from .channel import (
 )
 from .errors import KeysightScopeError
 from .scope import KeysightScope
+from .timebase import (
+    timebase_position_command,
+    timebase_position_query,
+    timebase_scale_command,
+    timebase_scale_query,
+    validate_timebase_position,
+    validate_timebase_scale,
+)
 from .visa_backend import list_visa_resources
 
 _CONTROL_COMMANDS = {
@@ -52,6 +60,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_channel_scale(args)
         if args.command == "channel-offset":
             return _cmd_channel_offset(args)
+        if args.command == "timebase-scale":
+            return _cmd_timebase_scale(args)
+        if args.command == "timebase-position":
+            return _cmd_timebase_position(args)
     except KeysightScopeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -202,6 +214,44 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="offset_query",
         action="store_true",
         help="query the channel vertical offset",
+    )
+
+    timebase_scale_parser = subparsers.add_parser(
+        "timebase-scale",
+        help="set or query horizontal scale",
+    )
+    _add_scope_connection_args(timebase_scale_parser)
+    scale_action = timebase_scale_parser.add_mutually_exclusive_group(required=True)
+    scale_action.add_argument(
+        "--seconds-per-division",
+        dest="timebase_scale_value",
+        type=_positive_timebase_float,
+        help="horizontal scale in seconds per division",
+    )
+    scale_action.add_argument(
+        "--query",
+        dest="timebase_scale_query",
+        action="store_true",
+        help="query the horizontal scale",
+    )
+
+    timebase_position_parser = subparsers.add_parser(
+        "timebase-position",
+        help="set or query horizontal position",
+    )
+    _add_scope_connection_args(timebase_position_parser)
+    position_action = timebase_position_parser.add_mutually_exclusive_group(required=True)
+    position_action.add_argument(
+        "--seconds",
+        dest="timebase_position_value",
+        type=_finite_timebase_float,
+        help="horizontal position in seconds",
+    )
+    position_action.add_argument(
+        "--query",
+        dest="timebase_position_query",
+        action="store_true",
+        help="query the horizontal position",
     )
     return parser
 
@@ -422,6 +472,74 @@ def _cmd_channel_offset(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
+def _cmd_timebase_scale(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.timebase_scale_query:
+            command = timebase_scale_query()
+            print("Planned query: timebase scale")
+            scale = scope.query_timebase_scale()
+            print(f"Command: {command}")
+            print(f"Timebase scale s/div: {scale:.12g}")
+        else:
+            scale = validate_timebase_scale(args.timebase_scale_value)
+            command = timebase_scale_command(scale)
+            print(f"Planned change: timebase scale {scale:.12g} s/div")
+            scope.set_timebase_scale(scale)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_timebase_position(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.timebase_position_query:
+            command = timebase_position_query()
+            print("Planned query: timebase position")
+            position = scope.query_timebase_position()
+            print(f"Command: {command}")
+            print(f"Timebase position s: {position:.12g}")
+        else:
+            position = validate_timebase_position(args.timebase_position_value)
+            command = timebase_position_command(position)
+            print(f"Planned change: timebase position {position:.12g} s")
+            scope.set_timebase_position(position)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
 def _print_capabilities(capabilities: ScopeCapabilities | None) -> None:
     if capabilities is None:
         print("Capabilities: unavailable for this model")
@@ -477,6 +595,28 @@ def _positive_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_channel_scale(parsed)
+    except KeysightScopeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _finite_timebase_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    try:
+        return validate_timebase_position(parsed)
+    except KeysightScopeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _positive_timebase_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    try:
+        return validate_timebase_scale(parsed)
     except KeysightScopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 

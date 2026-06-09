@@ -8,6 +8,7 @@ from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
 from .scpi import SCPIBackend, SCPIClient
 from .status import SystemErrorEntry, parse_system_error
+from .timebase import TimebaseController
 from .visa_backend import VisaBackend
 
 
@@ -105,6 +106,26 @@ class KeysightScope:
 
         return self._channel_controller().query_offset(channel)
 
+    def set_timebase_scale(self, seconds_per_division: float) -> None:
+        """Set the horizontal scale in seconds per division."""
+
+        self._timebase_controller().set_scale(seconds_per_division)
+
+    def query_timebase_scale(self) -> float:
+        """Query the horizontal scale in seconds per division."""
+
+        return self._timebase_controller().query_scale()
+
+    def set_timebase_position(self, seconds: float) -> None:
+        """Set the horizontal position in seconds."""
+
+        self._timebase_controller().set_position(seconds)
+
+    def query_timebase_position(self) -> float:
+        """Query the horizontal position in seconds."""
+
+        return self._timebase_controller().query_position()
+
     def close(self) -> None:
         """Close the underlying backend."""
 
@@ -114,8 +135,15 @@ class KeysightScope:
         if self.capabilities is None:
             raise ParameterValidationError(
                 "Channel operations require known capabilities; call query_idn() first."
-            )
+        )
         return ChannelController(self.scpi, self.capabilities)
+
+    def _timebase_controller(self) -> TimebaseController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Timebase operations require known capabilities; call query_idn() first."
+            )
+        return TimebaseController(self.scpi)
 
     def __enter__(self) -> "KeysightScope":
         return self

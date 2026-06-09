@@ -761,3 +761,215 @@ def test_channel_scale_cli_rejects_channel_above_detected_capabilities(monkeypat
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
     assert "channel 3 is not available" in err
+
+
+def test_timebase_scale_cli_sets_scale_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def set_timebase_scale(self, seconds_per_division):
+            self.calls.append(("set_timebase_scale", seconds_per_division))
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "timebase-scale",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--seconds-per-division",
+                "0.001",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_timebase_scale", 0.001), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned change: timebase scale 0.001 s/div" in out
+    assert "Command: :TIMebase:SCALe 0.001" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_timebase_scale_cli_queries_scale_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_timebase_scale(self):
+            self.calls.append("query_timebase_scale")
+            return 0.001
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "timebase-scale",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", "query_timebase_scale", "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: timebase scale" in out
+    assert "Command: :TIMebase:SCALe?" in out
+    assert "Timebase scale s/div: 0.001" in out
+
+
+def test_timebase_position_cli_sets_position_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def set_timebase_position(self, seconds):
+            self.calls.append(("set_timebase_position", seconds))
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "timebase-position",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--seconds",
+                "-0.0005",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_timebase_position", -0.0005), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned change: timebase position -0.0005 s" in out
+    assert "Command: :TIMebase:POSition -0.0005" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_timebase_position_cli_queries_position_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_timebase_position(self):
+            self.calls.append("query_timebase_position")
+            return -0.0005
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "timebase-position",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", "query_timebase_position", "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: timebase position" in out
+    assert "Command: :TIMebase:POSition?" in out
+    assert "Timebase position s: -0.0005" in out

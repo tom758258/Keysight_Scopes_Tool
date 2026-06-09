@@ -31,3 +31,7 @@ class ParameterValidationError(KeysightScopeError, ValueError):
 
 class ChannelResponseError(KeysightScopeError, ValueError):
     """Raised when a channel query response cannot be parsed."""
+
+
+class TimebaseResponseError(KeysightScopeError, ValueError):
+    """Raised when a timebase query response cannot be parsed."""

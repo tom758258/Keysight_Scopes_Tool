@@ -181,3 +181,41 @@ def test_scope_rejects_channel_above_capability_before_scale_scpi():
         raise AssertionError("Expected ParameterValidationError")
 
     assert backend.history == ["*IDN?"]
+
+
+def test_scope_timebase_requires_known_capabilities():
+    scope = KeysightScope(FakeBackend())
+
+    try:
+        scope.set_timebase_scale(0.001)
+    except ParameterValidationError as exc:
+        assert "query_idn" in str(exc)
+    else:
+        raise AssertionError("Expected ParameterValidationError")
+
+
+def test_scope_timebase_scale_and_position_use_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":TIMebase:SCALe?": "1.0E-3",
+            ":TIMebase:POSition?": "-5.0E-4",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    scope.set_timebase_scale(0.001)
+    scale = scope.query_timebase_scale()
+    scope.set_timebase_position(-0.0005)
+    position = scope.query_timebase_position()
+
+    assert scale == 0.001
+    assert position == -0.0005
+    assert backend.history == [
+        "*IDN?",
+        ":TIMebase:SCALe 0.001",
+        ":TIMebase:SCALe?",
+        ":TIMebase:POSition -0.0005",
+        ":TIMebase:POSition?",
+    ]

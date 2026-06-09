@@ -17,6 +17,8 @@ Current implemented scope:
   `:CHANnel<n>:DISPlay`.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
   `:CHANnel<n>:OFFSet`.
+- Set or query horizontal timebase scale and position with `:TIMebase:SCALe`
+  and `:TIMebase:POSition`.
 - Provide hardware-free tests through `FakeBackend`.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
@@ -140,6 +142,25 @@ finite number in volts. These commands first query `*IDN?` to validate the
 channel number against the detected model, then perform one
 `:SYSTem:ERRor?` post-check.
 
+Set or query the horizontal timebase scale:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli timebase-scale --resource "USB0::...::INSTR" --seconds-per-division 0.001 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli timebase-scale --resource "USB0::...::INSTR" --query --log-scpi
+```
+
+Set or query the horizontal timebase position:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli timebase-position --resource "USB0::...::INSTR" --seconds 0 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli timebase-position --resource "USB0::...::INSTR" --query --log-scpi
+```
+
+Timebase scale must be a positive finite number in seconds per division.
+Timebase position must be a finite number in seconds. These commands first
+query `*IDN?` to verify the connected scope model is recognized, then perform
+one `:SYSTem:ERRor?` post-check.
+
 ## Tests
 
 Normal tests are hardware-free:
@@ -157,5 +178,8 @@ Phase 3 channel display control is implemented, covered by hardware-free tests,
 and USB validated on DSO-X 4024A.
 
 Channel scale and offset control is implemented and covered by hardware-free
+tests, and USB validated on DSO-X 4024A.
+
+Timebase scale and position control is implemented and covered by hardware-free
 tests, and USB validated on DSO-X 4024A. Next code step: implement the first
-timebase control slice.
+edge trigger control slice.
