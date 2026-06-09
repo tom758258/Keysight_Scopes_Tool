@@ -73,6 +73,61 @@ def _install_channel_parameter_scope(monkeypatch):
     return scope
 
 
+class _MeasurementDummyBackend:
+    backend = "backend"
+    timeout = None
+
+
+class _MeasurementDummyScope:
+    backend = _MeasurementDummyBackend()
+
+    def __init__(self, result_value, raw_value, unit, valid=True, reason=None):
+        self.capabilities = None
+        self.calls = []
+        self.result_value = result_value
+        self.raw_value = raw_value
+        self.unit = unit
+        self.valid = valid
+        self.reason = reason
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        del exc_type, exc, traceback
+
+    def query_idn(self):
+        self.calls.append("query_idn")
+        self.capabilities = capabilities_for_model("DSOX4024A")
+        return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+    def query_measurement(self, channel, item):
+        self.calls.append(("query_measurement", channel, item))
+        return MeasurementResult(
+            item=item,
+            channel=channel,
+            value=self.result_value,
+            raw_value=self.raw_value,
+            valid=self.valid,
+            unit=self.unit,
+            reason=self.reason,
+        )
+
+    def query_system_error(self):
+        self.calls.append("query_system_error")
+        return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+
+def _install_measurement_scope(monkeypatch, result_value, raw_value, unit, valid=True, reason=None):
+    scope = _MeasurementDummyScope(result_value, raw_value, unit, valid=valid, reason=reason)
+    monkeypatch.setattr(
+        cli.KeysightScope,
+        "open",
+        staticmethod(lambda resource, visa_library=None: scope),
+    )
+    return scope
+
+
 def test_list_resources_cli_prints_backend_and_resources(monkeypatch, capsys):
     def fake_list_visa_resources(visa_library=None):
         assert visa_library is None
@@ -1972,6 +2027,137 @@ def test_screenshot_cli_reports_png_permission_error_without_traceback(monkeypat
     assert str(output_path) in captured.err
     assert "Permission denied" in captured.err
     assert "file may be open in another program" in captured.err
+
+
+@pytest.mark.parametrize(
+    (
+        "requested_item",
+        "normalized_item",
+        "value",
+        "raw_value",
+        "unit",
+        "expected_command",
+        "expected_value_line",
+    ),
+    [
+        (
+            "amplitude",
+            "amplitude",
+            1.2,
+            "1.20E+0",
+            "V",
+            ":MEASure:VAMPlitude? CHANnel1",
+            "Value V: 1.2",
+        ),
+        (
+            "pwidth",
+            "positive_width",
+            0.000002,
+            "2.00E-6",
+            "s",
+            ":MEASure:PWIDth? CHANnel1",
+            "Value s: 2e-06",
+        ),
+        (
+            "duty-cycle",
+            "duty_cycle",
+            48.0,
+            "4.80E+1",
+            "%",
+            ":MEASure:DUTYcycle? CHANnel1",
+            "Value %: 48",
+        ),
+    ],
+)
+def test_measure_cli_queries_new_items_then_checks_error(
+    monkeypatch,
+    capsys,
+    requested_item,
+    normalized_item,
+    value,
+    raw_value,
+    unit,
+    expected_command,
+    expected_value_line,
+):
+    scope = _install_measurement_scope(monkeypatch, value, raw_value, unit)
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--item",
+                requested_item,
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_measurement", 1, normalized_item),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert f"Planned query: CH1 {normalized_item} measurement" in out
+    assert f"Command: {expected_command}" in out
+    assert f"Measurement: {normalized_item}" in out
+    assert expected_value_line in out
+    assert f"Raw response: {raw_value}" in out
+    assert 'System error: +0, "No error"' in out
+
+
+@pytest.mark.parametrize(
+    ("requested_item", "normalized_item", "unit", "expected_command"),
+    [
+        ("overshoot", "overshoot", "%", ":MEASure:OVERshoot? CHANnel1"),
+        ("positive_width", "positive_width", "s", ":MEASure:PWIDth? CHANnel1"),
+    ],
+)
+def test_measure_cli_reports_invalid_sentinel_for_new_items(
+    monkeypatch, capsys, requested_item, normalized_item, unit, expected_command
+):
+    scope = _install_measurement_scope(
+        monkeypatch,
+        None,
+        "9.9E+37",
+        unit,
+        valid=False,
+        reason="invalid measurement sentinel",
+    )
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--item",
+                requested_item,
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_measurement", 1, normalized_item),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert f"Command: {expected_command}" in out
+    assert f"Measurement: {normalized_item}" in out
+    assert "Valid: false" in out
+    assert "Value: unavailable" in out
+    assert "Raw response: 9.9E+37" in out
+    assert "Reason: invalid measurement sentinel" in out
+    assert 'System error: +0, "No error"' in out
 
 
 def test_measure_cli_queries_vpp_then_checks_error(monkeypatch, capsys):

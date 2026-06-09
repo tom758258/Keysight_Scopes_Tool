@@ -23,6 +23,15 @@ _MEASUREMENT_QUERY_TEMPLATES = {
     "maximum": ":MEASure:VMAX? CHANnel{channel}",
     "rise_time": ":MEASure:RISetime? CHANnel{channel}",
     "fall_time": ":MEASure:FALLtime? CHANnel{channel}",
+    "amplitude": ":MEASure:VAMPlitude? CHANnel{channel}",
+    "top": ":MEASure:VTOP? CHANnel{channel}",
+    "base": ":MEASure:VBASe? CHANnel{channel}",
+    "overshoot": ":MEASure:OVERshoot? CHANnel{channel}",
+    "preshoot": ":MEASure:PREShoot? CHANnel{channel}",
+    "positive_width": ":MEASure:PWIDth? CHANnel{channel}",
+    "negative_width": ":MEASure:NWIDth? CHANnel{channel}",
+    "duty_cycle": ":MEASure:DUTYcycle? CHANnel{channel}",
+    "negative_duty_cycle": ":MEASure:NDUTy? CHANnel{channel}",
 }
 
 _MEASUREMENT_ALIASES = {
@@ -35,6 +44,21 @@ _MEASUREMENT_ALIASES = {
     "rise-time": "rise_time",
     "falltime": "fall_time",
     "fall-time": "fall_time",
+    "vamp": "amplitude",
+    "vtop": "top",
+    "vbase": "base",
+    "pwidth": "positive_width",
+    "positive-width": "positive_width",
+    "pwid": "positive_width",
+    "nwidth": "negative_width",
+    "negative-width": "negative_width",
+    "nwid": "negative_width",
+    "duty": "duty_cycle",
+    "dutycycle": "duty_cycle",
+    "duty-cycle": "duty_cycle",
+    "nduty": "negative_duty_cycle",
+    "negative-duty": "negative_duty_cycle",
+    "negative-duty-cycle": "negative_duty_cycle",
 }
 
 _MEASUREMENT_UNITS = {
@@ -47,6 +71,15 @@ _MEASUREMENT_UNITS = {
     "maximum": "V",
     "rise_time": "s",
     "fall_time": "s",
+    "amplitude": "V",
+    "top": "V",
+    "base": "V",
+    "overshoot": "%",
+    "preshoot": "%",
+    "positive_width": "s",
+    "negative_width": "s",
+    "duty_cycle": "%",
+    "negative_duty_cycle": "%",
 }
 
 SUPPORTED_MEASUREMENT_ITEMS = tuple(_MEASUREMENT_QUERY_TEMPLATES)

@@ -25,8 +25,9 @@ Current implemented scope:
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
 - Query read-only Vpp, frequency, period, display average voltage, display
-  DC RMS voltage, minimum, maximum, rise time, or fall time measurements for one
-  analog channel with explicit
+  DC RMS voltage, minimum, maximum, rise time, fall time, amplitude, top, base,
+  overshoot, preshoot, positive width, negative width, duty cycle, or negative
+  duty cycle measurements for one analog channel with explicit
   invalid-sentinel handling.
 - Capture one analog channel waveform in BYTE or WORD format and export CSV
   plus JSON metadata, with an optional default timestamped CSV path under
@@ -226,20 +227,36 @@ Query one read-only measurement:
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item maximum --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item rise_time --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item fall_time --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item amplitude --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item top --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item base --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item overshoot --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item preshoot --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item positive_width --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_width --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item duty_cycle --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_duty_cycle --log-scpi
 ```
 
 The current measurement slice supports `vpp`, `frequency` (`freq` alias),
 `period`, `vavg`, `vrms`, `minimum` (`min` and `vmin` aliases), `maximum`
 (`max` and `vmax` aliases), `rise_time` (`risetime` and `rise-time` aliases),
-and `fall_time` (`falltime` and `fall-time` aliases). The command first queries
-`*IDN?`, validates the analog channel, sends one read-only measurement query
-such as `:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?`
-post-check. `vavg` uses `:MEASure:VAVerage? DISPlay,CHANnelN`; `vrms` uses
-`:MEASure:VRMS? DISPlay,DC,CHANnelN`; `minimum` and `maximum` use
-`:MEASure:VMIN? CHANnelN` and `:MEASure:VMAX? CHANnelN`; `rise_time` and
-`fall_time` use `:MEASure:RISetime? CHANnelN` and
-`:MEASure:FALLtime? CHANnelN`. It does not change acquisition mode, trigger
-settings, display state, VISA timeout, or return-to-local behavior.
+`fall_time` (`falltime` and `fall-time` aliases), `amplitude` (`vamp` alias),
+`top` (`vtop` alias), `base` (`vbase` alias), `overshoot`, `preshoot`,
+`positive_width` (`pwidth`, `positive-width`, and `pwid` aliases),
+`negative_width` (`nwidth`, `negative-width`, and `nwid` aliases),
+`duty_cycle` (`duty`, `dutycycle`, and `duty-cycle` aliases), and
+`negative_duty_cycle` (`nduty`, `negative-duty`, and `negative-duty-cycle`
+aliases). The command first queries `*IDN?`, validates the analog channel,
+sends one read-only measurement query such as `:MEASure:VPP? CHANnel1`, and
+performs one `:SYSTem:ERRor?` post-check. The added item queries are
+`:MEASure:VAMPlitude? CHANnelN`, `:MEASure:VTOP? CHANnelN`,
+`:MEASure:VBASe? CHANnelN`, `:MEASure:OVERshoot? CHANnelN`,
+`:MEASure:PREShoot? CHANnelN`, `:MEASure:PWIDth? CHANnelN`,
+`:MEASure:NWIDth? CHANnelN`, `:MEASure:DUTYcycle? CHANnelN`, and
+`:MEASure:NDUTy? CHANnelN`. It does not change acquisition mode, trigger
+settings, measurement source, measurement window, display state, VISA timeout,
+or return-to-local behavior.
 Invalid measurement sentinels such as `9.9E+37` are printed as
 `Value: unavailable` with `Valid: false` and the original raw response
 preserved; the CLI exits non-zero so automation does not treat the unavailable
@@ -328,8 +345,11 @@ Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and
 USB validated on DSO-X 4024A. Read-only minimum, maximum, rise time, and fall
 time measurement queries are implemented and covered by hardware-free tests;
-USB validation passed by user. LAN retest is deferred
-until a LAN environment is available.
+USB validation passed by user. Read-only amplitude, top,
+base, overshoot, preshoot, positive width, negative width, duty cycle, and
+negative duty cycle measurement queries are implemented and covered by
+hardware-free tests; hardware validation remains USB CH1 first. LAN retest is
+deferred until a LAN environment is available.
 
 Screenshot PNG capture is implemented and covered by hardware-free tests. USB
 hardware validation passed by user.
