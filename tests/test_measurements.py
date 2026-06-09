@@ -21,15 +21,35 @@ def test_measurement_query_uses_keysight_measure_syntax():
     assert measurement_query("period", 1) == ":MEASure:PERiod? CHANnel1"
     assert measurement_query("vavg", 1) == ":MEASure:VAVerage? DISPlay,CHANnel1"
     assert measurement_query("vrms", 1) == ":MEASure:VRMS? DISPlay,DC,CHANnel1"
+    assert measurement_query("minimum", 1) == ":MEASure:VMIN? CHANnel1"
+    assert measurement_query("maximum", 1) == ":MEASure:VMAX? CHANnel1"
+    assert measurement_query("rise_time", 1) == ":MEASure:RISetime? CHANnel1"
+    assert measurement_query("fall_time", 1) == ":MEASure:FALLtime? CHANnel1"
+    assert measurement_query("vmin", 1) == ":MEASure:VMIN? CHANnel1"
+    assert measurement_query("vmax", 1) == ":MEASure:VMAX? CHANnel1"
+    assert measurement_query("risetime", 1) == ":MEASure:RISetime? CHANnel1"
+    assert measurement_query("falltime", 1) == ":MEASure:FALLtime? CHANnel1"
 
 
-def test_measurement_item_normalization_accepts_freq_alias():
+def test_measurement_item_normalization_accepts_aliases():
     assert normalize_measurement_item("freq") == "frequency"
+    assert normalize_measurement_item("min") == "minimum"
+    assert normalize_measurement_item("vmin") == "minimum"
+    assert normalize_measurement_item("max") == "maximum"
+    assert normalize_measurement_item("vmax") == "maximum"
+    assert normalize_measurement_item("risetime") == "rise_time"
+    assert normalize_measurement_item("rise-time") == "rise_time"
+    assert normalize_measurement_item("falltime") == "fall_time"
+    assert normalize_measurement_item("fall-time") == "fall_time"
     assert measurement_unit("frequency") == "Hz"
     assert measurement_unit("period") == "s"
     assert measurement_unit("vpp") == "V"
     assert measurement_unit("vavg") == "V"
     assert measurement_unit("vrms") == "V"
+    assert measurement_unit("minimum") == "V"
+    assert measurement_unit("maximum") == "V"
+    assert measurement_unit("rise_time") == "s"
+    assert measurement_unit("fall_time") == "s"
 
 
 def test_measurement_item_normalization_rejects_unknown_item():
@@ -81,6 +101,10 @@ def test_measurement_controller_queries_vpp_for_channel():
         ("period", "1.25E-4", 0.000125, [":MEASure:PERiod? CHANnel1"]),
         ("vavg", "-2.5E-2", -0.025, [":MEASure:VAVerage? DISPlay,CHANnel1"]),
         ("vrms", "7.07E-1", 0.707, [":MEASure:VRMS? DISPlay,DC,CHANnel1"]),
+        ("minimum", "-1.25E+0", -1.25, [":MEASure:VMIN? CHANnel1"]),
+        ("maximum", "1.25E+0", 1.25, [":MEASure:VMAX? CHANnel1"]),
+        ("rise_time", "1.00E-6", 0.000001, [":MEASure:RISetime? CHANnel1"]),
+        ("fall_time", "1.50E-6", 0.0000015, [":MEASure:FALLtime? CHANnel1"]),
     ],
 )
 def test_measurement_controller_queries_additional_read_only_items(

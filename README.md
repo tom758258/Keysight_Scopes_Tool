@@ -21,8 +21,9 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
-- Query read-only Vpp, frequency, period, display average voltage, or display
-  DC RMS voltage measurements for one analog channel with explicit
+- Query read-only Vpp, frequency, period, display average voltage, display
+  DC RMS voltage, minimum, maximum, rise time, or fall time measurements for one
+  analog channel with explicit
   invalid-sentinel handling.
 - Capture one analog channel waveform in BYTE or WORD format and export CSV
   plus JSON metadata, with an optional default timestamped CSV path under
@@ -189,15 +190,24 @@ Query one read-only measurement:
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item period --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item vavg --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item vrms --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item minimum --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item maximum --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item rise_time --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli measure --resource "USB0::...::INSTR" --channel 1 --item fall_time --log-scpi
 ```
 
 The current measurement slice supports `vpp`, `frequency` (`freq` alias),
-`period`, `vavg`, and `vrms`. The command first queries `*IDN?`, validates the
-analog channel, sends one read-only measurement query such as
-`:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?` post-check. `vavg`
-uses `:MEASure:VAVerage? DISPlay,CHANnelN`; `vrms` uses
-`:MEASure:VRMS? DISPlay,DC,CHANnelN`. It does not change acquisition mode,
-trigger settings, display state, VISA timeout, or return-to-local behavior.
+`period`, `vavg`, `vrms`, `minimum` (`min` and `vmin` aliases), `maximum`
+(`max` and `vmax` aliases), `rise_time` (`risetime` and `rise-time` aliases),
+and `fall_time` (`falltime` and `fall-time` aliases). The command first queries
+`*IDN?`, validates the analog channel, sends one read-only measurement query
+such as `:MEASure:VPP? CHANnel1`, and performs one `:SYSTem:ERRor?`
+post-check. `vavg` uses `:MEASure:VAVerage? DISPlay,CHANnelN`; `vrms` uses
+`:MEASure:VRMS? DISPlay,DC,CHANnelN`; `minimum` and `maximum` use
+`:MEASure:VMIN? CHANnelN` and `:MEASure:VMAX? CHANnelN`; `rise_time` and
+`fall_time` use `:MEASure:RISetime? CHANnelN` and
+`:MEASure:FALLtime? CHANnelN`. It does not change acquisition mode, trigger
+settings, display state, VISA timeout, or return-to-local behavior.
 Invalid measurement sentinels such as `9.9E+37` are printed as
 `Value: unavailable` with `Valid: false` and the original raw response
 preserved; the CLI exits non-zero so automation does not treat the unavailable
@@ -259,5 +269,7 @@ validated on DSO-X 4024A.
 
 Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and
-USB validated on DSO-X 4024A. LAN retest is deferred until a LAN environment is
-available.
+USB validated on DSO-X 4024A. Read-only minimum, maximum, rise time, and fall
+time measurement queries are implemented and covered by hardware-free tests;
+USB validation passed by user report on 2026-05-13. LAN retest is deferred
+until a LAN environment is available.

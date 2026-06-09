@@ -19,10 +19,22 @@ _MEASUREMENT_QUERY_TEMPLATES = {
     "period": ":MEASure:PERiod? CHANnel{channel}",
     "vavg": ":MEASure:VAVerage? DISPlay,CHANnel{channel}",
     "vrms": ":MEASure:VRMS? DISPlay,DC,CHANnel{channel}",
+    "minimum": ":MEASure:VMIN? CHANnel{channel}",
+    "maximum": ":MEASure:VMAX? CHANnel{channel}",
+    "rise_time": ":MEASure:RISetime? CHANnel{channel}",
+    "fall_time": ":MEASure:FALLtime? CHANnel{channel}",
 }
 
 _MEASUREMENT_ALIASES = {
     "freq": "frequency",
+    "min": "minimum",
+    "vmin": "minimum",
+    "max": "maximum",
+    "vmax": "maximum",
+    "risetime": "rise_time",
+    "rise-time": "rise_time",
+    "falltime": "fall_time",
+    "fall-time": "fall_time",
 }
 
 _MEASUREMENT_UNITS = {
@@ -31,6 +43,10 @@ _MEASUREMENT_UNITS = {
     "period": "s",
     "vavg": "V",
     "vrms": "V",
+    "minimum": "V",
+    "maximum": "V",
+    "rise_time": "s",
+    "fall_time": "s",
 }
 
 SUPPORTED_MEASUREMENT_ITEMS = tuple(_MEASUREMENT_QUERY_TEMPLATES)

@@ -1640,6 +1640,76 @@ def test_measure_cli_queries_vrms_then_checks_error(monkeypatch, capsys):
     assert 'System error: +0, "No error"' in out
 
 
+def test_measure_cli_accepts_risetime_alias_then_checks_error(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def query_measurement(self, channel, item):
+            self.calls.append(("query_measurement", channel, item))
+            return MeasurementResult(
+                item=item,
+                channel=channel,
+                value=0.000001,
+                raw_value="1.00E-6",
+                valid=True,
+                unit="s",
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+
+    assert (
+        cli.main(
+            [
+                "measure",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--item",
+                "risetime",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_measurement", 1, "rise_time"),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Planned query: CH1 rise_time measurement" in out
+    assert "Command: :MEASure:RISetime? CHANnel1" in out
+    assert "Measurement: rise_time" in out
+    assert "Value s: 1e-06" in out
+    assert "Raw response: 1.00E-6" in out
+    assert 'System error: +0, "No error"' in out
+
+
 def test_measure_cli_accepts_freq_alias(monkeypatch, capsys):
     class DummyBackend:
         backend = "backend"
