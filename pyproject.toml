@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keysight-scope"
+version = "0.1.0"
+description = "Safe Python helpers for Keysight InfiniiVision oscilloscopes over PyVISA."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    { name = "Keysight Scope Tool Contributors" }
+]
+dependencies = [
+    "pyvisa>=1.14"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8"
+]
+
+[project.scripts]
+scope-tool = "keysight_scope.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-p", "no:cacheprovider"]
+markers = [
+    "hardware: opt-in tests that require a real oscilloscope"
+]
