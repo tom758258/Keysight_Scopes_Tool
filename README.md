@@ -17,6 +17,9 @@ Current implemented scope:
   `:CHANnel<n>:DISPlay`.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
   `:CHANnel<n>:OFFSet`.
+- Set or query analog channel coupling, probe ratio, and bandwidth limit with
+  `:CHANnel<n>:COUPling`, `:CHANnel<n>:PROBe`, and
+  `:CHANnel<n>:BWLimit`.
 - Set or query horizontal timebase scale and position with `:TIMebase:SCALe`
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
@@ -153,6 +156,33 @@ finite number in volts. These commands first query `*IDN?` to validate the
 channel number against the detected model, then perform one
 `:SYSTem:ERRor?` post-check.
 
+Set or query one analog channel input coupling:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-coupling --resource "USB0::...::INSTR" --channel 1 --coupling dc --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-coupling --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+```
+
+Set or query one analog channel probe attenuation ratio:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-probe --resource "USB0::...::INSTR" --channel 1 --ratio 10 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-probe --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+```
+
+Enable, disable, or query one analog channel bandwidth limit:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-bandwidth-limit --resource "USB0::...::INSTR" --channel 1 --on --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-bandwidth-limit --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli channel-bandwidth-limit --resource "USB0::...::INSTR" --channel 1 --off --log-scpi
+```
+
+Channel coupling supports `ac` and `dc`. Probe ratio must be a positive finite
+number. Bandwidth limit is a per-channel on/off setting. These commands first
+query `*IDN?` to validate the channel number against the detected model, then
+perform one `:SYSTem:ERRor?` post-check.
+
 Set or query the horizontal timebase scale:
 
 ```powershell
@@ -275,6 +305,10 @@ and USB validated on DSO-X 4024A.
 Channel scale and offset control is implemented and covered by hardware-free
 tests, and USB validated on DSO-X 4024A.
 
+Channel coupling, probe ratio, and bandwidth-limit control are implemented,
+covered by hardware-free tests, and USB validated by user report on
+2026-05-13.
+
 Timebase scale and position control is implemented and covered by hardware-free
 tests, and USB validated on DSO-X 4024A.
 
@@ -294,8 +328,8 @@ Read-only Vpp, frequency, period, display average voltage, and display DC RMS
 voltage measurement queries are implemented, covered by hardware-free tests, and
 USB validated on DSO-X 4024A. Read-only minimum, maximum, rise time, and fall
 time measurement queries are implemented and covered by hardware-free tests;
-USB validation passed by user report on 2026-05-13. LAN retest is deferred
+USB validation passed by user. LAN retest is deferred
 until a LAN environment is available.
 
 Screenshot PNG capture is implemented and covered by hardware-free tests. USB
-hardware validation is the next check for this slice.
+hardware validation passed by user.

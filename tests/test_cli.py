@@ -14,6 +14,65 @@ from keysight_scope.visa_backend import VisaResourceListing
 from keysight_scope.waveform import WaveformCapture, WaveformPreamble
 
 
+class _ChannelParameterDummyBackend:
+    backend = "backend"
+    timeout = 2000
+
+
+class _ChannelParameterDummyScope:
+    backend = _ChannelParameterDummyBackend()
+
+    def __init__(self):
+        self.capabilities = None
+        self.calls = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        del exc_type, exc, traceback
+
+    def query_idn(self):
+        self.calls.append("query_idn")
+        self.capabilities = capabilities_for_model("DSOX4024A")
+        return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+    def set_channel_coupling(self, channel, coupling):
+        self.calls.append(("set_channel_coupling", channel, coupling))
+
+    def query_channel_coupling(self, channel):
+        self.calls.append(("query_channel_coupling", channel))
+        return "dc"
+
+    def set_channel_probe_ratio(self, channel, ratio):
+        self.calls.append(("set_channel_probe_ratio", channel, ratio))
+
+    def query_channel_probe_ratio(self, channel):
+        self.calls.append(("query_channel_probe_ratio", channel))
+        return 10
+
+    def set_channel_bandwidth_limit(self, channel, enabled):
+        self.calls.append(("set_channel_bandwidth_limit", channel, enabled))
+
+    def query_channel_bandwidth_limit(self, channel):
+        self.calls.append(("query_channel_bandwidth_limit", channel))
+        return True
+
+    def query_system_error(self):
+        self.calls.append("query_system_error")
+        return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+
+def _install_channel_parameter_scope(monkeypatch):
+    scope = _ChannelParameterDummyScope()
+    monkeypatch.setattr(
+        cli.KeysightScope,
+        "open",
+        staticmethod(lambda resource, visa_library=None: scope),
+    )
+    return scope
+
+
 def test_list_resources_cli_prints_backend_and_resources(monkeypatch, capsys):
     def fake_list_visa_resources(visa_library=None):
         assert visa_library is None
@@ -767,6 +826,160 @@ def test_channel_scale_cli_rejects_channel_above_detected_capabilities(monkeypat
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
     assert "channel 3 is not available" in err
+
+
+def test_channel_coupling_cli_sets_coupling_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-coupling",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--coupling",
+                "ac",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_channel_coupling", 1, "ac"), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned change: CH1 coupling AC" in out
+    assert "Command: :CHANnel1:COUPling AC" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_channel_coupling_cli_queries_coupling_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-coupling",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "2",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_channel_coupling", 2), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: CH2 coupling" in out
+    assert "Command: :CHANnel2:COUPling?" in out
+    assert "Coupling: DC" in out
+
+
+def test_channel_probe_cli_sets_ratio_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-probe",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--ratio",
+                "10",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_channel_probe_ratio", 1, 10.0), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned change: CH1 probe ratio 10" in out
+    assert "Command: :CHANnel1:PROBe 10" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_channel_probe_cli_queries_ratio_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-probe",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "2",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_channel_probe_ratio", 2), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: CH2 probe ratio" in out
+    assert "Command: :CHANnel2:PROBe?" in out
+    assert "Probe ratio: 10" in out
+
+
+def test_channel_bandwidth_limit_cli_turns_limit_on_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-bandwidth-limit",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--on",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("set_channel_bandwidth_limit", 1, True),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Planned change: CH1 bandwidth limit ON" in out
+    assert "Command: :CHANnel1:BWLimit ON" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_channel_bandwidth_limit_cli_queries_limit_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-bandwidth-limit",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "2",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == [
+        "query_idn",
+        ("query_channel_bandwidth_limit", 2),
+        "query_system_error",
+    ]
+    out = capsys.readouterr().out
+    assert "Planned query: CH2 bandwidth limit" in out
+    assert "Command: :CHANnel2:BWLimit?" in out
+    assert "Bandwidth limit: ON" in out
 
 
 def test_timebase_scale_cli_sets_scale_then_checks_error(monkeypatch, capsys):

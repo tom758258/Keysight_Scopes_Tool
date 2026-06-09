@@ -12,15 +12,23 @@ from typing import Sequence
 
 from .capabilities import ScopeCapabilities
 from .channel import (
+    channel_bandwidth_limit_command,
+    channel_bandwidth_limit_query,
+    channel_coupling_command,
+    channel_coupling_query,
     channel_display_command,
     channel_display_query,
     channel_offset_command,
     channel_offset_query,
+    channel_probe_ratio_command,
+    channel_probe_ratio_query,
     channel_scale_command,
     channel_scale_query,
+    normalize_channel_coupling,
     validate_analog_channel,
     validate_channel_offset,
     validate_channel_scale,
+    validate_probe_ratio,
 )
 from .errors import KeysightScopeError
 from .measurements import (
@@ -103,6 +111,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _cmd_channel_scale(args)
         if args.command == "channel-offset":
             return _cmd_channel_offset(args)
+        if args.command == "channel-coupling":
+            return _cmd_channel_coupling(args)
+        if args.command == "channel-probe":
+            return _cmd_channel_probe(args)
+        if args.command == "channel-bandwidth-limit":
+            return _cmd_channel_bandwidth_limit(args)
         if args.command == "timebase-scale":
             return _cmd_timebase_scale(args)
         if args.command == "timebase-position":
@@ -265,6 +279,92 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="offset_query",
         action="store_true",
         help="query the channel vertical offset",
+    )
+
+    channel_coupling_parser = subparsers.add_parser(
+        "channel-coupling",
+        help="set or query one analog channel input coupling",
+    )
+    _add_scope_connection_args(channel_coupling_parser)
+    channel_coupling_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    coupling_action = channel_coupling_parser.add_mutually_exclusive_group(required=True)
+    coupling_action.add_argument(
+        "--coupling",
+        dest="coupling_value",
+        choices=("ac", "dc"),
+        help="input coupling",
+    )
+    coupling_action.add_argument(
+        "--query",
+        dest="coupling_query",
+        action="store_true",
+        help="query the channel input coupling",
+    )
+
+    channel_probe_parser = subparsers.add_parser(
+        "channel-probe",
+        help="set or query one analog channel probe ratio",
+    )
+    _add_scope_connection_args(channel_probe_parser)
+    channel_probe_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    probe_action = channel_probe_parser.add_mutually_exclusive_group(required=True)
+    probe_action.add_argument(
+        "--ratio",
+        dest="probe_ratio",
+        type=_probe_ratio_float,
+        help="probe attenuation ratio, such as 1, 10, or 100",
+    )
+    probe_action.add_argument(
+        "--query",
+        dest="probe_query",
+        action="store_true",
+        help="query the channel probe ratio",
+    )
+
+    channel_bandwidth_limit_parser = subparsers.add_parser(
+        "channel-bandwidth-limit",
+        help="enable, disable, or query one analog channel bandwidth limit",
+    )
+    _add_scope_connection_args(channel_bandwidth_limit_parser)
+    channel_bandwidth_limit_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    bandwidth_action = channel_bandwidth_limit_parser.add_mutually_exclusive_group(
+        required=True
+    )
+    bandwidth_action.add_argument(
+        "--on",
+        dest="bandwidth_action",
+        action="store_const",
+        const="on",
+        help="turn the channel bandwidth limit on",
+    )
+    bandwidth_action.add_argument(
+        "--off",
+        dest="bandwidth_action",
+        action="store_const",
+        const="off",
+        help="turn the channel bandwidth limit off",
+    )
+    bandwidth_action.add_argument(
+        "--query",
+        dest="bandwidth_action",
+        action="store_const",
+        const="query",
+        help="query the channel bandwidth limit state",
     )
 
     timebase_scale_parser = subparsers.add_parser(
@@ -619,6 +719,112 @@ def _cmd_channel_offset(args: argparse.Namespace) -> int:
             command = channel_offset_command(channel, offset)
             print(f"Planned change: CH{channel} offset {offset:.12g} V")
             scope.set_channel_offset(channel, offset)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_channel_coupling(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        if args.coupling_query:
+            command = channel_coupling_query(channel)
+            print(f"Planned query: CH{channel} coupling")
+            coupling = scope.query_channel_coupling(channel)
+            print(f"Command: {command}")
+            print(f"Coupling: {coupling.upper()}")
+        else:
+            coupling = normalize_channel_coupling(args.coupling_value)
+            command = channel_coupling_command(channel, coupling)
+            print(f"Planned change: CH{channel} coupling {coupling.upper()}")
+            scope.set_channel_coupling(channel, coupling)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_channel_probe(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        if args.probe_query:
+            command = channel_probe_ratio_query(channel)
+            print(f"Planned query: CH{channel} probe ratio")
+            ratio = scope.query_channel_probe_ratio(channel)
+            print(f"Command: {command}")
+            print(f"Probe ratio: {ratio:.12g}")
+        else:
+            ratio = validate_probe_ratio(args.probe_ratio)
+            command = channel_probe_ratio_command(channel, ratio)
+            print(f"Planned change: CH{channel} probe ratio {ratio:.12g}")
+            scope.set_channel_probe_ratio(channel, ratio)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_channel_bandwidth_limit(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with KeysightScope.open(resource, visa_library=args.visa_library) as scope:
+        idn = scope.query_idn()
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        if args.bandwidth_action == "query":
+            command = channel_bandwidth_limit_query(channel)
+            print(f"Planned query: CH{channel} bandwidth limit")
+            enabled = scope.query_channel_bandwidth_limit(channel)
+            print(f"Command: {command}")
+            print(f"Bandwidth limit: {'ON' if enabled else 'OFF'}")
+        else:
+            enabled = args.bandwidth_action == "on"
+            command = channel_bandwidth_limit_command(channel, enabled)
+            state = "ON" if enabled else "OFF"
+            print(f"Planned change: CH{channel} bandwidth limit {state}")
+            scope.set_channel_bandwidth_limit(channel, enabled)
             print(f"Command: {command}")
 
         entry = scope.query_system_error()
@@ -992,6 +1198,17 @@ def _positive_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_channel_scale(parsed)
+    except KeysightScopeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _probe_ratio_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    try:
+        return validate_probe_ratio(parsed)
     except KeysightScopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 

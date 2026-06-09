@@ -1,7 +1,7 @@
 """Keysight InfiniiVision oscilloscope helpers."""
 
 from .capabilities import ScopeCapabilities, capabilities_for_model
-from .channel import ChannelController, parse_channel_display
+from .channel import ChannelController, parse_channel_coupling, parse_channel_display
 from .idn import IDN, detect_series, parse_idn
 from .measurements import MeasurementController, MeasurementResult
 from .screenshot import ScreenshotCapture, ScreenshotController
@@ -29,6 +29,7 @@ __all__ = [
     "capabilities_for_model",
     "detect_series",
     "parse_channel_display",
+    "parse_channel_coupling",
     "parse_idn",
     "parse_system_error",
 ]

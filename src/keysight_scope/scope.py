@@ -110,6 +110,36 @@ class KeysightScope:
 
         return self._channel_controller().query_offset(channel)
 
+    def set_channel_coupling(self, channel: int, coupling: str) -> None:
+        """Set one analog channel input coupling."""
+
+        self._channel_controller().set_coupling(channel, coupling)
+
+    def query_channel_coupling(self, channel: int) -> str:
+        """Query one analog channel input coupling."""
+
+        return self._channel_controller().query_coupling(channel)
+
+    def set_channel_probe_ratio(self, channel: int, ratio: float) -> None:
+        """Set one analog channel probe attenuation ratio."""
+
+        self._channel_controller().set_probe_ratio(channel, ratio)
+
+    def query_channel_probe_ratio(self, channel: int) -> float:
+        """Query one analog channel probe attenuation ratio."""
+
+        return self._channel_controller().query_probe_ratio(channel)
+
+    def set_channel_bandwidth_limit(self, channel: int, enabled: bool) -> None:
+        """Turn one analog channel bandwidth limit on or off."""
+
+        self._channel_controller().set_bandwidth_limit(channel, enabled)
+
+    def query_channel_bandwidth_limit(self, channel: int) -> bool:
+        """Query whether one analog channel bandwidth limit is enabled."""
+
+        return self._channel_controller().query_bandwidth_limit(channel)
+
     def set_timebase_scale(self, seconds_per_division: float) -> None:
         """Set the horizontal scale in seconds per division."""
 

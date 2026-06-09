@@ -168,6 +168,39 @@ def test_scope_channel_scale_and_offset_use_capabilities_from_idn():
     ]
 
 
+def test_scope_channel_parameters_use_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":CHANnel1:COUPling?": "DC",
+            ":CHANnel1:PROBe?": "1.0E+1",
+            ":CHANnel1:BWLimit?": "0",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    scope.set_channel_coupling(1, "ac")
+    coupling = scope.query_channel_coupling(1)
+    scope.set_channel_probe_ratio(1, 10)
+    ratio = scope.query_channel_probe_ratio(1)
+    scope.set_channel_bandwidth_limit(1, True)
+    bandwidth_limit = scope.query_channel_bandwidth_limit(1)
+
+    assert coupling == "dc"
+    assert ratio == 10
+    assert bandwidth_limit is False
+    assert backend.history == [
+        "*IDN?",
+        ":CHANnel1:COUPling AC",
+        ":CHANnel1:COUPling?",
+        ":CHANnel1:PROBe 10",
+        ":CHANnel1:PROBe?",
+        ":CHANnel1:BWLimit ON",
+        ":CHANnel1:BWLimit?",
+    ]
+
+
 def test_scope_rejects_channel_above_capability_before_scale_scpi():
     backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20"})
     scope = KeysightScope(backend)

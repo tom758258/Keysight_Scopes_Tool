@@ -54,6 +54,50 @@ class ChannelController:
         channel = validate_analog_channel(channel, self.capabilities)
         return parse_channel_float(self.scpi.query(channel_offset_query(channel)), "offset")
 
+    def set_coupling(self, channel: int, coupling: str) -> None:
+        """Set one analog channel input coupling."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        coupling = normalize_channel_coupling(coupling)
+        self.scpi.write(channel_coupling_command(channel, coupling))
+
+    def query_coupling(self, channel: int) -> str:
+        """Query one analog channel input coupling."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        return parse_channel_coupling(self.scpi.query(channel_coupling_query(channel)))
+
+    def set_probe_ratio(self, channel: int, ratio: float) -> None:
+        """Set one analog channel probe attenuation ratio."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        ratio = validate_probe_ratio(ratio)
+        self.scpi.write(channel_probe_ratio_command(channel, ratio))
+
+    def query_probe_ratio(self, channel: int) -> float:
+        """Query one analog channel probe attenuation ratio."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        return parse_channel_float(
+            self.scpi.query(channel_probe_ratio_query(channel)),
+            "probe ratio",
+        )
+
+    def set_bandwidth_limit(self, channel: int, enabled: bool) -> None:
+        """Turn one analog channel bandwidth limit on or off."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        self.scpi.write(channel_bandwidth_limit_command(channel, enabled))
+
+    def query_bandwidth_limit(self, channel: int) -> bool:
+        """Query whether one analog channel bandwidth limit is enabled."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        return parse_channel_bool(
+            self.scpi.query(channel_bandwidth_limit_query(channel)),
+            "bandwidth limit",
+        )
+
 
 def validate_analog_channel(channel: int, capabilities: ScopeCapabilities) -> int:
     """Validate an analog channel number against a capability profile."""
@@ -95,6 +139,29 @@ def validate_channel_offset(volts: float) -> float:
     return value
 
 
+def validate_probe_ratio(ratio: float) -> float:
+    """Validate a probe attenuation ratio before sending it to the instrument."""
+
+    try:
+        value = float(ratio)
+    except (TypeError, ValueError) as exc:
+        raise ParameterValidationError("probe ratio must be a number.") from exc
+    if not math.isfinite(value):
+        raise ParameterValidationError("probe ratio must be a finite number.")
+    if value <= 0:
+        raise ParameterValidationError("probe ratio must be greater than 0.")
+    return value
+
+
+def normalize_channel_coupling(coupling: str) -> str:
+    """Normalize a supported analog channel input coupling."""
+
+    normalized = str(coupling).strip().lower()
+    if normalized in {"ac", "dc"}:
+        return normalized
+    raise ParameterValidationError("channel coupling must be 'ac' or 'dc'.")
+
+
 def channel_display_command(channel: int, enabled: bool) -> str:
     """Build the SCPI command for analog channel display control."""
 
@@ -132,15 +199,71 @@ def channel_offset_query(channel: int) -> str:
     return f":CHANnel{channel}:OFFSet?"
 
 
+def channel_coupling_command(channel: int, coupling: str) -> str:
+    """Build the SCPI command for analog channel input coupling."""
+
+    normalized = normalize_channel_coupling(coupling)
+    return f":CHANnel{channel}:COUPling {normalized.upper()}"
+
+
+def channel_coupling_query(channel: int) -> str:
+    """Build the SCPI query for analog channel input coupling."""
+
+    return f":CHANnel{channel}:COUPling?"
+
+
+def channel_probe_ratio_command(channel: int, ratio: float) -> str:
+    """Build the SCPI command for analog channel probe attenuation ratio."""
+
+    ratio = validate_probe_ratio(ratio)
+    return f":CHANnel{channel}:PROBe {_format_scpi_float(ratio)}"
+
+
+def channel_probe_ratio_query(channel: int) -> str:
+    """Build the SCPI query for analog channel probe attenuation ratio."""
+
+    return f":CHANnel{channel}:PROBe?"
+
+
+def channel_bandwidth_limit_command(channel: int, enabled: bool) -> str:
+    """Build the SCPI command for analog channel bandwidth limit control."""
+
+    state = "ON" if enabled else "OFF"
+    return f":CHANnel{channel}:BWLimit {state}"
+
+
+def channel_bandwidth_limit_query(channel: int) -> str:
+    """Build the SCPI query for analog channel bandwidth limit state."""
+
+    return f":CHANnel{channel}:BWLimit?"
+
+
 def parse_channel_display(raw: str) -> bool:
     """Parse a channel display query response."""
+
+    return parse_channel_bool(raw, "display")
+
+
+def parse_channel_bool(raw: str, setting_name: str) -> bool:
+    """Parse a channel boolean query response."""
 
     normalized = raw.strip().upper()
     if normalized in {"1", "+1", "ON"}:
         return True
     if normalized in {"0", "+0", "OFF"}:
         return False
-    raise ChannelResponseError(f"Could not parse channel display response: {raw!r}")
+    raise ChannelResponseError(
+        f"Could not parse channel {setting_name} response: {raw!r}"
+    )
+
+
+def parse_channel_coupling(raw: str) -> str:
+    """Parse a channel coupling query response."""
+
+    normalized = raw.strip().lower()
+    if normalized in {"ac", "dc"}:
+        return normalized
+    raise ChannelResponseError(f"Could not parse channel coupling response: {raw!r}")
 
 
 def parse_channel_float(raw: str, setting_name: str) -> float:
