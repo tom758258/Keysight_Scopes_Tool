@@ -143,6 +143,11 @@ class KeysightScope:
 
         return self._waveform_controller().capture_byte(channel, points=points)
 
+    def capture_waveform_word(self, channel: int, points: int = 1000) -> WaveformCapture:
+        """Capture one analog channel using WORD waveform format."""
+
+        return self._waveform_controller().capture_word(channel, points=points)
+
     def close(self) -> None:
         """Close the underlying backend."""
 

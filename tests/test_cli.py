@@ -1190,7 +1190,7 @@ def test_capture_cli_writes_csv_and_metadata_then_checks_error(monkeypatch, caps
                 "--channel",
                 "1",
                 "--points",
-                "1000",
+                "10000",
                 "--csv",
                 str(csv_path),
             ]
@@ -1198,14 +1198,109 @@ def test_capture_cli_writes_csv_and_metadata_then_checks_error(monkeypatch, caps
         == 0
     )
 
-    assert scope.calls == ["query_idn", ("capture_waveform_byte", 1, 1000), "query_system_error"]
+    assert scope.calls == ["query_idn", ("capture_waveform_byte", 1, 10000), "query_system_error"]
     assert (tmp_path / "capture_meta.json").exists()
     assert csv_path.read_text(encoding="utf-8").splitlines()[0] == "time_s,ch1_v"
     out = capsys.readouterr().out
-    assert "Planned capture: CH1, 1000 points, BYTE format" in out
+    assert "Planned capture: CH1, 10000 points, BYTE format" in out
     assert "Command: :WAVeform:SOURce CHANnel1" in out
     assert "Command: :WAVeform:FORMat BYTE" in out
-    assert "Command: :WAVeform:POINts 1000" in out
+    assert "Command: :WAVeform:POINts 10000" in out
+    assert "Command: :WAVeform:PREamble?" in out
+    assert "Command: :WAVeform:DATA?" in out
+    assert "Actual points: 2" in out
+    assert 'System error: +0, "No error"' in out
+
+
+def test_capture_cli_supports_word_format(monkeypatch, capsys, tmp_path):
+    class DummyBackend:
+        backend = "backend"
+        timeout = 2000
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __init__(self):
+            self.capabilities = None
+            self.calls = []
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            self.calls.append("query_idn")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+
+        def capture_waveform_word(self, channel, points=1000):
+            self.calls.append(("capture_waveform_word", channel, points))
+            preamble = WaveformPreamble(
+                raw="1,0,2,1,1.0E-6,0,0,1.0E-4,0,32768",
+                format_code=1,
+                type_code=0,
+                points=2,
+                count=1,
+                x_increment=1e-6,
+                x_origin=0.0,
+                x_reference=0,
+                y_increment=0.0001,
+                y_origin=0.0,
+                y_reference=32768,
+            )
+            return WaveformCapture(
+                channel=channel,
+                requested_points=points,
+                format_name="WORD",
+                preamble=preamble,
+                raw_samples=(32768, 32769),
+                time_s=(0.0, 1e-6),
+                voltage_v=(0.0, 0.0001),
+                byte_order="MSBFirst",
+                unsigned=True,
+            )
+
+        def query_system_error(self):
+            self.calls.append("query_system_error")
+            return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
+
+    scope = DummyScope()
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--points",
+                "5000",
+                "--format",
+                "word",
+                "--csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("capture_waveform_word", 1, 5000), "query_system_error"]
+    metadata = (tmp_path / "capture_meta.json").read_text(encoding="utf-8")
+    assert '"format": "WORD"' in metadata
+    assert '"byte_order": "MSBFirst"' in metadata
+    assert '"unsigned": true' in metadata
+    out = capsys.readouterr().out
+    assert "Planned capture: CH1, 5000 points, WORD format" in out
+    assert "Command: :WAVeform:SOURce CHANnel1" in out
+    assert "Command: :WAVeform:FORMat WORD" in out
+    assert "Command: :WAVeform:BYTeorder MSBFirst" in out
+    assert "Command: :WAVeform:UNSigned ON" in out
+    assert "Command: :WAVeform:POINts 5000" in out
     assert "Command: :WAVeform:PREamble?" in out
     assert "Command: :WAVeform:DATA?" in out
     assert "Actual points: 2" in out

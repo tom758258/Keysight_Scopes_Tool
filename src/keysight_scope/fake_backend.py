@@ -26,6 +26,7 @@ class FakeBackend:
     )
     raw_response: bytes = b""
     binary_responses: MutableMapping[str, Sequence[Any]] = field(default_factory=dict)
+    binary_query_kwargs: list[dict[str, Any]] = field(default_factory=list)
     history: list[str] = field(default_factory=list)
     resource_name: str = "FAKE::SCOPE"
     backend: str = "fake"
@@ -57,9 +58,9 @@ class FakeBackend:
     def query_binary_values(self, command: str, **kwargs: Any) -> Sequence[Any]:
         """Record a binary query and return configured values."""
 
-        del kwargs
         self._ensure_open()
         self.history.append(command)
+        self.binary_query_kwargs.append(dict(kwargs))
         try:
             return self.binary_responses[command]
         except KeyError as exc:

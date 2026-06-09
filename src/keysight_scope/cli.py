@@ -45,13 +45,18 @@ from .trigger import (
 )
 from .visa_backend import list_visa_resources
 from .waveform import (
-    SUPPORTED_BYTE_POINTS,
+    SUPPORTED_WAVEFORM_POINTS,
+    WORD_BYTE_ORDER,
+    WORD_UNSIGNED,
+    waveform_byte_order_command,
     validate_waveform_points,
     waveform_data_query,
     waveform_format_byte_command,
+    waveform_format_word_command,
     waveform_points_command,
     waveform_preamble_query,
     waveform_source_command,
+    waveform_unsigned_command,
     write_waveform_csv,
     write_waveform_metadata,
 )
@@ -328,7 +333,14 @@ def _build_parser() -> argparse.ArgumentParser:
         "--points",
         type=_waveform_points_arg,
         default=1000,
-        help="waveform point count; first capture slice supports 1000",
+        help="waveform point count; supported values: 1000, 5000, 10000",
+    )
+    capture_parser.add_argument(
+        "--format",
+        dest="waveform_format",
+        choices=("byte", "word"),
+        default="byte",
+        help="waveform transfer format; defaults to byte",
     )
     capture_parser.add_argument(
         "--csv",
@@ -704,10 +716,19 @@ def _cmd_capture(args: argparse.Namespace) -> int:
 
         channel = validate_analog_channel(args.channel, scope.capabilities)
         points = validate_waveform_points(args.points, scope.capabilities)
-        print(f"Planned capture: CH{channel}, {points} points, BYTE format")
-        capture = scope.capture_waveform_byte(channel, points=points)
+        waveform_format = args.waveform_format.upper()
+        print(f"Planned capture: CH{channel}, {points} points, {waveform_format} format")
+        if args.waveform_format == "word":
+            capture = scope.capture_waveform_word(channel, points=points)
+        else:
+            capture = scope.capture_waveform_byte(channel, points=points)
         print(f"Command: {waveform_source_command(channel)}")
-        print(f"Command: {waveform_format_byte_command()}")
+        if args.waveform_format == "word":
+            print(f"Command: {waveform_format_word_command()}")
+            print(f"Command: {waveform_byte_order_command(WORD_BYTE_ORDER)}")
+            print(f"Command: {waveform_unsigned_command(WORD_UNSIGNED)}")
+        else:
+            print(f"Command: {waveform_format_byte_command()}")
         print(f"Command: {waveform_points_command(points)}")
         print(f"Command: {waveform_preamble_query()}")
         print(f"Command: {waveform_data_query()}")
@@ -854,10 +875,10 @@ def _waveform_points_arg(value: str) -> int:
         parsed = int(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError("must be an integer") from exc
-    if parsed not in SUPPORTED_BYTE_POINTS:
-        supported = ", ".join(str(point_count) for point_count in SUPPORTED_BYTE_POINTS)
+    if parsed not in SUPPORTED_WAVEFORM_POINTS:
+        supported = ", ".join(str(point_count) for point_count in SUPPORTED_WAVEFORM_POINTS)
         raise argparse.ArgumentTypeError(
-            f"first waveform capture slice supports only these point counts: {supported}"
+            f"waveform capture supports only these point counts: {supported}"
         )
     return parsed
 

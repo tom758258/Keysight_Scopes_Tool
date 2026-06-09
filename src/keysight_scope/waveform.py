@@ -15,7 +15,11 @@ from .errors import ParameterValidationError, WaveformResponseError
 from .idn import IDN
 from .scpi import SCPIClient
 
-SUPPORTED_BYTE_POINTS = (1000,)
+SUPPORTED_WAVEFORM_POINTS = (1000, 5000, 10000)
+SUPPORTED_BYTE_POINTS = SUPPORTED_WAVEFORM_POINTS
+SUPPORTED_WORD_POINTS = SUPPORTED_WAVEFORM_POINTS
+WORD_BYTE_ORDER = "MSBFirst"
+WORD_UNSIGNED = True
 
 
 @dataclass(frozen=True)
@@ -46,6 +50,8 @@ class WaveformCapture:
     raw_samples: tuple[int, ...]
     time_s: tuple[float, ...]
     voltage_v: tuple[float, ...]
+    byte_order: str | None = None
+    unsigned: bool | None = None
 
 
 class WaveformController:
@@ -73,18 +79,45 @@ class WaveformController:
             raise WaveformResponseError("Waveform data query returned no samples.")
         return convert_byte_waveform(channel, points, preamble, raw_samples)
 
+    def capture_word(self, channel: int, points: int = 1000) -> WaveformCapture:
+        """Capture one analog channel using WORD waveform format."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        points = validate_waveform_points(points, self.capabilities)
+        self.scpi.write(waveform_source_command(channel))
+        self.scpi.write(waveform_format_word_command())
+        self.scpi.write(waveform_byte_order_command(WORD_BYTE_ORDER))
+        self.scpi.write(waveform_unsigned_command(WORD_UNSIGNED))
+        self.scpi.write(waveform_points_command(points))
+        preamble = parse_waveform_preamble(self.scpi.query(waveform_preamble_query()))
+        if preamble.format_code != 1:
+            raise WaveformResponseError(
+                f"Expected WORD waveform preamble format 1, got {preamble.format_code}."
+            )
+        raw_samples = tuple(
+            int(value)
+            for value in self.scpi.query_binary_values(
+                waveform_data_query(),
+                datatype="H",
+                is_big_endian=True,
+            )
+        )
+        if not raw_samples:
+            raise WaveformResponseError("Waveform data query returned no samples.")
+        return convert_word_waveform(channel, points, preamble, raw_samples)
+
 
 def validate_waveform_points(points: int, capabilities: ScopeCapabilities) -> int:
-    """Validate first-slice waveform point count."""
+    """Validate supported waveform point count."""
 
     try:
         value = int(points)
     except (TypeError, ValueError) as exc:
         raise ParameterValidationError("waveform points must be an integer.") from exc
-    if value not in SUPPORTED_BYTE_POINTS:
-        supported = ", ".join(str(point_count) for point_count in SUPPORTED_BYTE_POINTS)
+    if value not in SUPPORTED_WAVEFORM_POINTS:
+        supported = ", ".join(str(point_count) for point_count in SUPPORTED_WAVEFORM_POINTS)
         raise ParameterValidationError(
-            f"first waveform capture slice supports only these point counts: {supported}."
+            f"waveform capture supports only these point counts: {supported}."
         )
     if value > capabilities.safe_max_waveform_points:
         raise ParameterValidationError(
@@ -103,6 +136,24 @@ def waveform_format_byte_command() -> str:
     """Build the SCPI command for BYTE waveform format."""
 
     return ":WAVeform:FORMat BYTE"
+
+
+def waveform_format_word_command() -> str:
+    """Build the SCPI command for WORD waveform format."""
+
+    return ":WAVeform:FORMat WORD"
+
+
+def waveform_byte_order_command(byte_order: str = WORD_BYTE_ORDER) -> str:
+    """Build the SCPI command for WORD byte order."""
+
+    return f":WAVeform:BYTeorder {byte_order}"
+
+
+def waveform_unsigned_command(unsigned: bool = WORD_UNSIGNED) -> str:
+    """Build the SCPI command for waveform unsigned mode."""
+
+    return f":WAVeform:UNSigned {'ON' if unsigned else 'OFF'}"
 
 
 def waveform_points_command(points: int) -> str:
@@ -190,6 +241,36 @@ def convert_byte_waveform(
     )
 
 
+def convert_word_waveform(
+    channel: int,
+    requested_points: int,
+    preamble: WaveformPreamble,
+    raw_samples: Sequence[int],
+) -> WaveformCapture:
+    """Convert unsigned WORD waveform samples to time and voltage tuples."""
+
+    samples = tuple(_validate_word_sample(value) for value in raw_samples)
+    time_s = tuple(
+        (index - preamble.x_reference) * preamble.x_increment + preamble.x_origin
+        for index in range(len(samples))
+    )
+    voltage_v = tuple(
+        (sample - preamble.y_reference) * preamble.y_increment + preamble.y_origin
+        for sample in samples
+    )
+    return WaveformCapture(
+        channel=channel,
+        requested_points=requested_points,
+        format_name="WORD",
+        preamble=preamble,
+        raw_samples=samples,
+        time_s=time_s,
+        voltage_v=voltage_v,
+        byte_order=WORD_BYTE_ORDER,
+        unsigned=WORD_UNSIGNED,
+    )
+
+
 def write_waveform_csv(capture: WaveformCapture, path: str | Path) -> Path:
     """Write converted waveform data to CSV."""
 
@@ -227,6 +308,10 @@ def write_waveform_metadata(
         "format": capture.format_name,
         "preamble": asdict(capture.preamble),
     }
+    if capture.byte_order is not None:
+        metadata["byte_order"] = capture.byte_order
+    if capture.unsigned is not None:
+        metadata["unsigned"] = capture.unsigned
     with output_path.open("w", encoding="utf-8") as handle:
         json.dump(metadata, handle, indent=2, sort_keys=True)
         handle.write("\n")
@@ -237,4 +322,11 @@ def _validate_byte_sample(value: int) -> int:
     sample = int(value)
     if sample < 0 or sample > 255:
         raise WaveformResponseError(f"BYTE waveform sample out of range: {value!r}")
+    return sample
+
+
+def _validate_word_sample(value: int) -> int:
+    sample = int(value)
+    if sample < 0 or sample > 65535:
+        raise WaveformResponseError(f"WORD waveform sample out of range: {value!r}")
     return sample

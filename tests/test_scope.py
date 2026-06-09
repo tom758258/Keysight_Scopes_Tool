@@ -295,3 +295,30 @@ def test_scope_waveform_capture_uses_capabilities_from_idn():
         ":WAVeform:PREamble?",
         ":WAVeform:DATA?",
     ]
+
+
+def test_scope_word_waveform_capture_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":WAVeform:PREamble?": "1,0,2,1,1.0E-6,0,0,1.0E-4,0,32768",
+        },
+        binary_responses={":WAVeform:DATA?": [32768, 32769]},
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    capture = scope.capture_waveform_word(1, points=1000)
+
+    assert capture.raw_samples == (32768, 32769)
+    assert capture.format_name == "WORD"
+    assert backend.history == [
+        "*IDN?",
+        ":WAVeform:SOURce CHANnel1",
+        ":WAVeform:FORMat WORD",
+        ":WAVeform:BYTeorder MSBFirst",
+        ":WAVeform:UNSigned ON",
+        ":WAVeform:POINts 1000",
+        ":WAVeform:PREamble?",
+        ":WAVeform:DATA?",
+    ]

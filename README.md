@@ -181,15 +181,18 @@ Capture one analog channel waveform:
 
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --csv data\ch1.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 10000 --csv data\ch1.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --format word --csv data\ch1_word.csv --log-scpi
 ```
 
-The first capture slice uses BYTE waveform format and supports 1000 points only.
+The current capture slice supports BYTE and WORD waveform formats with 1000,
+5000, and 10000 requested points. BYTE remains the default. WORD capture sets
+`:WAVeform:BYTeorder MSBFirst` and `:WAVeform:UNSigned ON` before reading data.
 If `--csv` is omitted, the CLI writes to `data/YYYY-MM-DD-HH-mm-ss.csv` using
-the `UTC+8` timezone. If `--csv PATH` is provided, it writes exactly to
-that path. Metadata JSON defaults to the same stem with `_meta.json` beside the
-CSV. The command performs one `:SYSTem:ERRor?` post-check. It does not change
-VISA timeout, acquisition mode, trigger waiting, waveform point mode, or
+the `UTC+8` timezone. If `--csv PATH` is provided, it writes exactly to that
+path. Metadata JSON defaults to the same stem with `_meta.json` beside the CSV.
+The command performs one `:SYSTem:ERRor?` post-check. It does not change VISA
+timeout, acquisition mode, trigger waiting, waveform point mode, or
 return-to-local behavior. If the CSV or metadata file cannot be written because
 it is open in another program or the folder is not writable, the CLI reports a
 plain `error:` message instead of a Python traceback.
@@ -220,5 +223,10 @@ Analog edge trigger source, level, and slope control is implemented and covered
 by hardware-free tests, and USB validated on DSO-X 4024A.
 
 Single-channel BYTE waveform capture is implemented and covered by
-hardware-free tests, and USB validated on DSO-X 4024A. The CLI now defaults
-`capture` output to a timestamped CSV under `data` when `--csv` is omitted.
+hardware-free tests, and requested point counts 1000, 5000, and 10000 are USB
+validated on DSO-X 4024A. The CLI now defaults `capture` output to a
+timestamped CSV under `data` when `--csv` is omitted.
+
+Single-channel WORD waveform capture is implemented and covered by
+hardware-free tests, and requested point counts 1000, 5000, and 10000 are USB
+validated on DSO-X 4024A.
