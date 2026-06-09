@@ -14,7 +14,6 @@ import sys
 import time
 from typing import Sequence
 
-import keysight_scope_core.output_files as core_output_files
 from keysight_scope_core.acquisition import (
     acquisition_count_command,
     acquisition_count_query,
@@ -52,14 +51,11 @@ from keysight_scope_core.batch import (
     system_error_manifest_dict,
     write_batch_manifest,
 )
-from keysight_scope_core.measure_logger import (
-    log_measurements_workflow,
-    measure_log_paths,
-    prepare_measure_log_output_dir,
-)
+from keysight_scope_core.measure_logger import measure_log_paths
 from keysight_scope_core.operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
+    MeasureLogRequest,
     MeasureRequest,
     MeasureSweepRequest,
     SmokeRequest,
@@ -67,6 +63,7 @@ from keysight_scope_core.operations import (
     run_acquisition_check,
     run_capture,
     run_doctor,
+    run_measure_log,
     run_measure,
     run_measure_sweep,
     run_smoke,
@@ -74,7 +71,6 @@ from keysight_scope_core.operations import (
 from keysight_scope_core.output_files import (
     capture_output_paths,
     default_capture_csv_path,
-    write_capture_plot_file,
     write_json_file,
     write_json_file_best_effort,
 )
@@ -188,7 +184,6 @@ from keysight_scope_core.waveform import (
     waveform_unsigned_command,
     write_waveform_csv,
     write_waveform_metadata,
-    write_waveform_plot_png,
     write_waveforms_csv,
     write_waveforms_metadata,
 )
@@ -1152,7 +1147,7 @@ def _add_scope_connection_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--live",
         action="store_true",
-        help="explicitly opt in to real instrument access for agent workflows",
+        help="one-shot compatibility flag for live mode; cannot be combined with --simulate or --dry-run",
     )
 
 
@@ -2794,69 +2789,6 @@ def _cmd_measure(args: argparse.Namespace) -> int:
         for line in operation_result.human_lines:
             print(line)
         return operation_result.exit_code
-        idn = scope.query_idn()
-        _json_record_scope(scope, idn)
-        _print_session_header(scope, resource)
-        print(f"Model: {idn.model}")
-        print(f"Series: {idn.series or 'unknown'}")
-        if scope.capabilities is None:
-            print("Capabilities: unavailable for this model")
-            return 1
-
-        item = normalize_measurement_item(args.item)
-        measurement_kwargs = _measurement_query_kwargs(args, item)
-        if is_pair_measurement_item(item):
-            source_channel, reference_channel = _resolve_pair_measurement_channels(
-                args, scope.capabilities, item
-            )
-            command = pair_measurement_query(
-                item,
-                source_channel,
-                reference_channel,
-                capabilities=scope.capabilities,
-                **measurement_kwargs,
-            )
-            print(
-                f"Planned query: CH{source_channel} to CH{reference_channel} "
-                f"{item} measurement"
-            )
-            result = scope.query_pair_measurement(source_channel, reference_channel, item)
-        else:
-            channel = _resolve_single_measurement_channel(args, scope.capabilities)
-            command = measurement_query(
-                item,
-                channel,
-                capabilities=scope.capabilities,
-                **measurement_kwargs,
-            )
-            print(
-                f"Planned query: CH{channel} {item} measurement"
-                f"{_format_measurement_parameters(measurement_kwargs)}"
-            )
-            result = scope.query_measurement(channel, item, **measurement_kwargs)
-
-        _json_update_result(command=command, **_measurement_result_json(result, parameters=measurement_kwargs))
-        print(f"Command: {command}")
-        print(f"Measurement: {result.item}")
-        print(f"Channel: {result.channel}")
-        if result.reference_channel is not None:
-            print(f"Reference channel: {result.reference_channel}")
-        print(f"Valid: {'true' if result.valid else 'false'}")
-        if result.valid:
-            value = result.value
-            if value is None:
-                raise KeysightScopeError("measurement result was marked valid without a numeric value")
-            print(f"Value {result.unit}: {value:.12g}")
-        else:
-            print("Value: unavailable")
-        print(f"Raw response: {result.raw_value}")
-        if result.reason is not None:
-            print(f"Reason: {result.reason}")
-
-        entry = scope.query_system_error()
-        _json_record_system_error(entry)
-        print(f"System error: {entry.format()}")
-        return 1 if entry.is_error or not result.valid else 0
 
 
 def _cmd_measure_stats(args: argparse.Namespace) -> int:
@@ -2927,7 +2859,6 @@ def _cmd_capture(args: argparse.Namespace) -> int:
     plot_path = Path(args.plot_path) if args.plot_path is not None else None
 
     with _open_scope(args, resource) as scope:
-        _sync_core_output_file_writers()
         operation_result = run_capture(
             scope,
             resource,
@@ -2947,79 +2878,6 @@ def _cmd_capture(args: argparse.Namespace) -> int:
         for line in operation_result.human_lines:
             print(line)
         return operation_result.exit_code
-        idn = scope.query_idn()
-        _json_record_scope(scope, idn)
-        _print_session_header(scope, resource)
-        print(f"Model: {idn.model}")
-        print(f"Series: {idn.series or 'unknown'}")
-        if scope.capabilities is None:
-            print("Capabilities: unavailable for this model")
-            return 1
-
-        channels = _resolve_capture_channels(args.channel, scope.capabilities)
-        points = validate_waveform_points(args.points, scope.capabilities)
-        waveform_format = args.waveform_format.upper()
-        if len(channels) == 1:
-            channel = channels[0]
-            print(f"Planned capture: CH{channel}, {points} points, {waveform_format} format")
-            if args.waveform_format == "word":
-                capture: WaveformCapture | MultiChannelWaveformCapture = (
-                    scope.capture_waveform_word(channel, points=points)
-                )
-            else:
-                capture = scope.capture_waveform_byte(channel, points=points)
-        else:
-            print(
-                f"Planned capture: {_format_channel_list(channels)}, "
-                f"{points} points, {waveform_format} format"
-            )
-            if args.waveform_format == "word":
-                capture = scope.capture_waveforms_word(channels, points=points)
-            else:
-                capture = scope.capture_waveforms_byte(channels, points=points)
-        _print_waveform_capture_commands(channels, args.waveform_format, points)
-        time_axis_tolerance = None
-        if (
-            args.allow_time_axis_tolerance
-            and isinstance(capture, MultiChannelWaveformCapture)
-        ):
-            time_axis_tolerance = waveform_time_axis_tolerance_summary(capture)
-        written_csv = _write_capture_csv(
-            capture,
-            csv_path,
-            allow_time_axis_tolerance=args.allow_time_axis_tolerance,
-        )
-        written_meta = _write_capture_metadata(
-            capture,
-            meta_path,
-            idn=idn,
-            resource=resource,
-            time_axis_tolerance=time_axis_tolerance,
-        )
-        files = [{"kind": "csv", "path": str(written_csv)}, {"kind": "metadata", "path": str(written_meta)}]
-        if plot_path is not None:
-            written_plot = _write_capture_plot(capture, plot_path)
-            files.append({"kind": "plot_png", "path": str(written_plot)})
-        _json_set_files(files)
-        result = {
-            "channels": list(channels),
-            "requested_points": points,
-            "format": waveform_format,
-            "files": files,
-            **_waveform_capture_summary(capture),
-        }
-        if time_axis_tolerance is not None:
-            result["time_axis_tolerance"] = time_axis_tolerance
-        _json_update_result(**result)
-        print(_format_actual_points(capture))
-        print(f"CSV: {written_csv}")
-        print(f"Metadata: {written_meta}")
-        if plot_path is not None:
-            print(f"Plot: {plot_path}")
-        entry = scope.query_system_error()
-        _json_record_system_error(entry)
-        print(f"System error: {entry.format()}")
-        return 1 if entry.is_error else 0
 
 
 def _cmd_capture_batch(args: argparse.Namespace) -> int:
@@ -3192,78 +3050,38 @@ def _cmd_measure_log(args: argparse.Namespace) -> int:
     if resource is None:
         return 2
 
-    output_dir = prepare_measure_log_output_dir(args.output_dir)
-    csv_path, manifest_path, scpi_log_path = measure_log_paths(output_dir)
-
-    try:
-        with capture_batch_scpi_logging(
-            scpi_log_path,
-            echo_to_stderr=args.log_scpi,
-        ):
-            with _open_scope(args, resource) as scope:
-                idn = scope.query_idn()
-                _json_record_scope(scope, idn)
-
-                _print_session_header(scope, resource)
-                print(f"Model: {idn.model}")
-                print(f"Series: {idn.series or 'unknown'}")
-
-                if scope.capabilities is None:
-                    raise KeysightScopeError("Capabilities unavailable for this model")
-
-                channels = _resolve_capture_channels(args.channel or ("all",), scope.capabilities)
-                items = _parse_measurement_item_list(args.items, allow_pair=False)
-                pairs = _parse_pair_specs(args.pair, scope.capabilities)
-                pair_items = _parse_measurement_item_list(args.pair_items, allow_pair=True)
-
-                _json_set_files([
-                    {"kind": "csv", "path": str(csv_path)},
-                    {"kind": "manifest", "path": str(manifest_path)},
-                    {"kind": "scpi_log", "path": str(scpi_log_path)},
-                ])
-                _json_update_result(
-                    status="running",
-                    channels=list(channels),
-                    items=list(items),
-                    pairs=[f"{src}:{ref}" for src, ref in pairs],
-                    pair_items=list(pair_items),
+    with _open_scope(args, resource) as scope:
+        try:
+            operation_result = run_measure_log(
+                scope,
+                resource,
+                MeasureLogRequest(
+                    channels=args.channel,
+                    items=args.items,
+                    pairs=tuple(args.pair),
+                    pair_items=args.pair_items,
                     interval_seconds=args.interval_seconds,
                     requested_count=args.count,
                     requested_duration_seconds=args.duration_seconds,
-                    completed_rows=0,
-                    manifest_path=str(manifest_path),
-                    scpi_log_path=str(scpi_log_path),
-                    csv_path=str(csv_path),
-                )
-
-                code = log_measurements_workflow(
-                    scope=scope,
-                    resource=resource,
-                    output_dir=output_dir,
-                    csv_path=csv_path,
-                    manifest_path=manifest_path,
-                    scpi_log_path=scpi_log_path,
-                    channels=list(channels),
-                    items=list(items),
-                    pairs=list(pairs),
-                    pair_items=list(pair_items),
-                    interval_seconds=args.interval_seconds,
-                    requested_count=args.count,
-                    requested_duration_seconds=args.duration_seconds,
+                    output_dir=args.output_dir,
                     stop_on_error=args.stop_on_error,
-                )
-
-                _update_measure_log_json_from_manifest(manifest_path)
-                print(f"SCPI log: {scpi_log_path}")
-
-                return code
-    except KeyboardInterrupt:
-        print("error: interrupted", file=sys.stderr)
-        return 130
-    except OSError as exc:
-        raise KeysightScopeError(
-            _format_plain_output_file_error("SCPI log", scpi_log_path, exc)
-        ) from exc
+                    log_scpi=args.log_scpi,
+                ),
+            )
+        except _OperationError as exc:
+            operation_result = exc.result
+            if operation_result.idn is not None:
+                _json_record_scope(scope, operation_result.idn)
+            _apply_operation_result(operation_result)
+            for line in operation_result.human_lines:
+                print(line)
+            raise KeysightScopeError(str(exc)) from exc
+        if operation_result.idn is not None:
+            _json_record_scope(scope, operation_result.idn)
+        _apply_operation_result(operation_result)
+        for line in operation_result.human_lines:
+            print(line)
+        return operation_result.exit_code
 
 
 def _cmd_screenshot(args: argparse.Namespace) -> int:
@@ -3342,145 +3160,6 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
         for line in operation_result.human_lines:
             print(line)
         return operation_result.exit_code
-
-    output_dir = _prepare_smoke_output_dir(args.output_dir)
-    report_path = output_dir / "report.json"
-    scpi_log_path = output_dir / "scpi.log"
-    capture_csv_path = output_dir / "capture.csv"
-    capture_meta_path = output_dir / "capture_meta.json"
-    screenshot_path = output_dir / "screen.png"
-    files = _smoke_file_list(output_dir)
-    _json_set_files(files)
-
-    report: dict[str, object] = {
-        "schema_version": 1,
-        "start_time": batch_iso_timestamp(),
-        "end_time": None,
-        "status": "running",
-        "resource": resource,
-        "backend": None,
-        "timeout_ms": None,
-        "idn": None,
-        "doctor": None,
-        "measurements": [],
-        "capture": None,
-        "screenshot": None,
-        "post_check_error": None,
-        "warnings": [],
-        "files": files,
-        "error": None,
-    }
-
-    try:
-        with capture_batch_scpi_logging(
-            scpi_log_path,
-            echo_to_stderr=args.log_scpi,
-        ):
-            with _open_scope(args, resource) as scope:
-                idn = scope.query_idn()
-                _json_record_scope(scope, idn)
-                report["backend"] = getattr(scope.backend, "backend", None)
-                report["timeout_ms"] = getattr(scope.backend, "timeout", None)
-                report["idn"] = idn_manifest_dict(idn)
-                _print_session_header(scope, resource)
-                print(f"Model: {idn.model}")
-                print(f"Series: {idn.series or 'unknown'}")
-                if scope.capabilities is None:
-                    raise KeysightScopeError("Capabilities unavailable for this model")
-
-                doctor = _doctor_snapshot(scope)
-                report["doctor"] = doctor
-                measurements = []
-                for item in ("vpp", "vrms"):
-                    command = measurement_query(item, 1, capabilities=scope.capabilities)
-                    print(f"Command: {command}")
-                    measurement = scope.query_measurement(1, item)
-                    record = {
-                        "command": command,
-                        **_measurement_result_json(measurement, parameters={}),
-                        "system_error": None,
-                    }
-                    measurements.append(record)
-                    if record.get("valid") is False:
-                        warnings = report.setdefault("warnings", [])
-                        if isinstance(warnings, list):
-                            warnings.append(
-                                f"CH1 {item} measurement invalid: {record.get('reason')}"
-                            )
-                report["measurements"] = measurements
-
-                print("Planned capture: CH1, 1000 points, BYTE format")
-                capture = scope.capture_waveform_byte(1, points=1000)
-                written_csv = _write_capture_csv(capture, capture_csv_path)
-                written_meta = _write_capture_metadata(
-                    capture,
-                    capture_meta_path,
-                    idn=idn,
-                    resource=resource,
-                )
-                report["capture"] = {
-                    "csv": str(written_csv),
-                    "metadata": str(written_meta),
-                    **_waveform_capture_summary(capture),
-                }
-
-                print("Planned capture: current screen PNG image with black background")
-                screenshot = scope.capture_screenshot_png(background="black")
-                written_png = _write_screenshot_png(screenshot, screenshot_path)
-                report["screenshot"] = {
-                    "png_path": str(written_png),
-                    "format": screenshot.format_name,
-                    "palette": screenshot.palette,
-                    "background": screenshot.background,
-                    "byte_count": len(screenshot.data),
-                }
-
-                entry = scope.query_system_error()
-                _json_record_system_error(entry)
-                report["post_check_error"] = _system_error_json(entry)
-                report["status"] = "instrument_error" if entry.is_error else "completed"
-                report["end_time"] = batch_iso_timestamp()
-                _write_json_file(report, report_path, file_kind="smoke report JSON")
-                _json_update_result(
-                    status=report["status"],
-                    output_dir=str(output_dir),
-                    report_path=str(report_path),
-                    scpi_log_path=str(scpi_log_path),
-                    files=files,
-                    doctor=doctor,
-                    measurements=measurements,
-                    capture=report["capture"],
-                    screenshot=report["screenshot"],
-                    warnings=report["warnings"],
-                )
-                print(f"Output directory: {output_dir}")
-                print(f"Report: {report_path}")
-                print(f"SCPI log: {scpi_log_path}")
-                print(f"System error: {entry.format()}")
-                return 1 if entry.is_error else 0
-    except KeysightScopeError as exc:
-        report["status"] = "error"
-        report["end_time"] = batch_iso_timestamp()
-        report["error"] = str(exc)
-        _json_update_result(
-            status=report["status"],
-            output_dir=str(output_dir),
-            report_path=str(report_path),
-            scpi_log_path=str(scpi_log_path),
-            files=files,
-            warnings=report["warnings"],
-            error=str(exc),
-        )
-        _write_json_file_best_effort(report, report_path)
-        raise
-    except OSError as exc:
-        report["status"] = "error"
-        report["end_time"] = batch_iso_timestamp()
-        report["error"] = str(exc)
-        _write_json_file_best_effort(report, report_path)
-        raise KeysightScopeError(
-            _format_plain_output_file_error("smoke output", output_dir, exc)
-        ) from exc
 
 
 def _cmd_acquisition(args: argparse.Namespace) -> int:
@@ -3834,267 +3513,6 @@ def _cmd_acquisition_check(args: argparse.Namespace) -> int:
             print(line)
         return operation_result.exit_code
 
-    average_count = validate_acquisition_count(args.average_count)
-    check_only = bool(getattr(args, "check_only", False))
-    stop_on_error = bool(getattr(args, "stop_on_error", False))
-    restore_type = bool(getattr(args, "restore_type", False))
-    if check_only and restore_type:
-        raise KeysightScopeError("--check-only cannot be combined with --restore-type")
-    output_dir = _prepare_acquisition_check_output_dir(args.output_dir)
-    report_path = output_dir / "report.json"
-    scpi_log_path = output_dir / "scpi.log"
-    files = _acquisition_check_file_list(output_dir)
-    _json_set_files(files)
-
-    report: dict[str, object] = {
-        "schema_version": 1,
-        "start_time": batch_iso_timestamp(),
-        "end_time": None,
-        "status": "running",
-        "resource": resource,
-        "backend": None,
-        "timeout_ms": None,
-        "idn": None,
-        "average_count": average_count,
-        "check_only": check_only,
-        "stopped_on_error": False,
-        "initial_acquisition": None,
-        "restore": {
-            "requested": restore_type,
-            "attempted": False,
-            "succeeded": None,
-            "error": None,
-        },
-        "termination_reason": None,
-        "steps": [],
-        "final_acquisition": None,
-        "post_check_error": None,
-        "files": files,
-        "error": None,
-    }
-
-    try:
-        with capture_batch_scpi_logging(
-            scpi_log_path,
-            echo_to_stderr=args.log_scpi,
-        ):
-            with _open_scope(args, resource) as scope:
-                idn = scope.query_idn()
-                _json_record_scope(scope, idn)
-                report["backend"] = getattr(scope.backend, "backend", None)
-                report["timeout_ms"] = getattr(scope.backend, "timeout", None)
-                report["idn"] = idn_manifest_dict(idn)
-                _print_session_header(scope, resource)
-                print(f"Model: {idn.model}")
-                print(f"Series: {idn.series or 'unknown'}")
-                if scope.capabilities is None:
-                    raise KeysightScopeError("Capabilities unavailable for this model")
-
-                steps: list[dict[str, object]] = []
-                if check_only:
-                    initial_step = _run_acquisition_query_step(scope, "initial-query")
-                    steps.append(initial_step)
-                    report["initial_acquisition"] = initial_step.get("readback")
-                    final_step = initial_step
-                    report["termination_reason"] = "check_only"
-                else:
-                    initial_step = _run_acquisition_query_step(scope, "initial-query")
-                    steps.append(initial_step)
-                    report["initial_acquisition"] = initial_step.get("readback")
-                    final_step = initial_step
-                    for step_name, acquisition_type, step_count in (
-                        ("set-normal", "normal", None),
-                        ("set-average", "average", average_count),
-                        ("set-high-resolution", "high_resolution", None),
-                        ("set-peak", "peak", None),
-                    ):
-                        step = _run_acquisition_type_step(
-                            scope,
-                            step_name,
-                            acquisition_type,
-                            count=step_count,
-                        )
-                        steps.append(step)
-                        if stop_on_error and step["status"] == "instrument_error":
-                            report["stopped_on_error"] = True
-                            report["termination_reason"] = "stopped_on_error"
-                            final_step = step
-                            break
-                        if step_name == "set-average":
-                            steps.append(_run_acquisition_query_step(scope, "post-average-query"))
-                        final_step = step
-                    if report["termination_reason"] is None:
-                        report["termination_reason"] = "completed"
-                    if not report["stopped_on_error"]:
-                        final_step = _run_acquisition_query_step(scope, "final-query")
-                        steps.append(final_step)
-
-                report["steps"] = steps
-                report["final_acquisition"] = final_step.get("readback")
-                post_check = _system_error_from_step(final_step)
-                report["post_check_error"] = post_check
-                report["status"] = (
-                    "instrument_error"
-                    if any(_step_has_system_error(step) for step in steps)
-                    else "completed"
-                )
-                if report["termination_reason"] == "completed" and report["status"] == "instrument_error":
-                    report["termination_reason"] = "completed_with_errors"
-                restore_error: KeysightScopeError | None = None
-                if report["restore"]["requested"]:
-                    report["restore"]["attempted"] = True
-                    try:
-                        _restore_acquisition_type(scope, report["initial_acquisition"])
-                        report["restore"]["succeeded"] = True
-                    except KeysightScopeError as exc:
-                        report["restore"]["succeeded"] = False
-                        report["restore"]["error"] = str(exc)
-                        report["status"] = "error"
-                        report["termination_reason"] = "restore_failed"
-                        restore_error = exc
-                report["end_time"] = batch_iso_timestamp()
-                _write_json_file(report, report_path, file_kind="acquisition report JSON")
-                _json_update_result(
-                    status=report["status"],
-                    output_dir=str(output_dir),
-                    report_path=str(report_path),
-                    scpi_log_path=str(scpi_log_path),
-                    average_count=average_count,
-                    check_only=check_only,
-                    stopped_on_error=report["stopped_on_error"],
-                    initial_acquisition=report["initial_acquisition"],
-                    restore=report["restore"],
-                    termination_reason=report["termination_reason"],
-                    steps=steps,
-                    final_acquisition=report["final_acquisition"],
-                    files=files,
-                )
-                print(f"Output directory: {output_dir}")
-                print(f"Report: {report_path}")
-                print(f"SCPI log: {scpi_log_path}")
-                if post_check is not None:
-                    print(f"System error: {post_check['raw']}")
-                if restore_error is not None:
-                    raise restore_error
-                return 1 if report["status"] == "instrument_error" else 0
-    except KeysightScopeError as exc:
-        report["status"] = "error"
-        report["end_time"] = batch_iso_timestamp()
-        report["error"] = str(exc)
-        _json_update_result(
-            status=report["status"],
-            output_dir=str(output_dir),
-            report_path=str(report_path),
-            scpi_log_path=str(scpi_log_path),
-            average_count=average_count,
-            check_only=check_only,
-            stopped_on_error=report["stopped_on_error"],
-            initial_acquisition=report["initial_acquisition"],
-            restore=report["restore"],
-            termination_reason=report["termination_reason"],
-            steps=report["steps"],
-            final_acquisition=report["final_acquisition"],
-            files=files,
-            error=str(exc),
-        )
-        _write_json_file_best_effort(report, report_path)
-        raise
-    except OSError as exc:
-        report["status"] = "error"
-        report["end_time"] = batch_iso_timestamp()
-        report["error"] = str(exc)
-        _write_json_file_best_effort(report, report_path)
-        raise KeysightScopeError(
-            _format_plain_output_file_error("acquisition output", output_dir, exc)
-        ) from exc
-
-
-def _run_acquisition_query_step(scope: KeysightScope, name: str) -> dict[str, object]:
-    commands = [acquisition_type_query(), acquisition_count_query(), ":SYSTem:ERRor?"]
-    print(f"Step: {name}")
-    print(f"Command: {commands[0]}")
-    print(f"Command: {commands[1]}")
-    config = scope.query_acquisition_config()
-    entry = scope.query_system_error()
-    _json_record_system_error(entry)
-    print(f"Acquisition type: {config.type}")
-    print(f"Average count: {config.count}")
-    print(f"System error: {entry.format()}")
-    return {
-        "name": name,
-        "operation": "query",
-        "commands": commands,
-        "readback": {"type": config.type, "count": config.count},
-        "system_error": _system_error_json(entry),
-        "status": "instrument_error" if entry.is_error else "completed",
-    }
-
-
-def _run_acquisition_system_error_step(scope: KeysightScope, name: str) -> dict[str, object]:
-    command = ":SYSTem:ERRor?"
-    print(f"Step: {name}")
-    print(f"Command: {command}")
-    entry = scope.query_system_error()
-    _json_record_system_error(entry)
-    print(f"System error: {entry.format()}")
-    return {
-        "name": name,
-        "operation": "query_system_error",
-        "commands": [command],
-        "readback": None,
-        "system_error": _system_error_json(entry),
-        "status": "instrument_error" if entry.is_error else "completed",
-    }
-
-
-def _run_acquisition_type_step(
-    scope: KeysightScope,
-    name: str,
-    acquisition_type: str,
-    *,
-    count: int | None = None,
-) -> dict[str, object]:
-    normalized = normalize_acquisition_type(acquisition_type)
-    commands = [acquisition_type_command(normalized)]
-    if count is not None:
-        commands.append(acquisition_count_command(count))
-    commands.append(":SYSTem:ERRor?")
-    print(f"Step: {name}")
-    for command in commands[:-1]:
-        print(f"Command: {command}")
-    scope.set_acquisition_type(acquisition_type)
-    if count is not None:
-        scope.set_acquisition_count(count)
-    entry = scope.query_system_error()
-    _json_record_system_error(entry)
-    print(f"System error: {entry.format()}")
-    return {
-        "name": name,
-        "operation": "set",
-        "type": acquisition_type,
-        "scpi_type": normalized,
-        "count": count,
-        "commands": commands,
-        "readback": {
-            "type": acquisition_type,
-            "count": count,
-        },
-        "system_error": _system_error_json(entry),
-        "status": "instrument_error" if entry.is_error else "completed",
-    }
-
-
-def _step_has_system_error(step: dict[str, object]) -> bool:
-    system_error = step.get("system_error")
-    return isinstance(system_error, dict) and bool(system_error.get("is_error"))
-
-
-def _system_error_from_step(step: dict[str, object]) -> dict[str, object] | None:
-    system_error = step.get("system_error")
-    if isinstance(system_error, dict):
-        return system_error
-    return None
-
 
 def _default_capture_csv_path(now: datetime | None = None) -> Path:
     if now is None:
@@ -4118,88 +3536,6 @@ def _default_screenshot_path(now: datetime | None = None) -> Path:
     return Path("data") / capture_time.strftime("%Y-%m-%d-%H-%M-%S.png")
 
 
-def _default_smoke_output_dir(now: datetime | None = None) -> Path:
-    base_path = Path("data") / "hardware_smoke"
-    if now is None:
-        capture_time = datetime.now(_CAPTURE_DEFAULT_TIMEZONE)
-    elif now.tzinfo is None:
-        capture_time = now.replace(tzinfo=_CAPTURE_DEFAULT_TIMEZONE)
-    else:
-        capture_time = now.astimezone(_CAPTURE_DEFAULT_TIMEZONE)
-
-    stem = capture_time.strftime("%Y-%m-%d-%H-%M-%S")
-    candidate = base_path / stem
-    suffix = 2
-    while candidate.exists():
-        candidate = base_path / f"{stem}-{suffix}"
-        suffix += 1
-    return candidate
-
-
-def _default_acquisition_check_output_dir(now: datetime | None = None) -> Path:
-    base_path = Path("data") / "hardware_acquisition"
-    if now is None:
-        capture_time = datetime.now(_CAPTURE_DEFAULT_TIMEZONE)
-    elif now.tzinfo is None:
-        capture_time = now.replace(tzinfo=_CAPTURE_DEFAULT_TIMEZONE)
-    else:
-        capture_time = now.astimezone(_CAPTURE_DEFAULT_TIMEZONE)
-
-    stem = capture_time.strftime("%Y-%m-%d-%H-%M-%S")
-    candidate = base_path / stem
-    suffix = 2
-    while candidate.exists():
-        candidate = base_path / f"{stem}-{suffix}"
-        suffix += 1
-    return candidate
-
-
-def _prepare_smoke_output_dir(output_dir: str | None) -> Path:
-    path = Path(output_dir) if output_dir is not None else _default_smoke_output_dir()
-    if path.exists():
-        if not path.is_dir():
-            raise KeysightScopeError(f"output directory path is not a directory: {path}")
-        try:
-            if any(path.iterdir()):
-                raise KeysightScopeError(f"output directory must be empty: {path}")
-        except OSError as exc:
-            raise KeysightScopeError(
-                f"could not inspect output directory {path}: {exc.strerror or exc}"
-            ) from exc
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise KeysightScopeError(
-            f"could not create output directory {path}: {exc.strerror or exc}"
-        ) from exc
-    return path
-
-
-def _prepare_acquisition_check_output_dir(output_dir: str | None) -> Path:
-    path = (
-        Path(output_dir)
-        if output_dir is not None
-        else _default_acquisition_check_output_dir()
-    )
-    if path.exists():
-        if not path.is_dir():
-            raise KeysightScopeError(f"output directory path is not a directory: {path}")
-        try:
-            if any(path.iterdir()):
-                raise KeysightScopeError(f"output directory must be empty: {path}")
-        except OSError as exc:
-            raise KeysightScopeError(
-                f"could not inspect output directory {path}: {exc.strerror or exc}"
-            ) from exc
-    try:
-        path.mkdir(parents=True, exist_ok=True)
-    except OSError as exc:
-        raise KeysightScopeError(
-            f"could not create output directory {path}: {exc.strerror or exc}"
-        ) from exc
-    return path
-
-
 def _smoke_file_list(output_dir: Path) -> list[dict[str, str]]:
     return [
         {"kind": "report", "path": str(output_dir / "report.json")},
@@ -4215,22 +3551,6 @@ def _acquisition_check_file_list(output_dir: Path) -> list[dict[str, str]]:
         {"kind": "report", "path": str(output_dir / "report.json")},
         {"kind": "scpi_log", "path": str(output_dir / "scpi.log")},
     ]
-
-
-def _restore_acquisition_type(scope: KeysightScope, initial_acquisition) -> None:
-    if initial_acquisition is None:
-        raise KeysightScopeError("initial acquisition state is unavailable for restore")
-    if isinstance(initial_acquisition, dict):
-        acquisition_type = initial_acquisition.get("type")
-        count = initial_acquisition.get("count")
-    else:
-        acquisition_type = initial_acquisition.type
-        count = initial_acquisition.count
-    if not isinstance(acquisition_type, str):
-        raise KeysightScopeError("initial acquisition state is unavailable for restore")
-    scope.set_acquisition_type(acquisition_type)
-    if acquisition_type == "average":
-        scope.set_acquisition_count(count)
 
 
 def _cmd_hardware_report(args: argparse.Namespace) -> int:
@@ -4738,13 +4058,6 @@ def _write_capture_metadata(
         ) from exc
 
 
-def _write_capture_plot(
-    capture: WaveformCapture | MultiChannelWaveformCapture,
-    plot_path: Path,
-) -> Path:
-    return write_capture_plot_file(capture, plot_path)
-
-
 def _write_screenshot_png(capture, output_path: Path) -> Path:
     try:
         return write_screenshot_png(capture, output_path)
@@ -4752,15 +4065,6 @@ def _write_screenshot_png(capture, output_path: Path) -> Path:
         raise KeysightScopeError(
             _format_output_file_error("screenshot PNG", output_path, exc)
         ) from exc
-
-
-def _sync_core_output_file_writers() -> None:
-    core_output_files.write_waveform_csv = write_waveform_csv
-    core_output_files.write_waveforms_csv = write_waveforms_csv
-    core_output_files.write_waveform_metadata = write_waveform_metadata
-    core_output_files.write_waveforms_metadata = write_waveforms_metadata
-    core_output_files.write_waveform_plot_png = write_waveform_plot_png
-    core_output_files.write_screenshot_png = write_screenshot_png
 
 
 def _write_batch_manifest(manifest: BatchManifest, manifest_path: Path) -> Path:
@@ -4780,32 +4084,6 @@ def _write_batch_manifest_best_effort(
         write_batch_manifest(manifest, manifest_path)
     except OSError:
         pass
-
-
-def _update_measure_log_json_from_manifest(manifest_path: Path) -> None:
-    if _JSON_RECORD is None:
-        return
-    try:
-        with manifest_path.open("r", encoding="utf-8") as handle:
-            manifest_data = json.load(handle)
-    except (OSError, json.JSONDecodeError):
-        return
-
-    rows = manifest_data.get("rows")
-    last_system_error = None
-    if isinstance(rows, list) and rows:
-        last_row = rows[-1]
-        if isinstance(last_row, dict):
-            last_system_error = last_row.get("system_error")
-            if isinstance(last_system_error, dict):
-                _JSON_RECORD["system_error"] = last_system_error
-
-    _json_update_result(
-        status=manifest_data.get("status"),
-        completed_rows=manifest_data.get("completed_rows", 0),
-        error=manifest_data.get("error"),
-        rows=rows if isinstance(rows, list) else [],
-    )
 
 
 def _write_json_file(

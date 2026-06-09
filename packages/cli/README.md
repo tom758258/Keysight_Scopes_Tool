@@ -170,9 +170,13 @@ Simulator configuration layers are applied in this order: built-in defaults,
 `--simulate-preset`, `--simulate-scenario`, then explicit CLI overrides such as
 `--simulate-signal` and error injection options. Scenario files are JSON only.
 
-Agents should only access real hardware after explicit user approval, using
-`--live --resource "USB0::...::INSTR" --json`. SCPI debug logs from
-`--log-scpi` are written to stderr and must not be parsed as JSON.
+Agents should only access real hardware after explicit user approval. For a
+one-shot command, an explicit `--resource "USB0::...::INSTR"` or
+`KEYSIGHT_SCOPE_RESOURCE` opts in to that single live instrument. `--live`
+remains accepted for one-shot compatibility, but is not required and cannot be
+combined with `--simulate` or `--dry-run`. Live workers still require
+`--live --resource`. SCPI debug logs from `--log-scpi` are written to stderr
+and must not be parsed as JSON.
 
 ```powershell
 uv run python -m keysight_scope_cli.cli identify --dry-run --json
@@ -285,7 +289,7 @@ directory:
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition-check --dry-run --json --model DSOX4034A
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition-check --simulate --json --model DSOX4034A --output-dir .tmp_tests\acquisition_check
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition-check --live --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --json --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition-check --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --json --log-scpi
 ```
 
 `acquisition-check` runs the fixed validation sequence
@@ -690,10 +694,11 @@ Do not pass `--basetemp`; the wrapper creates an isolated pytest temporary
 directory and preserves it only when the run fails.
 
 Real instrument checks are manual. Start with `--dry-run --json`, then
-`--simulate --json`, and only use `--live --resource <RESOURCE> --json` after
-an operator selects the instrument resource. Live checks should begin with USB
-communication verification before running state-changing or artifact-writing
-commands.
+`--simulate --json`, and only use an explicit `--resource <RESOURCE>` or
+`KEYSIGHT_SCOPE_RESOURCE` after an operator selects the instrument. `--live`
+may be included for one-shot compatibility and remains required for live
+worker startup. Live checks should begin with USB communication verification
+before running state-changing or artifact-writing commands.
 
 ## Hardware Validation
 

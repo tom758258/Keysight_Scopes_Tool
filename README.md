@@ -51,14 +51,15 @@ Remove-Item -LiteralPath "$env:TEMP\pytest-of-$env:USERNAME" -Recurse -Force
 
 Project-level docs:
 
+- `AGENTS.md`
 - `docs/architecture/monorepo-layout.md`
 - `docs/contracts/`
 - `docs/testing-guidelines.md`
 
 Package docs:
 
-- Core runtime, public import API, VISA/SCPI safety, hardware validation, and
-  supported model status: `packages/core/README.md`
+- Core runtime, public import API, VISA/SCPI safety, and capability profiles:
+  `packages/core/README.md`
 - CLI command usage, JSON mode, and automation safety:
   `packages/cli/README.md`
 - WebUI package skeleton and future ownership notes:

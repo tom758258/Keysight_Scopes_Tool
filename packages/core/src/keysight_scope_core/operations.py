@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+import json
 from pathlib import Path
 from typing import Sequence
 
@@ -22,6 +23,12 @@ from .measurements import (
     measurement_query,
     normalize_measurement_item,
     pair_measurement_query,
+)
+from .measure_logger import (
+    MeasureLogManifest,
+    log_measurements_workflow,
+    measure_log_paths,
+    prepare_measure_log_output_dir,
 )
 from .output_files import (
     capture_output_paths,
@@ -95,6 +102,22 @@ class MeasureSweepRequest:
 
 
 @dataclass(frozen=True)
+class MeasureLogRequest:
+    """Normalized request for one finite measurement logging run."""
+
+    channels: Sequence[int | str] | None = None
+    items: str = "vpp,frequency"
+    pairs: Sequence[str] = ()
+    pair_items: str = "phase,delay"
+    interval_seconds: float = 1.0
+    requested_count: int | None = None
+    requested_duration_seconds: float | None = None
+    output_dir: str | Path | None = None
+    stop_on_error: bool = False
+    log_scpi: bool = False
+
+
+@dataclass(frozen=True)
 class SmokeRequest:
     output_dir: str | Path | None = None
     log_scpi: bool = False
@@ -111,6 +134,8 @@ class AcquisitionCheckRequest:
 
 
 def run_capture(scope: KeysightScope, resource: str, request: CaptureRequest) -> OperationResult:
+    """Capture waveform data and write the requested artifacts."""
+
     human: list[str] = []
     idn = scope.query_idn()
     _append_session_header(human, scope, resource)
@@ -193,6 +218,8 @@ def run_capture(scope: KeysightScope, resource: str, request: CaptureRequest) ->
 
 
 def run_doctor(scope: KeysightScope, resource: str) -> OperationResult:
+    """Return a read-only diagnostic snapshot for an open scope."""
+
     human: list[str] = []
     idn = scope.query_idn()
     _append_session_header(human, scope, resource)
@@ -228,6 +255,8 @@ def run_doctor(scope: KeysightScope, resource: str) -> OperationResult:
 
 
 def run_measure(scope: KeysightScope, resource: str, request: MeasureRequest) -> OperationResult:
+    """Run one read-only measurement query."""
+
     human: list[str] = []
     idn = scope.query_idn()
     _append_session_header(human, scope, resource)
@@ -288,6 +317,8 @@ def run_measure_sweep(
     resource: str,
     request: MeasureSweepRequest,
 ) -> OperationResult:
+    """Run a multi-channel measurement sweep."""
+
     human: list[str] = []
     idn = scope.query_idn()
     _append_session_header(human, scope, resource)
@@ -364,7 +395,132 @@ def run_measure_sweep(
     )
 
 
+def run_measure_log(
+    scope: KeysightScope,
+    resource: str,
+    request: MeasureLogRequest,
+) -> OperationResult:
+    """Run a finite measurement logger and return its structured outcome."""
+
+    if request.requested_count is None and request.requested_duration_seconds is None:
+        raise KeysightScopeError(
+            "measure-log requires --count or --duration-seconds so the run is finite"
+        )
+    output_dir = prepare_measure_log_output_dir(request.output_dir)
+    csv_path, manifest_path, scpi_log_path = measure_log_paths(output_dir)
+    files = [
+        {"kind": "csv", "path": str(csv_path)},
+        {"kind": "manifest", "path": str(manifest_path)},
+        {"kind": "scpi_log", "path": str(scpi_log_path)},
+    ]
+    human: list[str] = []
+    idn = None
+    channels: tuple[int, ...] = ()
+    items: tuple[str, ...] = ()
+    pairs: tuple[tuple[int, int], ...] = ()
+    pair_items: tuple[str, ...] = ()
+    try:
+        with capture_batch_scpi_logging(scpi_log_path, echo_to_stderr=request.log_scpi):
+            idn = scope.query_idn()
+            _append_session_header(human, scope, resource)
+            human.extend([f"Model: {idn.model}", f"Series: {idn.series or 'unknown'}"])
+            if scope.capabilities is None:
+                raise KeysightScopeError("Capabilities unavailable for this model")
+            channels = resolve_capture_channels(
+                request.channels or ("all",),
+                scope.capabilities,
+            )
+            items = parse_measurement_item_list(request.items, allow_pair=False)
+            pairs = parse_pair_specs(request.pairs, scope.capabilities)
+            pair_items = parse_measurement_item_list(request.pair_items, allow_pair=True)
+            workflow = log_measurements_workflow(
+                scope=scope,
+                resource=resource,
+                output_dir=output_dir,
+                csv_path=csv_path,
+                manifest_path=manifest_path,
+                scpi_log_path=scpi_log_path,
+                channels=list(channels),
+                items=list(items),
+                pairs=list(pairs),
+                pair_items=list(pair_items),
+                interval_seconds=request.interval_seconds,
+                requested_count=request.requested_count,
+                requested_duration_seconds=request.requested_duration_seconds,
+                stop_on_error=request.stop_on_error,
+            )
+        human.extend(workflow.human_lines)
+        human.append(f"SCPI log: {scpi_log_path}")
+        return OperationResult(
+            workflow.exit_code,
+            _measure_log_result_json(
+                workflow.manifest,
+                csv_path,
+                manifest_path,
+                scpi_log_path,
+            ),
+            files,
+            workflow.system_error,
+            human,
+            idn=idn,
+            **_scope_backend_json(scope),
+        )
+    except KeysightScopeError as exc:
+        result, system_error = _measure_log_failure_result(
+            manifest_path=manifest_path,
+            csv_path=csv_path,
+            scpi_log_path=scpi_log_path,
+            channels=channels,
+            items=items,
+            pairs=pairs,
+            pair_items=pair_items,
+            request=request,
+            error=str(exc),
+        )
+        raise _OperationError(
+            exc,
+            OperationResult(
+                1,
+                result,
+                files,
+                system_error,
+                human,
+                idn=idn,
+                **_scope_backend_json(scope),
+            ),
+        ) from exc
+    except OSError as exc:
+        error = KeysightScopeError(
+            f"could not write SCPI log file {scpi_log_path}: {exc}"
+        )
+        result, system_error = _measure_log_failure_result(
+            manifest_path=manifest_path,
+            csv_path=csv_path,
+            scpi_log_path=scpi_log_path,
+            channels=channels,
+            items=items,
+            pairs=pairs,
+            pair_items=pair_items,
+            request=request,
+            error=str(error),
+        )
+        raise _OperationError(
+            error,
+            OperationResult(
+                1,
+                result,
+                files,
+                system_error,
+                human,
+                idn=idn,
+                **_scope_backend_json(scope),
+            ),
+        ) from exc
+
+
 def run_smoke(scope: KeysightScope, resource: str, request: SmokeRequest) -> OperationResult:
+    """Run the capture-safe smoke workflow and write its report."""
+
     output_dir = _prepare_output_dir(
         Path(request.output_dir) if request.output_dir is not None else _default_output_dir("hardware_smoke")
     )
@@ -488,6 +644,8 @@ def run_acquisition_check(
     resource: str,
     request: AcquisitionCheckRequest,
 ) -> OperationResult:
+    """Run the finite acquisition configuration check workflow."""
+
     average_count = validate_acquisition_count(request.average_count)
     if request.check_only and request.restore_type:
         raise KeysightScopeError("--check-only cannot be combined with --restore-type")
@@ -640,6 +798,83 @@ class _OperationError(KeysightScopeError):
     def __init__(self, original: KeysightScopeError, result: OperationResult) -> None:
         super().__init__(str(original))
         self.result = result
+
+
+def _measure_log_result_json(
+    manifest: MeasureLogManifest,
+    csv_path: Path,
+    manifest_path: Path,
+    scpi_log_path: Path,
+) -> dict[str, object]:
+    data = manifest.to_json_dict()
+    return {
+        "status": data["status"],
+        "channels": data["channels"],
+        "items": data["items"],
+        "pairs": data["pairs"],
+        "pair_items": data["pair_items"],
+        "interval_seconds": data["interval_seconds"],
+        "requested_count": data["requested_count"],
+        "requested_duration_seconds": data["requested_duration_seconds"],
+        "completed_rows": data["completed_rows"],
+        "manifest_path": str(manifest_path),
+        "scpi_log_path": str(scpi_log_path),
+        "csv_path": str(csv_path),
+        "error": data["error"],
+        "rows": data["rows"],
+    }
+
+
+def _measure_log_failure_result(
+    *,
+    manifest_path: Path,
+    csv_path: Path,
+    scpi_log_path: Path,
+    channels: Sequence[int],
+    items: Sequence[str],
+    pairs: Sequence[tuple[int, int]],
+    pair_items: Sequence[str],
+    request: MeasureLogRequest,
+    error: str,
+) -> tuple[dict[str, object], dict[str, object] | None]:
+    data: dict[str, object] = {}
+    try:
+        loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            data = loaded
+    except (OSError, json.JSONDecodeError):
+        pass
+    rows = data.get("rows")
+    if not isinstance(rows, list):
+        rows = []
+    system_error = None
+    if rows and isinstance(rows[-1], dict):
+        candidate = rows[-1].get("system_error")
+        if isinstance(candidate, dict):
+            system_error = candidate
+    result = {
+        "status": data.get("status", "error"),
+        "channels": data.get("channels", list(channels)),
+        "items": data.get("items", list(items)),
+        "pairs": data.get(
+            "pairs",
+            [f"{source}:{reference}" for source, reference in pairs],
+        ),
+        "pair_items": data.get("pair_items", list(pair_items)),
+        "interval_seconds": data.get("interval_seconds", request.interval_seconds),
+        "requested_count": data.get("requested_count", request.requested_count),
+        "requested_duration_seconds": data.get(
+            "requested_duration_seconds",
+            request.requested_duration_seconds,
+        ),
+        "completed_rows": data.get("completed_rows", 0),
+        "manifest_path": str(manifest_path),
+        "scpi_log_path": str(scpi_log_path),
+        "csv_path": str(csv_path),
+        "error": data.get("error", error),
+        "rows": rows,
+    }
+    return result, system_error
 
 
 def doctor_snapshot(scope: KeysightScope) -> dict[str, object]:

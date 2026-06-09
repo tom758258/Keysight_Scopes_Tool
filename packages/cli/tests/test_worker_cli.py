@@ -46,6 +46,22 @@ def _live_runtime(artifact_root=Path("data/worker")):
     )
 
 
+def test_live_worker_requires_explicit_resource():
+    args = argparse.Namespace(
+        simulate=False,
+        host="127.0.0.1",
+        port=0,
+        model="DSOX4024A",
+        resource=None,
+        artifact_root="data/worker",
+        queue_max=32,
+        format="jsonl",
+    )
+
+    with pytest.raises(KeysightScopeError, match="worker --live requires --resource"):
+        worker.run_worker(args)
+
+
 @contextmanager
 def _worker_server(runtime):
     server = ThreadingHTTPServer(("127.0.0.1", 0), worker._make_handler(runtime))

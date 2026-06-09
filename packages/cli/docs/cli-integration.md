@@ -16,6 +16,13 @@ These fields are adapter behavior, not Core schema. Core receives normalized
 requests and returns runtime data; the CLI decides how to render human text,
 JSON stdout, stderr logs, and exit codes.
 
+For one-shot commands, an explicit `--resource` or
+`KEYSIGHT_SCOPE_RESOURCE` selects one live instrument. The optional `--live`
+flag is retained for compatibility and conflicts with `--simulate` and
+`--dry-run`. Worker startup remains a separate lifecycle path that requires
+`--live --resource`; `list-resources --live-only` remains the only discovery
+path that opens each enumerated resource.
+
 The installed console script remains:
 
 ```text

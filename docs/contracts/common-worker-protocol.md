@@ -82,8 +82,8 @@ Workers should preserve these process exit code meanings:
 
 - `0`: success, accepted request, or dry-run success.
 - `2`: usage error, validation error, or bad input.
-- `3`: runtime error, connection error, timeout, invalid response, HTTP
-  request failure, or fatal worker failure.
+- `3`: runtime error, connection error, HTTP request failure, or fatal worker
+  failure.
 
 Workers may emit structured JSON errors before exiting when command handling
 has reached JSON or JSONL mode. Argument parser usage errors may still use

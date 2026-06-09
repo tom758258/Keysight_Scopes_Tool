@@ -6,8 +6,8 @@ import csv
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
 import json
+import logging
 from pathlib import Path
-import sys
 import time
 from typing import Mapping
 
@@ -18,6 +18,7 @@ from .scope import KeysightScope
 LOGGER_SCHEMA_VERSION = 1
 LOGGER_DEFAULT_TIMEZONE = timezone(timedelta(hours=8), name="UTC+8")
 LOGGER_DEFAULT_BASE_DIR = Path("data") / "measure_logs"
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -68,6 +69,16 @@ class MeasureLogManifest:
             "rows": data["rows"],
             "files": data["files"],
         }
+
+
+@dataclass(frozen=True)
+class MeasureLogWorkflowResult:
+    """Structured outcome from the finite measurement logging loop."""
+
+    exit_code: int
+    manifest: MeasureLogManifest
+    human_lines: list[str]
+    system_error: dict[str, object] | None = None
 
 
 def logger_timestamp(now: datetime | None = None) -> datetime:
@@ -193,9 +204,11 @@ def log_measurements_workflow(
     requested_count: int | None,
     requested_duration_seconds: float | None,
     stop_on_error: bool,
-) -> int:
+) -> MeasureLogWorkflowResult:
     """Run a finite measurement logging loop and write CSV plus manifest files."""
 
+    human: list[str] = []
+    last_system_error: dict[str, object] | None = None
     manifest = MeasureLogManifest(
         start_time=logger_iso_timestamp(),
         status="running",
@@ -228,14 +241,17 @@ def log_measurements_workflow(
         for item in pair_items:
             headers.append(f"ch{src}_ch{ref}_{item}")
 
-    print(f"Planned measurement logger: {len(channels)} channels, {len(pairs)} channel-pairs")
-    print(f"Interval seconds: {interval_seconds}")
+    human.append(
+        f"Planned measurement logger: {len(channels)} channels, "
+        f"{len(pairs)} channel-pairs"
+    )
+    human.append(f"Interval seconds: {interval_seconds}")
     if requested_count is not None:
-        print(f"Requested count: {requested_count}")
+        human.append(f"Requested count: {requested_count}")
     if requested_duration_seconds is not None:
-        print(f"Requested duration: {requested_duration_seconds}s")
-    print(f"CSV path: {csv_path}")
-    print(f"Manifest path: {manifest_path}")
+        human.append(f"Requested duration: {requested_duration_seconds}s")
+    human.append(f"CSV path: {csv_path}")
+    human.append(f"Manifest path: {manifest_path}")
 
     try:
         csv_path.parent.mkdir(parents=True, exist_ok=True)
@@ -260,7 +276,11 @@ def log_measurements_workflow(
                 iso_now = logger_iso_timestamp()
                 elapsed_now = time.perf_counter() - start_perf
 
-                print(f"Row {row_index}" + (f"/{requested_count}" if requested_count else "") + f" (elapsed {elapsed_now:.2f}s):")
+                human.append(
+                    f"Row {row_index}"
+                    + (f"/{requested_count}" if requested_count else "")
+                    + f" (elapsed {elapsed_now:.2f}s):"
+                )
 
                 row_data: dict[str, str] = {
                     "timestamp_iso": iso_now,
@@ -276,11 +296,13 @@ def log_measurements_workflow(
                             res = scope.query_measurement(ch, item)
                             if res.valid and res.value is not None:
                                 val = f"{res.value:.12g}"
-                                print(f"  {col}: {val} {res.unit}")
+                                human.append(f"  {col}: {val} {res.unit}")
                             else:
-                                print(f"  {col}: NaN ({res.reason or 'invalid sentinel'})")
+                                human.append(
+                                    f"  {col}: NaN ({res.reason or 'invalid sentinel'})"
+                                )
                         except KeysightScopeError as exc:
-                            print(f"  {col}: NaN (query failed: {exc})", file=sys.stderr)
+                            LOGGER.warning("%s: NaN (query failed: %s)", col, exc)
                         row_data[col] = val
 
                 for src, ref in pairs:
@@ -291,11 +313,13 @@ def log_measurements_workflow(
                             res = scope.query_pair_measurement(src, ref, item)
                             if res.valid and res.value is not None:
                                 val = f"{res.value:.12g}"
-                                print(f"  {col}: {val} {res.unit}")
+                                human.append(f"  {col}: {val} {res.unit}")
                             else:
-                                print(f"  {col}: NaN ({res.reason or 'invalid sentinel'})")
+                                human.append(
+                                    f"  {col}: NaN ({res.reason or 'invalid sentinel'})"
+                                )
                         except KeysightScopeError as exc:
-                            print(f"  {col}: NaN (query failed: {exc})", file=sys.stderr)
+                            LOGGER.warning("%s: NaN (query failed: %s)", col, exc)
                         row_data[col] = val
 
                 system_err = scope.query_system_error()
@@ -313,20 +337,25 @@ def log_measurements_workflow(
                         "system_error": system_error_manifest_dict(system_err),
                     }
                 )
+                last_system_error = system_error_manifest_dict(system_err)
                 write_measure_log_manifest(manifest, manifest_path)
-                print(f"System error: {system_err.format()}")
+                human.append(f"System error: {system_err.format()}")
 
                 if stop_on_error and system_err.is_error:
-                    print(
-                        "error: stop-on-error triggered by system error: "
-                        f"{system_err.format()}",
-                        file=sys.stderr,
+                    LOGGER.error(
+                        "stop-on-error triggered by system error: %s",
+                        system_err.format(),
                     )
                     manifest.status = "instrument_error"
                     manifest.error = f"SystemError: {system_err.format()}"
                     manifest.end_time = logger_iso_timestamp()
                     write_measure_log_manifest(manifest, manifest_path)
-                    return 1
+                    return MeasureLogWorkflowResult(
+                        1,
+                        manifest,
+                        human,
+                        last_system_error,
+                    )
 
                 if requested_count is not None and row_index >= requested_count:
                     break
@@ -342,8 +371,13 @@ def log_measurements_workflow(
             manifest.status = "completed"
             manifest.end_time = logger_iso_timestamp()
             write_measure_log_manifest(manifest, manifest_path)
-            print("Measurement logging completed successfully.")
-            return 0
+            human.append("Measurement logging completed successfully.")
+            return MeasureLogWorkflowResult(
+                0,
+                manifest,
+                human,
+                last_system_error,
+            )
 
     except KeyboardInterrupt:
         manifest.status = "interrupted"
@@ -353,8 +387,13 @@ def log_measurements_workflow(
             write_measure_log_manifest(manifest, manifest_path)
         except OSError:
             pass
-        print("error: interrupted", file=sys.stderr)
-        return 130
+        LOGGER.warning("measurement logging interrupted")
+        return MeasureLogWorkflowResult(
+            130,
+            manifest,
+            human,
+            last_system_error,
+        )
     except OSError as exc:
         manifest.status = "error"
         manifest.error = str(exc)

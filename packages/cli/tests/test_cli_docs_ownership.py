@@ -25,8 +25,10 @@ def assert_headings(text: str, *headings: str) -> None:
 def test_cli_docs_are_package_local_and_contracts_are_root_level():
     assert (PACKAGE_ROOT / "README.md").exists()
     assert (PACKAGE_ROOT / "CHANGELOG.md").exists()
-
     assert (PACKAGE_ROOT / "docs" / "cli-integration.md").exists()
+    assert (REPO_ROOT / "AGENTS.md").exists()
+    assert (REPO_ROOT / "README.md").exists()
+    assert (REPO_ROOT / "docs" / "architecture" / "monorepo-layout.md").exists()
 
     for contract in (
         "common-worker-protocol.md",
@@ -39,15 +41,6 @@ def test_cli_docs_are_package_local_and_contracts_are_root_level():
         assert (REPO_ROOT / "docs" / "contracts" / contract).exists()
         assert not (PACKAGE_ROOT / "docs" / contract).exists()
 
-    assert not (PACKAGE_ROOT / "docs" / "hardware-test-plan.md").exists()
-    assert not (PACKAGE_ROOT / "docs" / "supported-models.md").exists()
-    assert not (PACKAGE_ROOT / "docs" / "Webui-README.md").exists()
-    assert not (PACKAGE_ROOT / "docs" / "agent-workflow.md").exists()
-    assert not (PACKAGE_ROOT / "docs" / "session-handoff.md").exists()
-    assert not (PACKAGE_ROOT / "docs" / "validation-history.md").exists()
-    removed_command_guide = PACKAGE_ROOT / "docs" / ("README_" + "CLI_EN.md")
-    assert not removed_command_guide.exists()
-
 
 def test_cli_integration_keeps_cli_fields_out_of_core_schema():
     text = read_doc("docs", "cli-integration.md")
@@ -55,6 +48,14 @@ def test_cli_integration_keeps_cli_fields_out_of_core_schema():
     assert "measurement_cli_name" in text
     assert "argparse.Namespace" in text
     assert "keysight-scopes = keysight_scope_cli.cli:main" in text
+
+
+def test_root_readme_discovers_cli_and_agent_docs():
+    text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "AGENTS.md" in text
+    assert "packages/cli/README.md" in text
+    assert "packages/cli/docs/" in text
 
 
 def test_cli_command_guide_links_root_contracts_and_safe_modes():

@@ -3,12 +3,14 @@
 from keysight_scope_core.operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
+    MeasureLogRequest,
     MeasureRequest,
     MeasureSweepRequest,
     SmokeRequest,
     run_acquisition_check,
     run_capture,
     run_doctor,
+    run_measure_log,
     run_measure,
     run_measure_sweep,
     run_smoke,
@@ -70,6 +72,106 @@ def test_run_measure_sweep_summary_counts_invalid():
         "invalid_count": 1,
         "error_count": 0,
     }
+
+
+def test_run_measure_log_returns_structured_result_without_console_output(tmp_path, capsys):
+    with _scope() as scope:
+        result = run_measure_log(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            MeasureLogRequest(
+                channels=(1,),
+                items="vpp",
+                pair_items="phase",
+                interval_seconds=0,
+                requested_count=1,
+                output_dir=tmp_path / "measure-log",
+            ),
+        )
+
+    assert result.exit_code == 0
+    assert result.result["status"] == "completed"
+    assert result.result["completed_rows"] == 1
+    assert result.result["csv_path"] == str(tmp_path / "measure-log" / "measurements.csv")
+    assert result.files[1]["kind"] == "manifest"
+    assert result.system_error["is_error"] is False
+    assert result.human_lines
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_run_measure_log_preserves_instrument_error_result(tmp_path):
+    with _scope(system_errors=['-113,"Undefined header"']) as scope:
+        result = run_measure_log(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            MeasureLogRequest(
+                channels=(1,),
+                items="vpp",
+                pair_items="phase",
+                interval_seconds=0,
+                requested_count=2,
+                output_dir=tmp_path / "measure-log-error",
+                stop_on_error=True,
+            ),
+        )
+
+    assert result.exit_code == 1
+    assert result.result["status"] == "instrument_error"
+    assert result.result["completed_rows"] == 1
+    assert result.system_error["code"] == -113
+
+
+def test_run_measure_log_preserves_invalid_measurement_and_duration_limit(tmp_path):
+    with _scope(invalid_measurement_channels=(1,)) as scope:
+        result = run_measure_log(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            MeasureLogRequest(
+                channels=(1,),
+                items="vpp",
+                pair_items="phase",
+                interval_seconds=0.5,
+                requested_duration_seconds=0.01,
+                output_dir=tmp_path / "measure-log-duration",
+            ),
+        )
+
+    assert result.exit_code == 0
+    assert result.result["status"] == "completed"
+    assert result.result["completed_rows"] == 1
+    csv_text = (tmp_path / "measure-log-duration" / "measurements.csv").read_text(
+        encoding="utf-8"
+    )
+    assert "NaN" in csv_text
+
+
+def test_run_measure_log_preserves_interrupt_result(tmp_path, monkeypatch):
+    with _scope() as scope:
+        monkeypatch.setattr(
+            scope,
+            "query_measurement",
+            lambda *args, **kwargs: (_ for _ in ()).throw(KeyboardInterrupt),
+        )
+        result = run_measure_log(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            MeasureLogRequest(
+                channels=(1,),
+                items="vpp",
+                pair_items="phase",
+                interval_seconds=0,
+                requested_count=1,
+                output_dir=tmp_path / "measure-log-interrupt",
+            ),
+        )
+
+    assert result.exit_code == 130
+    assert result.result["status"] == "interrupted"
+    assert result.result["error"] == "KeyboardInterrupt"
+    assert result.files[0]["kind"] == "csv"
+    assert result.human_lines
 
 
 def test_run_smoke_writes_report(tmp_path):

@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from keysight_scope_cli import cli
+import keysight_scope_core.output_files as core_output_files
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.errors import KeysightScopeError, VisaBackendError
 from keysight_scope_core.idn import parse_idn
@@ -2111,7 +2112,11 @@ def test_capture_cli_reports_multi_channel_metadata_permission_error_without_tra
         raise PermissionError(13, "Permission denied", str(path))
 
     monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
-    monkeypatch.setattr(cli, "write_waveforms_metadata", fake_write_waveforms_metadata)
+    monkeypatch.setattr(
+        core_output_files,
+        "write_waveforms_metadata",
+        fake_write_waveforms_metadata,
+    )
 
     assert (
         cli.main(
@@ -2430,7 +2435,7 @@ def test_capture_cli_reports_csv_permission_error_without_traceback(monkeypatch,
         raise PermissionError(13, "Permission denied", str(path))
 
     monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
-    monkeypatch.setattr(cli, "write_waveform_csv", fake_write_waveform_csv)
+    monkeypatch.setattr(core_output_files, "write_waveform_csv", fake_write_waveform_csv)
 
     assert (
         cli.main(
@@ -3144,7 +3149,7 @@ def test_measure_cli_rejects_invalid_pair_channel_args_without_query(
     assert expected_error in capsys.readouterr().err
 
 
-def test_measure_cli_rejects_delay_pair_on_non_4000x_without_query(monkeypatch, capsys):
+def test_measure_cli_rejects_delay_pair_when_capability_is_unsupported(monkeypatch, capsys):
     scope = _install_measurement_scope(
         monkeypatch,
         0.00000125,
@@ -3171,7 +3176,7 @@ def test_measure_cli_rejects_delay_pair_on_non_4000x_without_query(monkeypatch, 
     )
 
     assert scope.calls == ["query_idn"]
-    assert "4000X" in capsys.readouterr().err
+    assert "capability profile" in capsys.readouterr().err
 
 
 def test_measure_cli_reports_invalid_sentinel_for_pair_item(monkeypatch, capsys):

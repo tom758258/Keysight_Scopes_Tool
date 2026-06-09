@@ -41,8 +41,14 @@ class ResolvedRunConfig:
 
 
 def resolve_run_mode(options: RunModeOptions) -> RunMode:
+    """Resolve compatible run-mode flags into one effective mode."""
+
     if options.simulate and options.dry_run:
         raise KeysightScopeError("--simulate cannot be combined with --dry-run")
+    if options.live and options.simulate:
+        raise KeysightScopeError("--live cannot be combined with --simulate")
+    if options.live and options.dry_run:
+        raise KeysightScopeError("--live cannot be combined with --dry-run")
     if options.simulate_signals and not options.simulate:
         raise KeysightScopeError("--simulate-signal can only be used with --simulate")
     for value, option in (
@@ -74,6 +80,8 @@ def resolve_resource(
     model: str,
     environ: Mapping[str, str] = os.environ,
 ) -> str | None:
+    """Resolve the resource string for a selected run mode."""
+
     if mode == "simulate":
         return explicit_resource or f"SIM::{model}::INSTR"
     if mode == "dry_run":
@@ -87,6 +95,8 @@ def require_resource(
     model: str,
     environ: Mapping[str, str] = os.environ,
 ) -> str:
+    """Return the resolved resource or raise when live selection is missing."""
+
     resource = resolve_resource(mode, explicit_resource, model, environ)
     if resource is None:
         raise KeysightScopeError("--resource is required unless KEYSIGHT_SCOPE_RESOURCE is set")
@@ -94,6 +104,8 @@ def require_resource(
 
 
 def make_simulator_backend(options: RunModeOptions, resource: str) -> SimulatorBackend:
+    """Create a simulator backend from resolved run options."""
+
     kwargs = simulator_backend_kwargs(
         options,
         resource,
@@ -103,6 +115,8 @@ def make_simulator_backend(options: RunModeOptions, resource: str) -> SimulatorB
 
 
 def open_scope_for_run(config: ResolvedRunConfig) -> KeysightScope:
+    """Open a scope for a resolved simulated or live run."""
+
     if config.mode == "dry_run":
         raise KeysightScopeError("dry-run does not open a backend")
     if config.resource is None:

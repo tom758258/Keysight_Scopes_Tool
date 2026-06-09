@@ -116,6 +116,7 @@ def test_screenshot_controller_rejects_disabled_capability():
         supports_word_format=capabilities.supports_word_format,
         supports_raw_points_mode=capabilities.supports_raw_points_mode,
         supports_measurements=capabilities.supports_measurements,
+        supports_delay_measurement=capabilities.supports_delay_measurement,
         supports_screenshot=False,
         supports_segmented_memory=capabilities.supports_segmented_memory,
         supports_serial_decode=capabilities.supports_serial_decode,

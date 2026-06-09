@@ -370,16 +370,19 @@ assert payload["result"]["status"] == "completed"
 
 ## Live Capture Workflow
 
-Live workflows must use an explicit operator-selected resource.
+Live workflows must use an explicit operator-selected resource. For a one-shot
+command, `--resource <RESOURCE>` selects and opts in to that single instrument;
+the optional `--live` flag is retained for compatibility. Live worker startup
+still requires `--live --resource <RESOURCE>`.
 
-1. Optionally run `identify --live --resource <RESOURCE> --json`.
-2. Optionally save setup with `setup-save --live --resource <RESOURCE> --slot N --json`.
+1. Optionally run `identify --resource <RESOURCE> --json`.
+2. Optionally save setup with `setup-save --resource <RESOURCE> --slot N --json`.
 3. Start a live worker with that same resource, or run a one-shot command with
    explicit artifact paths.
 4. Require accepted worker jobs to reach terminal `result.json` with
    `ok: true`, or require one-shot JSON `ok: true`.
 5. Restore state explicitly when setup-changing commands were used.
-6. Run `check-error --live --resource <RESOURCE> --json` when a final error
+6. Run `check-error --resource <RESOURCE> --json` when a final error
    queue check is required.
 
 Do not scan or rotate resources during the live workflow. If discovery is

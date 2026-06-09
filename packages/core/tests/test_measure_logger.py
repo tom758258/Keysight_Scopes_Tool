@@ -98,14 +98,14 @@ def test_write_measure_log_manifest_json(tmp_path):
     assert payload["rows"][0]["system_error"]["code"] == 0
 
 
-def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path):
+def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path, capsys):
     backend = SimulatorBackend(model="DSOX4024A")
     scope = KeysightScope(backend)
     scope.query_idn()
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
 
-    code = measure_logger.log_measurements_workflow(
+    result = measure_logger.log_measurements_workflow(
         scope=scope,
         resource="SIM::DSOX4024A::INSTR",
         output_dir=tmp_path,
@@ -122,7 +122,12 @@ def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path):
         stop_on_error=False,
     )
 
-    assert code == 0
+    assert result.exit_code == 0
+    assert result.manifest.status == "completed"
+    assert result.human_lines
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
     assert csv_path.exists()
     assert manifest_path.exists()
     assert scpi_log_path.exists()
@@ -154,7 +159,7 @@ def test_log_measurements_workflow_respects_duration_limit(tmp_path):
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
 
-    code = measure_logger.log_measurements_workflow(
+    result = measure_logger.log_measurements_workflow(
         scope=scope,
         resource="SIM::DSOX4024A::INSTR",
         output_dir=tmp_path,
@@ -171,7 +176,7 @@ def test_log_measurements_workflow_respects_duration_limit(tmp_path):
         stop_on_error=False,
     )
 
-    assert code == 0
+    assert result.exit_code == 0
     manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest_data["status"] == "completed"
     assert manifest_data["completed_rows"] == 1
@@ -184,7 +189,7 @@ def test_log_measurements_workflow_handles_invalid_sentinels_and_errors(tmp_path
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
 
-    code = measure_logger.log_measurements_workflow(
+    result = measure_logger.log_measurements_workflow(
         scope=scope,
         resource="SIM::DSOX4024A::INSTR",
         output_dir=tmp_path,
@@ -201,7 +206,7 @@ def test_log_measurements_workflow_handles_invalid_sentinels_and_errors(tmp_path
         stop_on_error=False,
     )
 
-    assert code == 0
+    assert result.exit_code == 0
     with csv_path.open("r", encoding="utf-8") as f:
         reader = list(csv.reader(f))
 
@@ -218,7 +223,7 @@ def test_log_measurements_workflow_stops_on_error(tmp_path):
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
 
-    code = measure_logger.log_measurements_workflow(
+    result = measure_logger.log_measurements_workflow(
         scope=scope,
         resource="SIM::DSOX4024A::INSTR",
         output_dir=tmp_path,
@@ -235,9 +240,45 @@ def test_log_measurements_workflow_stops_on_error(tmp_path):
         stop_on_error=True,
     )
 
-    assert code == 1
+    assert result.exit_code == 1
+    assert result.system_error["code"] == -113
     manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest_data["status"] == "instrument_error"
     assert "Undefined header" in manifest_data["error"]
     assert manifest_data["completed_rows"] == 1
     assert manifest_data["rows"][0]["system_error"]["code"] == -113
+
+
+def test_log_measurements_workflow_records_interrupt(tmp_path, monkeypatch):
+    backend = SimulatorBackend(model="DSOX4024A")
+    scope = KeysightScope(backend)
+    scope.query_idn()
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(scope, "query_measurement", interrupt)
+    csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
+
+    result = measure_logger.log_measurements_workflow(
+        scope=scope,
+        resource="SIM::DSOX4024A::INSTR",
+        output_dir=tmp_path,
+        csv_path=csv_path,
+        manifest_path=manifest_path,
+        scpi_log_path=scpi_log_path,
+        channels=[1],
+        items=["vpp"],
+        pairs=[],
+        pair_items=[],
+        interval_seconds=0,
+        requested_count=1,
+        requested_duration_seconds=None,
+        stop_on_error=False,
+    )
+
+    assert result.exit_code == 130
+    assert result.manifest.status == "interrupted"
+    manifest_data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest_data["status"] == "interrupted"
+    assert manifest_data["error"] == "KeyboardInterrupt"

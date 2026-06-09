@@ -20,6 +20,7 @@ class ScopeCapabilities:
     supports_word_format: bool
     supports_raw_points_mode: bool
     supports_measurements: bool
+    supports_delay_measurement: bool
     supports_screenshot: bool
     supports_segmented_memory: bool
     supports_serial_decode: bool
@@ -34,6 +35,7 @@ _BASE_PROFILES = {
         supports_word_format=False,
         supports_raw_points_mode=False,
         supports_measurements=False,
+        supports_delay_measurement=False,
         supports_screenshot=True,
         supports_segmented_memory=False,
         supports_serial_decode=False,
@@ -46,6 +48,7 @@ _BASE_PROFILES = {
         supports_word_format=False,
         supports_raw_points_mode=False,
         supports_measurements=False,
+        supports_delay_measurement=False,
         supports_screenshot=True,
         supports_segmented_memory=False,
         supports_serial_decode=False,
@@ -58,6 +61,7 @@ _BASE_PROFILES = {
         supports_word_format=False,
         supports_raw_points_mode=False,
         supports_measurements=False,
+        supports_delay_measurement=True,
         supports_screenshot=True,
         supports_segmented_memory=False,
         supports_serial_decode=False,

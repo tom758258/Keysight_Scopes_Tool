@@ -16,6 +16,22 @@ def test_resolve_run_mode_rejects_simulate_and_dry_run():
         resolve_run_mode(RunModeOptions(simulate=True, dry_run=True))
 
 
+def test_resolve_run_mode_defaults_to_live():
+    assert resolve_run_mode(RunModeOptions()) == "live"
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        RunModeOptions(live=True, simulate=True),
+        RunModeOptions(live=True, dry_run=True),
+    ],
+)
+def test_resolve_run_mode_rejects_live_with_non_live_mode(options):
+    with pytest.raises(KeysightScopeError, match="--live cannot be combined"):
+        resolve_run_mode(options)
+
+
 def test_simulator_options_require_simulate():
     with pytest.raises(KeysightScopeError, match="--simulate-preset"):
         resolve_run_mode(RunModeOptions(dry_run=True, simulate_preset="noisy-sine"))

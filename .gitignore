@@ -41,5 +41,5 @@ target/
 #Data file
 data
 
-# Local/private publication prep
+# Local-only workspace and private historical snapshots
 Local/

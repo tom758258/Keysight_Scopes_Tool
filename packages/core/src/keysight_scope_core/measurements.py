@@ -557,9 +557,9 @@ def _validate_delay_supported(capabilities: ScopeCapabilities | None) -> None:
         raise ParameterValidationError(
             "delay pair measurement requires known scope capabilities."
         )
-    if capabilities.series != "4000X":
+    if not capabilities.supports_delay_measurement:
         raise ParameterValidationError(
-            "delay pair measurement is only supported on 4000X scopes."
+            "delay pair measurement is not supported by this scope capability profile."
         )
 
 

@@ -42,6 +42,14 @@ def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
     assert payload["scpi"]["sent"] == []
 
 
+def test_one_shot_live_flag_conflicts_with_simulate_and_dry_run(capsys):
+    for mode in ("--simulate", "--dry-run"):
+        assert cli.main(["identify", mode, "--live", "--json"]) == 1
+        payload = json.loads(capsys.readouterr().out)
+        assert payload["ok"] is False
+        assert "--live cannot be combined" in payload["error"]["message"]
+
+
 def test_capture_dry_run_json_reports_files_without_writing(monkeypatch, capsys, tmp_path):
     def fail_open(resource, visa_library=None):
         del resource, visa_library
@@ -845,7 +853,7 @@ def test_measure_pair_delay_simulate_json_rejects_non_4000x_before_measurement(c
 
     payload = _json_stdout(capsys)
     assert payload["ok"] is False
-    assert "4000X" in payload["error"]["message"]
+    assert "capability profile" in payload["error"]["message"]
     assert payload["scpi"]["sent"] == ["*IDN?"]
 
 

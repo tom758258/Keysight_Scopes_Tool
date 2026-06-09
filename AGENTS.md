@@ -36,7 +36,14 @@ is opt-in and requires explicit user approval.
 
 - Prefer `keysight-scopes --dry-run --json`, then
   `keysight-scopes --simulate --json`, before live commands.
-- Use `keysight-scopes --live --resource ... --json` only after approval.
+- For one-shot commands, an explicit `--resource ...` or
+  `KEYSIGHT_SCOPE_RESOURCE` selects and opts in to that single live instrument;
+  `--live` is an optional compatibility flag.
+- `list-resources --live-only` is the only discovery command that may open
+  each enumerated resource.
+- Live workers require both `--live` and `--resource`.
+- Agents must still obtain explicit user approval before accessing real
+  hardware.
 - Do not use `*RST` by default.
 - Validate parameters before sending SCPI commands.
 - Keep normal automated tests independent of real hardware.

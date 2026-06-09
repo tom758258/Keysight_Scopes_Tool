@@ -22,6 +22,7 @@ names are intended for package consumers and tests:
 - `ResolvedRunConfig`
 - `RunModeOptions`
 - `CaptureRequest`
+- `MeasureLogRequest`
 - `MeasureRequest`
 - `MeasureSweepRequest`
 - `SmokeRequest`
@@ -51,6 +52,7 @@ names are intended for package consumers and tests:
 - `plan_acquisition_check`
 - `run_capture`
 - `run_doctor`
+- `run_measure_log`
 - `run_measure`
 - `run_measure_sweep`
 - `run_smoke`

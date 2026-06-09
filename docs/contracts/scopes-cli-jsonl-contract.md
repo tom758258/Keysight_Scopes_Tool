@@ -107,6 +107,17 @@ Single-response one-shot JSON does not include worker-only fields such as
 command explicitly documents them. Consumers should use process return code
 plus `ok` and command-specific status fields.
 
+## One-Shot Live Selection
+
+For one-shot commands, an explicit `--resource` or
+`KEYSIGHT_SCOPE_RESOURCE` selects and opts in to that single live instrument.
+The `--live` flag remains accepted for one-shot compatibility but is not
+required. It must not be combined with `--simulate` or `--dry-run`.
+
+`list-resources --live-only` is the separate discovery path that may open each
+enumerated resource and query `*IDN?`. Live worker startup is governed by the
+Scopes Worker Contract and still requires `--live --resource`.
+
 ## Command Result Fields
 
 Discovery and identification:

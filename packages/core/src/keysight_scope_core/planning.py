@@ -92,6 +92,8 @@ class AcquisitionCheckPlanRequest:
 
 
 def plan_capture(request: CapturePlanRequest, capabilities: ScopeCapabilities) -> OperationPlan:
+    """Plan a waveform capture without opening an instrument."""
+
     channels = resolve_capture_channels(request.channels, capabilities)
     points = validate_waveform_points(request.points, capabilities)
     files = _capture_files(request)
@@ -110,6 +112,8 @@ def plan_capture(request: CapturePlanRequest, capabilities: ScopeCapabilities) -
 
 
 def plan_doctor(capabilities: ScopeCapabilities) -> OperationPlan:
+    """Plan a read-only diagnostic snapshot."""
+
     return OperationPlan(
         tuple(doctor_planned_scpi(capabilities)),
         (),
@@ -125,6 +129,8 @@ def plan_doctor(capabilities: ScopeCapabilities) -> OperationPlan:
 
 
 def plan_measure(request: MeasurePlanRequest, capabilities: ScopeCapabilities) -> OperationPlan:
+    """Plan one read-only measurement query."""
+
     item = normalize_measurement_item(request.item)
     kwargs = measurement_query_kwargs(request, item)
     result: dict[str, object] = {"item": item, "parameters": kwargs}
@@ -143,6 +149,8 @@ def plan_measure_sweep(
     request: MeasureSweepPlanRequest,
     capabilities: ScopeCapabilities,
 ) -> OperationPlan:
+    """Plan a multi-channel measurement sweep."""
+
     channels = resolve_sweep_channels(request.channels, capabilities)
     items = parse_measurement_item_list(request.items, allow_pair=False)
     pairs = parse_pair_specs(request.pairs, capabilities)
@@ -166,6 +174,8 @@ def plan_measure_sweep(
 
 
 def plan_smoke(request: SmokePlanRequest, capabilities: ScopeCapabilities) -> OperationPlan:
+    """Plan the capture-safe smoke workflow and its artifacts."""
+
     output_dir = (
         Path(request.output_dir)
         if request.output_dir is not None
@@ -202,6 +212,8 @@ def plan_smoke(request: SmokePlanRequest, capabilities: ScopeCapabilities) -> Op
 
 
 def plan_acquisition_check(request: AcquisitionCheckPlanRequest) -> OperationPlan:
+    """Plan an acquisition configuration check workflow."""
+
     average_count = validate_acquisition_count(request.average_count)
     if request.check_only and request.restore_type:
         raise KeysightScopeError("--check-only cannot be combined with --restore-type")

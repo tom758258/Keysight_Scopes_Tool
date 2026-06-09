@@ -1,5 +1,7 @@
 ﻿import pytest
 
+from dataclasses import replace
+
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.errors import MeasurementResponseError, ParameterValidationError
 from keysight_scope_core.fake_backend import FakeBackend
@@ -108,6 +110,24 @@ def test_pair_measurement_query_uses_keysight_measure_syntax():
     )
     assert (
         pair_measurement_query("delay", 1, 2, capabilities=capabilities_for_model("DSOX4024A"))
+        == ":MEASure:DELay? AUTO,CHANnel1,CHANnel2"
+    )
+
+
+def test_delay_pair_measurement_uses_capability_flag_instead_of_series():
+    disabled_4000x = replace(
+        capabilities_for_model("DSOX4024A"),
+        supports_delay_measurement=False,
+    )
+    enabled_3000x = replace(
+        capabilities_for_model("DSOX3024A"),
+        supports_delay_measurement=True,
+    )
+
+    with pytest.raises(ParameterValidationError, match="capability profile"):
+        pair_measurement_query("delay", 1, 2, capabilities=disabled_4000x)
+    assert (
+        pair_measurement_query("delay", 1, 2, capabilities=enabled_3000x)
         == ":MEASure:DELay? AUTO,CHANnel1,CHANnel2"
     )
 
@@ -380,14 +400,14 @@ def test_measurement_controller_preserves_pair_invalid_sentinel():
 
 
 @pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A"])
-def test_measurement_controller_rejects_delay_pair_before_scpi_on_non_4000x(model):
+def test_measurement_controller_rejects_delay_pair_before_scpi_when_unsupported(model):
     backend = FakeBackend()
     controller = MeasurementController(SCPIClient(backend), capabilities_for_model(model))
 
     with pytest.raises(ParameterValidationError) as excinfo:
         controller.query_pair(1, 2, "delay")
 
-    assert "4000X" in str(excinfo.value)
+    assert "capability profile" in str(excinfo.value)
     assert backend.history == []
 
 
@@ -427,7 +447,7 @@ def test_measurement_controller_rejects_invalid_pair_channels_before_scpi(
             1,
             2,
             {"capabilities": capabilities_for_model("DSOX3024A")},
-            "4000X",
+            "capability profile",
         ),
     ],
 )

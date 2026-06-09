@@ -36,6 +36,18 @@ def test_capabilities_are_conservative_for_phase_1():
     assert capabilities.supports_serial_decode is False
 
 
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("DSOX2004A", False),
+        ("DSOX3024A", False),
+        ("DSOX4024A", True),
+    ],
+)
+def test_delay_measurement_support_comes_from_capability_profile(model, expected):
+    assert capabilities_for_model(model).supports_delay_measurement is expected
+
+
 def test_capabilities_reject_unknown_model():
     with pytest.raises(UnsupportedModelError):
         capabilities_for_model("DSO-X-UNKNOWN")
