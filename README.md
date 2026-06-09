@@ -4,6 +4,16 @@ Monorepo for Keysight InfiniiVision oscilloscope tooling. The repository is
 split into package-owned Core, CLI, and WebUI areas while root documentation
 keeps project-level orientation and shared machine contracts.
 
+## License and Disclaimer
+
+This project is licensed under the MIT License. See `LICENSE`.
+
+This project is an independent, unofficial project and is not affiliated with,
+endorsed by, or sponsored by Keysight Technologies.
+
+Users are responsible for complying with all applicable Keysight software,
+driver, instrument, and documentation license terms.
+
 ## Packages
 
 | Package | Distribution | Import / entry point | Public docs |
