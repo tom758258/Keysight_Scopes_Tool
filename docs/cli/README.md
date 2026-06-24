@@ -98,7 +98,7 @@ only through explicit CLI commands; `doctor`, `smoke`, and `acquisition-check`
 do not call the new cursor, holdoff, autoscale, setup, statistics, or FFT paths.
 
 No acquisition run-state query is currently exposed. `:RSTate?` timed out on
-tested 4000X instruments and is not used by the CLI.
+the DSO-X 4024A used for validation and is not used by the CLI.
 
 ## Development
 
