@@ -2,13 +2,13 @@
 
 Skeleton package reserved for a future browser-based Keysight Scopes interface.
 
-Distribution: `keysight-scope-webui`
+Distribution: `keysight-scopes`
 
 Import package: `keysight_scope_webui`
 
 Current status:
 
-- Package metadata and import package exist.
+- Root package metadata and this import package exist.
 - No user-facing WebUI runtime is implemented.
 - No CLI workflow is owned by this package.
 - Future WebUI behavior should call Core APIs and link to root contracts instead

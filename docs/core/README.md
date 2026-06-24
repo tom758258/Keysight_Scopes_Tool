@@ -3,7 +3,7 @@
 Core runtime package for Keysight InfiniiVision oscilloscope control through
 PyVISA-compatible backends.
 
-Distribution: `keysight-scope-core`
+Distribution: `keysight-scopes`
 
 Import package: `keysight_scope_core`
 
@@ -25,4 +25,4 @@ script documentation, or WebUI workflow.
 ## Docs
 
 - Public import and API integration: `docs/integration.md`
-- Shared CLI, worker, and orchestrator contracts: `../../docs/contracts/`
+- Shared CLI, worker, and orchestrator contracts: `../contracts/`

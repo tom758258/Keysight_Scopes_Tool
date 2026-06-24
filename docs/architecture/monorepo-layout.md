@@ -5,33 +5,29 @@ Last updated: 2026-06-10
 ```text
 .
 |-- AGENTS.md
+|-- CHANGELOG.md
 |-- docs/
 |   |-- architecture/
-|   |-- contracts/
-|-- packages/
-|   |-- core/
-|   |   |-- README.md
-|   |   |-- CHANGELOG.md
-|   |   |-- docs/
-|   |   |-- src/keysight_scope_core/
-|   |   |-- tests/
 |   |-- cli/
-|   |   |-- README.md
-|   |   |-- CHANGELOG.md
-|   |   |-- docs/
-|   |   |-- src/keysight_scope_cli/
-|   |   |-- tests/
+|   |-- contracts/
+|   |-- core/
 |   |-- webui/
-|       |-- README.md
-|       |-- CHANGELOG.md
-|       |-- src/keysight_scope_webui/
-|       |-- tests/
+|-- pyproject.toml
 |-- scripts/
+|-- src/
+|   |-- keysight_scope_cli/
+|   |-- keysight_scope_core/
+|   |-- keysight_scope_webui/
+|-- tests/
+|   |-- cli/
+|   |-- core/
+|   |-- webui/
 ```
 
 Root-level documents are for repository orientation, architecture, and shared
-contracts. Package-local documents are the canonical place for public package
-behavior and adapter guidance.
+contracts. Area-specific documents under `docs/core/`, `docs/cli/`, and
+`docs/webui/` are the canonical place for public import package behavior and
+adapter guidance. The root `pyproject.toml` is the only package metadata file.
 
 ## Documentation Publication Boundary
 

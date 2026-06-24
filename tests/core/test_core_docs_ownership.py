@@ -6,29 +6,29 @@ from pathlib import Path
 import keysight_scope_core as core
 
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = PACKAGE_ROOT.parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DOC_ROOT = REPO_ROOT / "docs" / "core"
 
 
 def read_doc(*parts: str) -> str:
-    return PACKAGE_ROOT.joinpath(*parts).read_text(encoding="utf-8")
+    return DOC_ROOT.joinpath(*parts).read_text(encoding="utf-8")
 
 
-def test_core_docs_are_package_local():
-    assert (PACKAGE_ROOT / "README.md").exists()
-    assert (PACKAGE_ROOT / "CHANGELOG.md").exists()
-    assert (PACKAGE_ROOT / "docs" / "integration.md").exists()
+def test_core_docs_are_root_level():
+    assert (DOC_ROOT / "README.md").exists()
+    assert (REPO_ROOT / "CHANGELOG.md").exists()
+    assert (DOC_ROOT / "integration.md").exists()
     assert (REPO_ROOT / "AGENTS.md").exists()
     assert (REPO_ROOT / "README.md").exists()
     assert (REPO_ROOT / "docs" / "architecture" / "monorepo-layout.md").exists()
 
     for adapter_doc in (
-        "docs/cli-integration.md",
-        "docs/Webui-README.md",
-        "docs/scopes-cli-jsonl-contract.md",
-        "docs/common-cli-jsonl-contract.md",
+        REPO_ROOT / "docs" / "core" / "cli-integration.md",
+        REPO_ROOT / "docs" / "core" / "Webui-README.md",
+        REPO_ROOT / "docs" / "core" / "scopes-cli-jsonl-contract.md",
+        REPO_ROOT / "docs" / "core" / "common-cli-jsonl-contract.md",
     ):
-        assert not (PACKAGE_ROOT / adapter_doc).exists()
+        assert not adapter_doc.exists()
 
     for contract in (
         "common-cli-jsonl-contract.md",
@@ -38,7 +38,7 @@ def test_core_docs_are_package_local():
 
 
 def test_core_integration_names_public_core_api():
-    text = read_doc("docs", "integration.md")
+    text = read_doc("integration.md")
 
     assert "keysight_scope_core" in text
     for name in core.__all__:
@@ -49,8 +49,8 @@ def test_root_readme_discovers_core_and_agent_docs():
     text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "AGENTS.md" in text
-    assert "packages/core/README.md" in text
-    assert "packages/core/docs/integration.md" in text
+    assert "docs/core/README.md" in text
+    assert "docs/core/integration.md" in text
 
 
 def test_public_core_classes_and_functions_have_docstrings():

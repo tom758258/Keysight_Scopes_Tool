@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 
-PACKAGE_ROOT = Path(__file__).resolve().parents[1]
-REPO_ROOT = PACKAGE_ROOT.parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DOC_ROOT = REPO_ROOT / "docs" / "cli"
 
 
 def read_doc(*parts: str) -> str:
-    return PACKAGE_ROOT.joinpath(*parts).read_text(encoding="utf-8")
+    return DOC_ROOT.joinpath(*parts).read_text(encoding="utf-8")
 
 
 def read_contract(*parts: str) -> str:
@@ -22,10 +22,10 @@ def assert_headings(text: str, *headings: str) -> None:
         assert heading in text
 
 
-def test_cli_docs_are_package_local_and_contracts_are_root_level():
-    assert (PACKAGE_ROOT / "README.md").exists()
-    assert (PACKAGE_ROOT / "CHANGELOG.md").exists()
-    assert (PACKAGE_ROOT / "docs" / "cli-integration.md").exists()
+def test_cli_docs_are_root_level_and_contracts_are_root_level():
+    assert (DOC_ROOT / "README.md").exists()
+    assert (REPO_ROOT / "CHANGELOG.md").exists()
+    assert (DOC_ROOT / "cli-integration.md").exists()
     assert (REPO_ROOT / "AGENTS.md").exists()
     assert (REPO_ROOT / "README.md").exists()
     assert (REPO_ROOT / "docs" / "architecture" / "monorepo-layout.md").exists()
@@ -39,11 +39,11 @@ def test_cli_docs_are_package_local_and_contracts_are_root_level():
         "scopes-worker-contract.md",
     ):
         assert (REPO_ROOT / "docs" / "contracts" / contract).exists()
-        assert not (PACKAGE_ROOT / "docs" / contract).exists()
+        assert not (DOC_ROOT / contract).exists()
 
 
 def test_cli_integration_keeps_cli_fields_out_of_core_schema():
-    text = read_doc("docs", "cli-integration.md")
+    text = read_doc("cli-integration.md")
 
     assert "measurement_cli_name" in text
     assert "argparse.Namespace" in text
@@ -54,8 +54,8 @@ def test_root_readme_discovers_cli_and_agent_docs():
     text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "AGENTS.md" in text
-    assert "packages/cli/README.md" in text
-    assert "packages/cli/docs/" in text
+    assert "docs/cli/README.md" in text
+    assert "docs/cli/cli-integration.md" in text
 
 
 def test_cli_command_guide_links_root_contracts_and_safe_modes():

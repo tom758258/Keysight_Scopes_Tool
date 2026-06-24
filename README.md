@@ -1,19 +1,20 @@
 # Keysight Scopes
 
 Monorepo for Keysight InfiniiVision oscilloscope tooling. The repository is
-split into package-owned Core, CLI, and WebUI areas while root documentation
-keeps project-level orientation and shared machine contracts.
+published as one Python distribution while keeping separate Core, CLI, and
+WebUI import packages. Root documentation keeps project-level orientation,
+package behavior, and shared machine contracts.
 
-## Packages
+## Distribution
 
-| Package | Distribution | Import / entry point | Public docs |
+| Area | Distribution | Import / entry point | Public docs |
 | --- | --- | --- | --- |
-| Core | `keysight-scope-core` | `keysight_scope_core` | `packages/core/README.md`, `packages/core/docs/integration.md` |
-| CLI | `keysight-scope-cli` | `keysight-scopes`, `python -m keysight_scope_cli.cli` | `packages/cli/README.md`, `packages/cli/docs/` |
-| WebUI | `keysight-scope-webui` | `keysight_scope_webui` skeleton | `packages/webui/README.md` |
+| Core | `keysight-scopes` | `keysight_scope_core` | `docs/core/README.md`, `docs/core/integration.md` |
+| CLI | `keysight-scopes` | `keysight-scopes`, `python -m keysight_scope_cli.cli` | `docs/cli/README.md`, `docs/cli/cli-integration.md` |
+| WebUI | `keysight-scopes` | `keysight_scope_webui` skeleton | `docs/webui/README.md` |
 
 Runtime APIs, console scripts, package metadata, SCPI behavior, and JSON
-contracts are owned by the package docs and root contracts.
+contracts are owned by the root package metadata, area docs, and root contracts.
 
 ## Development
 
@@ -21,11 +22,11 @@ From PowerShell:
 
 ```powershell
 uv venv .venv
-uv pip install -e "packages/core[dev]" -e packages/cli -e packages/webui
+uv pip install -e ".[all,dev]"
 .\scripts\run-tests.ps1
 ```
 
-The repository uses editable package installs for local development. It is not
+The repository uses one editable package install for local development. It is not
 configured as a committed `uv` workspace.
 
 The PowerShell test script gives each pytest run an isolated temporary
@@ -35,7 +36,7 @@ run and preserves it after a failure for inspection. Additional pytest
 arguments are forwarded:
 
 ```powershell
-.\scripts\run-tests.ps1 packages/cli/tests/test_worker_cli.py -vv
+.\scripts\run-tests.ps1 tests/cli/test_worker_cli.py -vv
 ```
 
 Running pytest directly may fail with `PermissionError: [WinError 5]` if
@@ -56,14 +57,14 @@ Project-level docs:
 - `docs/contracts/`
 - `docs/testing-guidelines.md`
 
-Package docs:
+Area docs:
 
 - Core runtime, public import API, VISA/SCPI safety, and capability profiles:
-  `packages/core/README.md`
+  `docs/core/README.md`
 - CLI command usage, JSON mode, and automation safety:
-  `packages/cli/README.md`
+  `docs/cli/README.md`
 - WebUI package skeleton and future ownership notes:
-  `packages/webui/README.md`
+  `docs/webui/README.md`
 
 Shared contracts under `docs/contracts/` remain the source of truth for
 cross-package machine behavior. Package docs link to those contracts instead of

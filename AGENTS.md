@@ -25,7 +25,9 @@ another language.
 - Use Python logging for internal command logs; reserve direct output for CLI
   rendering.
 - Use the editable development setup documented in `README.md`:
-  `uv pip install -e "packages/core[dev]" -e packages/cli -e packages/webui`.
+  `uv pip install -e ".[all,dev]"`.
+- Root `pyproject.toml` is the only package metadata boundary. Do not recreate
+  `packages/*/pyproject.toml` unless the user explicitly requests it.
 - Do not add or commit `uv.lock` unless the root project is explicitly
   converted into a uv workspace.
 
@@ -69,18 +71,20 @@ diagnostics belong on stderr.
   absent or depend on `Local/` existing.
 - If tests cannot be run, report that clearly.
 
-## Core and CLI Boundary
+## Core, CLI, and WebUI Boundary
 
-- Keep `packages/cli/src/keysight_scope_cli/cli.py` as the adapter for argparse
+- Keep `src/keysight_scope_cli/cli.py` as the adapter for argparse
   parsing, stdout/stderr rendering, process exit codes, and JSON envelopes.
 - Put dry-run SCPI and artifact planning in
-  `packages/core/src/keysight_scope_core/planning.py`.
+  `src/keysight_scope_core/planning.py`.
 - Put mode resolution and backend opening rules in
-  `packages/core/src/keysight_scope_core/run_config.py`.
+  `src/keysight_scope_core/run_config.py`.
 - Put reusable workflows in
-  `packages/core/src/keysight_scope_core/operations.py`. Core operations must
-  not import `argparse`, read `sys.argv`, or print directly.
+  `src/keysight_scope_core/operations.py`. Core operations must not import
+  `argparse`, read `sys.argv`, or print directly.
 - Put shared output path and write wrappers in
-  `packages/core/src/keysight_scope_core/output_files.py`.
+  `src/keysight_scope_core/output_files.py`.
 - Keep model-specific behavior in capability profiles and explicit feature
   guards rather than scattering model conditionals through feature modules.
+- Core must not depend on CLI or WebUI. CLI and WebUI must not depend on each
+  other. CLI and WebUI may depend on Core.

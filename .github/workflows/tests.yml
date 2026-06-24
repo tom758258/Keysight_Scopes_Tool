@@ -32,7 +32,7 @@ jobs:
           cache: pip
 
       - name: Install packages
-        run: python -m pip install --upgrade pip && python -m pip install -e "packages/core[dev]" -e packages/cli -e packages/webui
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[all,dev]"
 
       - name: Run tests
         run: python -m pytest -q -m "not hardware"
@@ -59,7 +59,7 @@ jobs:
           cache: pip
 
       - name: Install packages
-        run: python -m pip install --upgrade pip && python -m pip install -e "packages/core[dev]" -e packages/cli -e packages/webui
+        run: python -m pip install --upgrade pip && python -m pip install -e ".[all,dev]"
 
       - name: Run tests
         run: python -m pytest -q -m "not hardware"

@@ -1,5 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keysight-scopes"
+version = "0.1.0"
+description = "Keysight InfiniiVision oscilloscope tooling with Core, CLI, and WebUI import packages."
+requires-python = ">=3.10"
+dependencies = ["pyvisa>=1.14"]
+
+[project.optional-dependencies]
+dev = ["build>=1.2", "pytest>=8"]
+webui = []
+all = []
+
+[project.scripts]
+keysight-scopes = "keysight_scope_cli.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["keysight_scope_*"]
+
 [tool.pytest.ini_options]
-testpaths = ["packages/core/tests", "packages/cli/tests", "packages/webui/tests"]
+testpaths = ["tests"]
 addopts = ["-p", "no:cacheprovider"]
 markers = ["hardware: opt-in tests that require a real oscilloscope"]
-pythonpath = ["packages/core/src", "packages/cli/src", "packages/webui/src"]
+pythonpath = ["src"]

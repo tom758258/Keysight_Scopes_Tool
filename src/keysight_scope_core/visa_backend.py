@@ -115,7 +115,7 @@ def _load_pyvisa() -> Any:
     except ModuleNotFoundError as exc:  # pragma: no cover - environment dependent
         raise VisaBackendError(
             "PyVISA is not installed. Install the project with "
-            '`uv pip install -e "packages/core[dev]" -e packages/cli -e packages/webui`.'
+            '`uv pip install -e ".[all,dev]"`.'
         ) from exc
     return pyvisa
 

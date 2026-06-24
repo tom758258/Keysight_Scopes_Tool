@@ -3,7 +3,7 @@
 Command-line adapter for safe communication with Keysight InfiniiVision
 oscilloscopes through PyVISA.
 
-Distribution: `keysight-scope-cli`
+Distribution: `keysight-scopes`
 
 Console script: `keysight-scopes`
 
@@ -14,7 +14,7 @@ Module entry point: `python -m keysight_scope_cli.cli`
 From the repository root:
 
 ```powershell
-uv pip install -e "packages/core[dev]" -e packages/cli
+uv pip install -e ".[all,dev]"
 ```
 
 ## Basic Usage
@@ -115,12 +115,12 @@ uv venv .venv
 ```
 
 ```powershell
-uv pip install -e "packages/core[dev]" -e packages/cli -e packages/webui
+uv pip install -e ".[all,dev]"
 ```
 
 This repository currently uses `uv` for the local virtual environment and
-editable installs, but it is not configured as a `uv` workspace and does not use
-a committed `uv.lock`. Do not commit a generated `uv.lock` unless the root
+editable installs, but it is not configured as a `uv` workspace and does not
+use a committed `uv.lock`. Do not commit a generated `uv.lock` unless the root
 `pyproject.toml` is later changed to define an explicit uv workspace.
 
 Run the repository test wrapper from the root directory:
@@ -129,8 +129,8 @@ Run the repository test wrapper from the root directory:
 .\scripts\run-tests.ps1
 ```
 
-This runs tests from all three packages: `packages/core/tests`,
-`packages/cli/tests`, and `packages/webui/tests`.
+This runs tests from all three areas: `tests/core`, `tests/cli`, and
+`tests/webui`.
 
 The wrapper creates an isolated pytest temporary directory, removes it after a
 successful run, and preserves it after a failure for inspection. Additional
@@ -681,13 +681,13 @@ Normal tests are hardware-free:
 .\scripts\run-tests.ps1
 ```
 
-This runs tests from all three packages: `packages/core/tests`,
-`packages/cli/tests`, and `packages/webui/tests`.
+This runs tests from all three areas: `tests/core`, `tests/cli`, and
+`tests/webui`.
 
 For a filtered hardware-free run, pass pytest arguments after the script path:
 
 ```powershell
-.\scripts\run-tests.ps1 packages/cli/tests -q
+.\scripts\run-tests.ps1 tests/cli -q
 ```
 
 Do not pass `--basetemp`; the wrapper creates an isolated pytest temporary
