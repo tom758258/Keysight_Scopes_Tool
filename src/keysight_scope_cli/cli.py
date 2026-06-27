@@ -20,6 +20,8 @@ from keysight_scope_core.acquisition import (
     acquisition_type_command,
     acquisition_type_query,
     normalize_acquisition_type,
+    parse_sample_rate,
+    sample_rate_query,
     validate_acquisition_count,
 )
 from keysight_scope_core.advanced import (
@@ -944,6 +946,19 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    sample_rate_parser = subparsers.add_parser(
+        "sample-rate",
+        help="query the current analog acquisition sample rate",
+    )
+    _add_scope_connection_args(sample_rate_parser)
+    sample_rate_parser.add_argument(
+        "--query",
+        dest="sample_rate_query",
+        action="store_true",
+        required=True,
+        help="query the current analog acquisition sample rate",
+    )
+
     acquisition_parser = subparsers.add_parser(
         "acquisition",
         help="configure or query acquisition type and average count",
@@ -1202,6 +1217,9 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_screenshot(args)
     if args.command == "smoke":
         return _cmd_smoke(args)
+    if args.command == "sample-rate":
+        return _cmd_sample_rate(args)
+
     if args.command == "acquisition":
         return _cmd_acquisition(args)
     if args.command == "autoscale":
@@ -1784,6 +1802,14 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "steps": [],
             "final_acquisition": None,
             "files": files,
+        }
+    if command == "sample-rate":
+        planned = ["*IDN?", sample_rate_query(), ":SYSTem:ERRor?"]
+        return planned, [], {
+            "operation": "query",
+            "scpi_command": sample_rate_query(),
+            "planned_scpi": list(planned),
+            "unit": "Hz",
         }
     if command == "acquisition":
         if args.acq_query and (args.acq_type is not None or args.acq_count is not None):
@@ -3161,6 +3187,41 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
             print(line)
         return operation_result.exit_code
 
+
+def _cmd_sample_rate(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print("Series: " + (idn.series or "unknown"))
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        print("Planned query: analog acquisition sample rate")
+        raw = scope.scpi.query(sample_rate_query())
+        sample_rate_hz = parse_sample_rate(raw)
+        print("Command: " + sample_rate_query())
+        print("Sample rate: " + f"{sample_rate_hz:.6e}" + " Hz")
+        print("Raw value: " + raw.strip())
+        _json_update_result(
+            operation="query",
+            sample_rate_hz=sample_rate_hz,
+            raw_value=raw.strip(),
+            unit="Hz",
+            scpi_command=sample_rate_query(),
+        )
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print("System error: " + entry.format())
+        return 1 if entry.is_error else 0
 
 def _cmd_acquisition(args: argparse.Namespace) -> int:
     resource = _require_resource(args)

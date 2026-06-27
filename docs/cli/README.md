@@ -54,6 +54,8 @@ Current implemented scope:
 - Send basic acquisition control commands: `:STOP`, `:RUN`, and `:SINGle`.
 - Configure or query acquisition type and average count with
   `:ACQuire:TYPE` and `:ACQuire:COUNt`.
+- Query the current analog acquisition sample rate in Hz with
+  `:ACQuire:SRATe:ANALog?`.
 - Enable, disable, or query analog channel display state with
   `:CHANnel<n>:DISPlay`.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
@@ -282,6 +284,20 @@ between 2 and 65536. Type aliases include `norm`, `aver`, `avg`,
 `high-resolution`, `hresolution`, `hres`, `peak_detect`, and `peak-detect`.
 This command does not change timeout defaults, trigger wait strategy,
 acquisition mode, run/stop state, or return-to-local behavior.
+
+Query the current analog acquisition sample rate:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli sample-rate --resource "USB0::...::INSTR" --query --log-scpi
+```
+
+The `sample-rate` command is query-only and requires `--query`. It first
+queries `*IDN?`, then sends `:ACQuire:SRATe:ANALog?` and performs one
+`:SYSTem:ERRor?` post-check. The response is parsed as an NR3 number and
+reported in Hz together with the raw readback. It does not change timebase,
+memory depth, acquisition mode, sample-rate auto/manual mode, waveform
+points, trigger settings, VISA timeout, or return-to-local behavior.
+Live hardware validation has not been performed for this command yet.
 
 Run the acquisition configuration validation workflow and write a report
 directory:

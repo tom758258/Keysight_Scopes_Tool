@@ -140,6 +140,8 @@ Unsupported command names include `force-trigger`, `sample-rate`,
 `memory-depth`, `snapshot`, `restore`, `diff`, generic `math`, and domain
 `status`. Worker status is reserved for lifecycle `GET /status` and
 `keysight-scopes status`.
+One-shot CLI `sample-rate` query is implemented and remains a one-shot
+command only. Worker `sample-rate` remains unsupported.
 
 Arguments use the CLI option names without leading dashes and with underscores
 accepted as JSON keys, for example:

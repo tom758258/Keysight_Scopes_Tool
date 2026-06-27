@@ -119,6 +119,8 @@ class SimulatorBackend:
     hardcopy_inksaver: bool = False
     acquisition_type: str = "NORMal"
     acquisition_count: int = 8
+    sample_rate_hz: float = 5e9
+
     run_state: str = "stopped"
     timebase_scale: float = 1e-3
     timebase_position: float = 0.0
@@ -272,6 +274,8 @@ class SimulatorBackend:
             return "1" if self.hardcopy_inksaver else "0"
         if upper == ":ACQUIRE:TYPE?":
             return self.acquisition_type
+        if upper == ":ACQUIRE:SRATE:ANALOG?":
+            return f"{self.sample_rate_hz:.6E}"
         if upper == ":ACQUIRE:COUNT?":
             return str(self.acquisition_count)
         if upper == ":TIMEBASE:SCALE?":

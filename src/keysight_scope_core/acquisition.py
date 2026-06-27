@@ -149,6 +149,37 @@ def acquisition_count_command(count: int) -> str:
     return f":ACQuire:COUNt {count}"
 
 
+def sample_rate_query() -> str:
+    """Return the SCPI query for the current analog acquisition sample rate."""
+
+    return ":ACQuire:SRATe:ANALog?"
+
+
+def parse_sample_rate(response: str) -> float:
+    """Parse an NR3 sample-rate response in Hz."""
+
+    raw = response.strip()
+    if not raw:
+        raise AcquisitionResponseError(
+            f"Could not parse sample rate response: {response!r}"
+        )
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise AcquisitionResponseError(
+            f"Could not parse sample rate response: {response!r}"
+        ) from exc
+    if not math.isfinite(value):
+        raise AcquisitionResponseError(
+            f"Could not parse sample rate response: {response!r}"
+        )
+    if value <= 0:
+        raise AcquisitionResponseError(
+            f"Could not parse sample rate response: {response!r}"
+        )
+    return value
+
+
 def acquisition_count_query() -> str:
     """Build the SCPI query for acquisition count."""
 
