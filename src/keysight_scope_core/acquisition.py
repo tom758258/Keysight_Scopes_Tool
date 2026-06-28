@@ -184,3 +184,37 @@ def acquisition_count_query() -> str:
     """Build the SCPI query for acquisition count."""
 
     return ":ACQuire:COUNt?"
+
+def memory_depth_query() -> str:
+    """Return the SCPI query for the current analog acquisition memory depth."""
+
+    return ":ACQuire:POINts:ANALog?"
+
+
+def parse_memory_depth(response: str) -> int:
+    """Parse an analog acquisition memory-depth response in points."""
+
+    raw = response.strip()
+    if not raw:
+        raise AcquisitionResponseError(
+            f"Could not parse memory depth response: {response!r}"
+        )
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise AcquisitionResponseError(
+            f"Could not parse memory depth response: {response!r}"
+        ) from exc
+    if not math.isfinite(value):
+        raise AcquisitionResponseError(
+            f"Could not parse memory depth response: {response!r}"
+        )
+    if value <= 0:
+        raise AcquisitionResponseError(
+            f"Could not parse memory depth response: {response!r}"
+        )
+    if not value.is_integer():
+        raise AcquisitionResponseError(
+            f"Could not parse memory depth response: {response!r}"
+        )
+    return int(value)

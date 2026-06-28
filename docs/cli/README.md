@@ -56,6 +56,10 @@ Current implemented scope:
   `:ACQuire:TYPE` and `:ACQuire:COUNt`.
 - Query the current analog acquisition sample rate in Hz with
   `:ACQuire:SRATe:ANALog?`.
+- Query the current analog acquisition memory depth / record length in
+  points with `:ACQuire:POINts:ANALog?`. This command is read-only. It
+  does not configure memory depth, and it is separate from waveform
+  transfer point count controlled by `capture --points`.
 - Enable, disable, or query analog channel display state with
   `:CHANnel<n>:DISPlay`.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
@@ -183,6 +187,8 @@ and must not be parsed as JSON.
 ```powershell
 uv run python -m keysight_scope_cli.cli identify --dry-run --json
 uv run python -m keysight_scope_cli.cli identify --simulate --json
+uv run python -m keysight_scope_cli.cli memory-depth --query --dry-run --json --model DSOX4024A
+uv run python -m keysight_scope_cli.cli memory-depth --query --simulate --json --model DSOX4024A
 uv run python -m keysight_scope_cli.cli capture --simulate --json --simulate-preset phase-shifted-pair --channel 1 --channel 2 --csv .tmp_tests\preset.csv
 uv run python -m keysight_scope_cli.cli measure --simulate --json --simulate-scenario path\to\scenario.json --channel 1 --item frequency
 uv run python -m keysight_scope_cli.cli measure --simulate --json --simulate-signal CH1:square:1000:1.0:0:0:0.02 --channel 1 --item vpp
@@ -298,6 +304,24 @@ reported in Hz together with the raw readback. It does not change timebase,
 memory depth, acquisition mode, sample-rate auto/manual mode, waveform
 points, trigger settings, VISA timeout, or return-to-local behavior.
 Live hardware validation has not been performed for this command yet.
+
+Query the current analog acquisition memory depth / record length:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli memory-depth --query --resource "USB0::...::INSTR" --log-scpi
+```
+
+The `memory-depth` command is query-only and requires `--query`. It first
+queries `*IDN?`, then sends `:ACQuire:POINts:ANALog?` and performs one
+`:SYSTem:ERRor?` post-check. The response is parsed as an integer
+representing the configured analog acquisition memory depth / record length
+in points, together with the raw readback. It does not configure memory
+depth, change acquisition mode, timebase, sample-rate, trigger settings,
+waveform format, waveform points, VISA timeout, or return-to-local
+behavior. `memory-depth --query` reads acquisition memory depth and is
+separate from `capture --points`, which controls waveform transfer point
+count. Live hardware validation has not been performed for this command
+yet.
 
 Run the acquisition configuration validation workflow and write a report
 directory:

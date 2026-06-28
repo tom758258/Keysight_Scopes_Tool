@@ -20,8 +20,10 @@ from keysight_scope_core.acquisition import (
     acquisition_type_command,
     acquisition_type_query,
     normalize_acquisition_type,
+    parse_memory_depth,
     parse_sample_rate,
     sample_rate_query,
+    memory_depth_query,
     validate_acquisition_count,
 )
 from keysight_scope_core.advanced import (
@@ -959,6 +961,19 @@ def _build_parser() -> argparse.ArgumentParser:
         help="query the current analog acquisition sample rate",
     )
 
+    memory_depth_parser = subparsers.add_parser(
+        "memory-depth",
+        help="query the current analog acquisition memory depth / record length",
+    )
+    _add_scope_connection_args(memory_depth_parser)
+    memory_depth_parser.add_argument(
+        "--query",
+        dest="memory_depth_query_flag",
+        action="store_true",
+        required=True,
+        help="query the current analog acquisition memory depth in points",
+    )
+
     acquisition_parser = subparsers.add_parser(
         "acquisition",
         help="configure or query acquisition type and average count",
@@ -1219,6 +1234,9 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_smoke(args)
     if args.command == "sample-rate":
         return _cmd_sample_rate(args)
+
+    if args.command == "memory-depth":
+        return _cmd_memory_depth(args)
 
     if args.command == "acquisition":
         return _cmd_acquisition(args)
@@ -1810,6 +1828,14 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "scpi_command": sample_rate_query(),
             "planned_scpi": list(planned),
             "unit": "Hz",
+        }
+    if command == "memory-depth":
+        planned = ["*IDN?", memory_depth_query(), ":SYSTem:ERRor?"]
+        return planned, [], {
+            "operation": "query",
+            "scpi_command": memory_depth_query(),
+            "planned_scpi": list(planned),
+            "unit": "points",
         }
     if command == "acquisition":
         if args.acq_query and (args.acq_type is not None or args.acq_count is not None):
@@ -3222,6 +3248,43 @@ def _cmd_sample_rate(args: argparse.Namespace) -> int:
         _json_record_system_error(entry)
         print("System error: " + entry.format())
         return 1 if entry.is_error else 0
+
+
+def _cmd_memory_depth(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print("Series: " + (idn.series or "unknown"))
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        print("Planned query: analog acquisition memory depth")
+        raw = scope.scpi.query(memory_depth_query())
+        memory_depth_points = parse_memory_depth(raw)
+        print("Command: " + memory_depth_query())
+        print("Memory depth: " + str(memory_depth_points) + " points")
+        print("Raw value: " + raw.strip())
+        _json_update_result(
+            operation="query",
+            memory_depth_points=memory_depth_points,
+            raw_value=raw.strip(),
+            unit="points",
+            scpi_command=memory_depth_query(),
+        )
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print("System error: " + entry.format())
+        return 1 if entry.is_error else 0
+
 
 def _cmd_acquisition(args: argparse.Namespace) -> int:
     resource = _require_resource(args)

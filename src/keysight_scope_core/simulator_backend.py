@@ -120,6 +120,7 @@ class SimulatorBackend:
     acquisition_type: str = "NORMal"
     acquisition_count: int = 8
     sample_rate_hz: float = 5e9
+    memory_depth_points: int = 1000000
 
     run_state: str = "stopped"
     timebase_scale: float = 1e-3
@@ -276,6 +277,8 @@ class SimulatorBackend:
             return self.acquisition_type
         if upper == ":ACQUIRE:SRATE:ANALOG?":
             return f"{self.sample_rate_hz:.6E}"
+        if upper == ":ACQUIRE:POINTS:ANALOG?":
+            return str(self.memory_depth_points)
         if upper == ":ACQUIRE:COUNT?":
             return str(self.acquisition_count)
         if upper == ":TIMEBASE:SCALE?":

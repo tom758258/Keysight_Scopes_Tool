@@ -18,6 +18,8 @@ Core owns runtime behavior:
   and operation helpers.
 - Simulator and fake backend support for hardware-free tests.
 - Read-only analog acquisition sample rate query helpers.
+- Read-only acquisition memory depth / record length query helpers,
+  separate from waveform transfer points.
 - Model capability profiles used by the runtime.
 
 Core does not own CLI output schema, command-line parser behavior, console
