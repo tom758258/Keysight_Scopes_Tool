@@ -142,6 +142,7 @@ Unsupported command names include `force-trigger`, `sample-rate`,
 `keysight-scopes status`.
 One-shot CLI `sample-rate` query is implemented and remains a one-shot
 command only. Worker `sample-rate` remains unsupported.
+One-shot CLI `force-trigger` action is implemented and remains a one-shot command only. Worker `force-trigger` remains unsupported.
 
 Arguments use the CLI option names without leading dashes and with underscores
 accepted as JSON keys, for example:

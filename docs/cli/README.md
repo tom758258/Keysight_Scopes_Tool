@@ -97,6 +97,7 @@ Current implemented scope:
 - Capture the current oscilloscope screen as a color PNG image, with an
   optional default timestamped output path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
+- Force one trigger event explicitly with `force-trigger` / `:TFORce`, without wait, poll, capture, or trigger/acquisition/timebase/waveform reconfiguration. Worker `/command` support remains unsupported.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
 does not perform return-to-local behavior. State-changing commands are exposed
@@ -270,7 +271,29 @@ The library methods `stop()`, `run()`, and `single()` each send only one SCPI
 command. The CLI control commands additionally perform a transparent post-check
 by querying one `:SYSTem:ERRor?` entry and printing the result. The
 `:SYSTem:ERRor?` query removes the returned entry from the instrument error
-queue.
+
+Force one trigger event explicitly:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli force-trigger --resource "USB0::...::INSTR" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli force-trigger --dry-run --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli force-trigger --simulate --json --log-scpi
+```
+
+`force-trigger` is an explicit state-changing one-shot action. It first
+queries `*IDN?`, then sends `:TFORce`, then performs one `:SYSTem:ERRor?`
+post-check. It does not arm a single acquisition, does not wait for trigger
+or acquisition completion, does not capture waveform data, and does not
+change timebase, memory depth, acquisition mode, sample-rate mode, waveform
+points, waveform format, display state, VISA timeout, trigger source, trigger
+level, trigger slope, trigger sweep, or return-to-local behavior. `force-trigger`
+must not be combined with `capture`, `measure`, `doctor`, `smoke`,
+`acquisition-check`, `single`, `run`, `stop-acquisition`, `autoscale`,
+`setup-save`, or `setup-recall`. Worker `/command` support remains
+unsupported. Force-trigger wait/poll/capture integration remains
+unsupported.
+
+Live hardware validation has not been performed for this command yet.
 
 Configure or query acquisition type and average count:
 

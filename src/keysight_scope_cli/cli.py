@@ -164,6 +164,7 @@ from keysight_scope_core.trigger import (
     edge_trigger_slope_query,
     edge_trigger_source_command,
     edge_trigger_source_query,
+    force_trigger_command,
     normalize_edge_slope,
     trigger_mode_edge_command,
     validate_trigger_level,
@@ -370,6 +371,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="start one single acquisition without waiting",
     )
     _add_scope_connection_args(single_parser)
+
+    force_trigger_parser = subparsers.add_parser(
+        "force-trigger",
+        help="force one trigger event without waiting for acquisition completion",
+    )
+    _add_scope_connection_args(force_trigger_parser)
 
     channel_display_parser = subparsers.add_parser(
         "channel-display",
@@ -1192,6 +1199,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_check_error(args)
     if args.command in _CONTROL_COMMANDS:
         return _cmd_control(args)
+    if args.command == "force-trigger":
+        return _cmd_force_trigger(args)
     if args.command == "channel-display":
         return _cmd_channel_display(args)
     if args.command == "channel-scale":
@@ -1820,6 +1829,14 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "steps": [],
             "final_acquisition": None,
             "files": files,
+        }
+    if command == "force-trigger":
+        planned = ["*IDN?", force_trigger_command(), ":SYSTem:ERRor?"]
+        return planned, [], {
+            "operation": "force-trigger",
+            "scpi_command": force_trigger_command(),
+            "planned_scpi": list(planned),
+            "state_changing": True,
         }
     if command == "sample-rate":
         planned = ["*IDN?", sample_rate_query(), ":SYSTem:ERRor?"]
@@ -3212,6 +3229,37 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
         for line in operation_result.human_lines:
             print(line)
         return operation_result.exit_code
+
+
+def _cmd_force_trigger(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print("Series: " + (idn.series or "unknown"))
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        print("Planned change: force one trigger event")
+        scope.scpi.write(force_trigger_command())
+        _json_update_result(
+            operation="force-trigger",
+            forced=True,
+            scpi_command=force_trigger_command(),
+        )
+        print("Command: " + force_trigger_command())
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print("System error: " + entry.format())
+        return 1 if entry.is_error else 0
 
 
 def _cmd_sample_rate(args: argparse.Namespace) -> int:

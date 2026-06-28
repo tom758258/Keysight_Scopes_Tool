@@ -185,3 +185,13 @@ def parse_trigger_float(raw: str, setting_name: str) -> float:
 
 def _format_scpi_float(value: float) -> str:
     return f"{value:.12g}"
+
+
+def force_trigger_command() -> str:
+    """Return the SCPI command that forces one trigger event.
+
+    The command is a one-shot state-changing write. It must not be combined with
+    trigger wait loops, acquisition completion polling, or capture workflows.
+    """
+
+    return ":TFORce"
