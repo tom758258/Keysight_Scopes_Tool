@@ -152,7 +152,7 @@ def test_edge_trigger_controller_rejects_invalid_channel_before_scpi():
 
 
 def test_force_trigger_command_returns_expected_scpi():
-    assert force_trigger_command() == ":TFORce"
+    assert force_trigger_command() == ":TRIGger:FORCe"
 
 
 def test_force_trigger_command_writes_only_force_trigger_scpi():
@@ -161,4 +161,4 @@ def test_force_trigger_command_writes_only_force_trigger_scpi():
 
     client.write(force_trigger_command())
 
-    assert backend.history == [":TFORce"]
+    assert backend.history == [":TRIGger:FORCe"]

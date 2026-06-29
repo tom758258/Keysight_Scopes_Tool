@@ -97,7 +97,9 @@ Current implemented scope:
 - Capture the current oscilloscope screen as a color PNG image, with an
   optional default timestamped output path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
-- Force one trigger event explicitly with `force-trigger` / `:TFORce`, without wait, poll, capture, or trigger/acquisition/timebase/waveform reconfiguration. Worker `/command` support remains unsupported.
+- Force one trigger event explicitly with `force-trigger` / `:TRIGger:FORCe`,
+  without wait, poll, capture, or trigger/acquisition/timebase/waveform
+  reconfiguration. Worker `/command` support remains unsupported.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
 does not perform return-to-local behavior. State-changing commands are exposed
@@ -178,7 +180,7 @@ Simulator configuration layers are applied in this order: built-in defaults,
 `--simulate-signal` and error injection options. Scenario files are JSON only.
 
 Agents should only access real hardware after explicit user approval. For a
-one-shot command, an explicit `--resource "USB0::...::INSTR"` or
+one-shot command, an explicit `--resource <RESOURCE>` or
 `KEYSIGHT_SCOPE_RESOURCE` opts in to that single live instrument. `--live`
 remains accepted for one-shot compatibility, but is not required and cannot be
 combined with `--simulate` or `--dry-run`. Live workers still require
@@ -227,44 +229,46 @@ This opens each listed resource and sends `*IDN?`. Resources that cannot be
 opened or do not respond to `*IDN?` are omitted. Add `--log-scpi` to show the
 verification query for each live check.
 
+Set the operator-selected live resource once in the current PowerShell session:
+
+```powershell
+$env:KEYSIGHT_SCOPE_RESOURCE = "USB0::...::INSTR"
+```
+
+The remaining live examples assume this environment variable is set. Replace
+the placeholder with the resource string selected by the operator.
+
 Verify that one resource can be opened and queried with `*IDN?`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli identify --resource "USB0::...::INSTR"
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli identify --resource "$env:KEYSIGHT_SCOPE_RESOURCE"
 ```
 
 Add `--log-scpi` to print the SCPI command log for manual hardware checks:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli identify --resource "USB0::...::INSTR" --log-scpi
-```
-
-For repeated hardware checks you can set:
-
-```powershell
-$env:KEYSIGHT_SCOPE_RESOURCE = "USB0::...::INSTR"
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli identify
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli identify --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
 ```
 
 Read one system error queue entry:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli check-error --resource "USB0::...::INSTR" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli check-error --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
 ```
 
 Drain the system error queue until no error is reported or the read limit is
 hit:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli check-error --resource "USB0::...::INSTR" --all --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli check-error --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --all --log-scpi
 ```
 
 Send basic acquisition control commands:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli stop-acquisition --resource "USB0::...::INSTR" --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli run --resource "USB0::...::INSTR" --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli single --resource "USB0::...::INSTR" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli stop-acquisition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli run --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli single --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
 ```
 
 The library methods `stop()`, `run()`, and `single()` each send only one SCPI
@@ -275,13 +279,13 @@ by querying one `:SYSTem:ERRor?` entry and printing the result. The
 Force one trigger event explicitly:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli force-trigger --resource "USB0::...::INSTR" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli force-trigger --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli force-trigger --dry-run --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli force-trigger --simulate --json --log-scpi
 ```
 
 `force-trigger` is an explicit state-changing one-shot action. It first
-queries `*IDN?`, then sends `:TFORce`, then performs one `:SYSTem:ERRor?`
+queries `*IDN?`, then sends `:TRIGger:FORCe`, then performs one `:SYSTem:ERRor?`
 post-check. It does not arm a single acquisition, does not wait for trigger
 or acquisition completion, does not capture waveform data, and does not
 change timebase, memory depth, acquisition mode, sample-rate mode, waveform
@@ -293,16 +297,17 @@ must not be combined with `capture`, `measure`, `doctor`, `smoke`,
 unsupported. Force-trigger wait/poll/capture integration remains
 unsupported.
 
-Live hardware validation has not been performed for this command yet.
+The long trigger force form is used for DSO-X 4000X firmware 07.20
+compatibility.
 
 Configure or query acquisition type and average count:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "USB0::...::INSTR" --query --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "USB0::...::INSTR" --type normal --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "USB0::...::INSTR" --type average --count 16 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "USB0::...::INSTR" --type high_resolution --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "USB0::...::INSTR" --type peak --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --type normal --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --type average --count 16 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --type high_resolution --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --type peak --log-scpi
 ```
 
 The `acquisition` command first queries `*IDN?`, then sends only the requested
@@ -317,7 +322,7 @@ acquisition mode, run/stop state, or return-to-local behavior.
 Query the current analog acquisition sample rate:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli sample-rate --resource "USB0::...::INSTR" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli sample-rate --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
 ```
 
 The `sample-rate` command is query-only and requires `--query`. It first
@@ -331,7 +336,7 @@ The short query form is used for DSO-X 4000X firmware 07.20 compatibility.
 Query the current analog acquisition memory depth / record length:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli memory-depth --query --resource "USB0::...::INSTR" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli memory-depth --query --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
 ```
 
 The `memory-depth` command is query-only and requires `--query`. It first
@@ -366,9 +371,9 @@ restore write.
 Enable, disable, or query one analog channel display:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-display --resource "USB0::...::INSTR" --channel 1 --on --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-display --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-display --resource "USB0::...::INSTR" --channel 1 --off --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-display --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --on --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-display --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-display --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --off --log-scpi
 ```
 
 The `channel-display` command first queries `*IDN?` so the channel number can be
@@ -380,15 +385,15 @@ post-check. `--query` only reads back the current display state with
 Set or query one analog channel vertical scale:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-scale --resource "USB0::...::INSTR" --channel 1 --volts-per-division 0.5 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-scale --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-scale --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --volts-per-division 0.5 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-scale --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
 ```
 
 Set or query one analog channel vertical offset:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-offset --resource "USB0::...::INSTR" --channel 1 --volts 0 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-offset --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-offset --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --volts 0 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-offset --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
 ```
 
 Scale must be a positive finite number in volts per division. Offset must be a
@@ -399,23 +404,23 @@ channel number against the detected model, then perform one
 Set or query one analog channel input coupling:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-coupling --resource "USB0::...::INSTR" --channel 1 --coupling dc --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-coupling --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-coupling --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --coupling dc --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-coupling --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
 ```
 
 Set or query one analog channel probe attenuation ratio:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-probe --resource "USB0::...::INSTR" --channel 1 --ratio 10 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-probe --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-probe --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --ratio 10 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-probe --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
 ```
 
 Enable, disable, or query one analog channel bandwidth limit:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-bandwidth-limit --resource "USB0::...::INSTR" --channel 1 --on --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-bandwidth-limit --resource "USB0::...::INSTR" --channel 1 --query --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-bandwidth-limit --resource "USB0::...::INSTR" --channel 1 --off --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-bandwidth-limit --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --on --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-bandwidth-limit --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-bandwidth-limit --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --off --log-scpi
 ```
 
 Channel coupling supports `ac` and `dc`. Probe ratio must be a positive finite
@@ -426,15 +431,15 @@ perform one `:SYSTem:ERRor?` post-check.
 Set or query the horizontal timebase scale:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-scale --resource "USB0::...::INSTR" --seconds-per-division 0.001 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-scale --resource "USB0::...::INSTR" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-scale --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --seconds-per-division 0.001 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-scale --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
 ```
 
 Set or query the horizontal timebase position:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-position --resource "USB0::...::INSTR" --seconds 0 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-position --resource "USB0::...::INSTR" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-position --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --seconds 0 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli timebase-position --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
 ```
 
 Timebase scale must be a positive finite number in seconds per division.
@@ -445,8 +450,8 @@ one `:SYSTem:ERRor?` post-check.
 Configure or query analog edge trigger source, level, and slope:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli edge-trigger --resource "USB0::...::INSTR" --source-channel 1 --level 0.25 --slope positive --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli edge-trigger --resource "USB0::...::INSTR" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli edge-trigger --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --level 0.25 --slope positive --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli edge-trigger --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
 ```
 
 The configure command sends `:TRIGger:MODE EDGE`, then sets source, level, and
@@ -457,37 +462,37 @@ level must be a finite number in volts.
 Query read-only measurements:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item vpp --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item frequency --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item period --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item vavg --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item vrms --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item ac_rms --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item minimum --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item maximum --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item x_at_max --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item x_at_min --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item rise_time --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item fall_time --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item amplitude --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item top --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item base --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item overshoot --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item preshoot --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item positive_width --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_width --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item duty_cycle --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_duty_cycle --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item area --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item positive_edges --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_edges --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item positive_pulses --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item negative_pulses --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item y_at_x --time 0 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item time_at_edge --slope positive --occurrence 1 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --channel 1 --item time_at_value --level 0.5 --slope positive --occurrence 1 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --source-channel 1 --reference-channel 2 --item phase --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "USB0::...::INSTR" --source-channel 1 --reference-channel 2 --item delay --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item vpp --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item frequency --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item period --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item vavg --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item vrms --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item ac_rms --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item minimum --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item maximum --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item x_at_max --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item x_at_min --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item rise_time --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item fall_time --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item amplitude --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item top --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item base --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item overshoot --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item preshoot --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item positive_width --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item negative_width --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item duty_cycle --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item negative_duty_cycle --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item area --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item positive_edges --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item negative_edges --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item positive_pulses --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item negative_pulses --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item y_at_x --time 0 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item time_at_edge --slope positive --occurrence 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --item time_at_value --level 0.5 --slope positive --occurrence 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --reference-channel 2 --item phase --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --reference-channel 2 --item delay --log-scpi
 ```
 
 The current measurement slice supports `vpp`, `frequency` (`freq` alias),
@@ -571,8 +576,8 @@ any invalid or error records were observed.
 Log a finite batch of measurements:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-log --resource "USB0::...::INSTR" --channel 1 --items vpp,frequency --count 10 --interval-seconds 1 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-log --resource "USB0::...::INSTR" --channel 1 --channel 2 --items vpp,frequency --pair 1:2 --pair-items phase --count 5 --output-dir data\measure_logs\ch1_ch2 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-log --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --items vpp,frequency --count 10 --interval-seconds 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-log --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --channel 2 --items vpp,frequency --pair 1:2 --pair-items phase --count 5 --output-dir data\measure_logs\ch1_ch2 --log-scpi
 ```
 
 `measure-log` is a finite read-only measurement logger. It requires `--count`
@@ -613,13 +618,13 @@ backend, output, or system-error failures make the command return non-zero.
 Capture waveform data:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "USB0::...::INSTR" --channel 1 --points 10000 --csv data\ch1.csv --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --csv data\ch1.csv --plot data\ch1.png --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "USB0::...::INSTR" --channel 1 --points 1000 --format word --csv data\ch1_word.csv --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --allow-time-axis-tolerance --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "USB0::...::INSTR" --channel all --points 1000 --csv data\all_channels.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --points 1000 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --points 10000 --csv data\ch1.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --points 1000 --csv data\ch1.csv --plot data\ch1.png --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --points 1000 --format word --csv data\ch1_word.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --allow-time-axis-tolerance --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel all --points 1000 --csv data\all_channels.csv --log-scpi
 ```
 
 The current capture slice supports BYTE and WORD waveform formats with 1000,
@@ -658,9 +663,9 @@ plain `error:` message instead of a Python traceback.
 Capture a finite waveform batch:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture-batch --resource "USB0::...::INSTR" --channel 1 --points 1000 --format byte --count 3 --interval-seconds 1 --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture-batch --resource "USB0::...::INSTR" --channel 1 --channel 2 --points 1000 --format word --count 2 --output-dir data\captures\ch1_ch2_batch --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture-batch --resource "USB0::...::INSTR" --channel all --points 1000 --count 2
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture-batch --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --points 1000 --format byte --count 3 --interval-seconds 1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture-batch --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --channel 2 --points 1000 --format word --count 2 --output-dir data\captures\ch1_ch2_batch --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture-batch --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel all --points 1000 --count 2
 ```
 
 `capture-batch` is a conservative finite batch capture command. `--count` is
@@ -717,9 +722,9 @@ recorder loop.
 Capture the current oscilloscope screen as a color PNG image:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "USB0::...::INSTR" --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "USB0::...::INSTR" --output data\screen.png --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "USB0::...::INSTR" --background white --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --output data\screen.png --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --background white --log-scpi
 ```
 
 The `screenshot` command first queries `*IDN?`, sets `:HARDcopy:INKSaver` for

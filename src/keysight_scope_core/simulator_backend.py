@@ -164,8 +164,8 @@ class SimulatorBackend:
         upper = command.upper()
         if upper in {":RUN", ":STOP", ":SINGLE"}:
             self.run_state = {"RUN": "running", "STOP": "stopped", "SINGLE": "single"}[upper[1:]]
-        elif upper == ":TFORCE":
-            # :TFORce forces one trigger event; record but do not change simulated state.
+        elif upper == ":TRIGGER:FORCE":
+            # Force one trigger event; record but do not change simulated state.
             pass
         elif upper.startswith(":WAVEFORM:SOURCE CHANNEL"):
             self.waveform_source = self._validate_channel(

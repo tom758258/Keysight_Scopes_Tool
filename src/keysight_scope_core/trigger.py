@@ -194,4 +194,4 @@ def force_trigger_command() -> str:
     trigger wait loops, acquisition completion polling, or capture workflows.
     """
 
-    return ":TFORce"
+    return ":TRIGger:FORCe"

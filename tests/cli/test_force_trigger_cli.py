@@ -7,7 +7,7 @@ import pytest
 from keysight_scope_cli import cli
 from keysight_scope_core.fake_backend import FakeBackend
 from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from keysight_scope_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 from keysight_scope_core.trigger import force_trigger_command
 
 
@@ -151,3 +151,10 @@ def test_force_trigger_simulator_does_not_change_simulated_state():
     assert backend.memory_depth_points == baseline_memory_depth
     assert backend.timebase_scale == baseline_timebase_scale
     assert backend.timebase_position == baseline_timebase_position
+
+
+def test_force_trigger_simulator_rejects_old_short_form():
+    backend = SimulatorBackend()
+
+    with pytest.raises(SimulatorBackendError, match="Unsupported simulator write"):
+        backend.write(":TFORce")

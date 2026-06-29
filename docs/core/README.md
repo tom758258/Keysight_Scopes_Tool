@@ -39,11 +39,11 @@ The Core runtime exposes a one-shot force-trigger helper:
 ```python
 from keysight_scope_core.trigger import force_trigger_command
 
-force_trigger_command() == ":TFORce"
+force_trigger_command() == ":TRIGger:FORCe"
 ```
 
 The helper only returns the SCPI command string. It does not open VISA,
 does not wait for the instrument, and does not change any acquisition or
 trigger configuration. Higher-level force-trigger behavior belongs to the
-CLI `force-trigger` command, which sends `:TFORce` and then performs one
+CLI `force-trigger` command, which sends `:TRIGger:FORCe` and then performs one
 `:SYSTem:ERRor?` post-check.
