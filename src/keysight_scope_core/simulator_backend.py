@@ -278,7 +278,7 @@ class SimulatorBackend:
             return "1" if self.hardcopy_inksaver else "0"
         if upper == ":ACQUIRE:TYPE?":
             return self.acquisition_type
-        if upper == ":ACQUIRE:SRATE:ANALOG?":
+        if upper == ":ACQUIRE:SRATE?":
             return f"{self.sample_rate_hz:.6E}"
         if upper == ":ACQUIRE:POINTS:ANALOG?":
             return str(self.memory_depth_points)

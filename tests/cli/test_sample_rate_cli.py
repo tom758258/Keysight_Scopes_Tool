@@ -123,7 +123,7 @@ def test_sample_rate_cli_simulate_returns_sample_rate_in_hz(monkeypatch, capsys)
 
 
 def test_sample_rate_cli_command_order_with_fake_backend():
-    backend = FakeBackend(responses={":ACQuire:SRATe:ANALog?": "5.000000E+09"})
+    backend = FakeBackend(responses={sample_rate_query(): "5.000000E+09"})
     client = SCPIClient(backend)
 
     raw = client.query(sample_rate_query())

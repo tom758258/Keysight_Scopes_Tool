@@ -55,7 +55,7 @@ Current implemented scope:
 - Configure or query acquisition type and average count with
   `:ACQuire:TYPE` and `:ACQuire:COUNt`.
 - Query the current analog acquisition sample rate in Hz with
-  `:ACQuire:SRATe:ANALog?`.
+  `:ACQuire:SRATe?`.
 - Query the current analog acquisition memory depth / record length in
   points with `:ACQuire:POINts:ANALog?`. This command is read-only. It
   does not configure memory depth, and it is separate from waveform
@@ -321,12 +321,12 @@ Query the current analog acquisition sample rate:
 ```
 
 The `sample-rate` command is query-only and requires `--query`. It first
-queries `*IDN?`, then sends `:ACQuire:SRATe:ANALog?` and performs one
+queries `*IDN?`, then sends `:ACQuire:SRATe?` and performs one
 `:SYSTem:ERRor?` post-check. The response is parsed as an NR3 number and
 reported in Hz together with the raw readback. It does not change timebase,
 memory depth, acquisition mode, sample-rate auto/manual mode, waveform
 points, trigger settings, VISA timeout, or return-to-local behavior.
-Live hardware validation has not been performed for this command yet.
+The short query form is used for DSO-X 4000X firmware 07.20 compatibility.
 
 Query the current analog acquisition memory depth / record length:
 

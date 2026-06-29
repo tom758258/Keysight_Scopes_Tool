@@ -152,7 +152,7 @@ def acquisition_count_command(count: int) -> str:
 def sample_rate_query() -> str:
     """Return the SCPI query for the current analog acquisition sample rate."""
 
-    return ":ACQuire:SRATe:ANALog?"
+    return ":ACQuire:SRATe?"
 
 
 def parse_sample_rate(response: str) -> float:

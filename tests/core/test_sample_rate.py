@@ -13,7 +13,7 @@ from keysight_scope_core.simulator_backend import SimulatorBackend
 
 
 def test_sample_rate_query_returns_keysight_short_form():
-    assert sample_rate_query() == ":ACQuire:SRATe:ANALog?"
+    assert sample_rate_query() == ":ACQuire:SRATe?"
 
 
 @pytest.mark.parametrize(
@@ -42,22 +42,22 @@ def test_parse_sample_rate_rejects_invalid_response(raw):
 def test_simulator_backend_reports_default_sample_rate():
     backend = SimulatorBackend()
 
-    assert backend.query(":ACQuire:SRATe:ANALog?") == "5.000000E+09"
+    assert backend.query(sample_rate_query()) == "5.000000E+09"
 
 
 def test_simulator_backend_reports_configured_sample_rate():
     backend = SimulatorBackend(sample_rate_hz=1.25e8)
 
-    assert backend.query(":ACQuire:SRATe:ANALog?") == "1.250000E+08"
+    assert backend.query(sample_rate_query()) == "1.250000E+08"
 
 
 def test_fake_backend_records_sample_rate_query():
-    backend = FakeBackend(responses={":ACQuire:SRATe:ANALog?": "5.000000E+09"})
+    backend = FakeBackend(responses={sample_rate_query(): "5.000000E+09"})
     client = SCPIClient(backend)
 
     raw = client.query(sample_rate_query())
     value = parse_sample_rate(raw)
 
     assert value == 5e9
-    assert backend.history == [":ACQuire:SRATe:ANALog?"]
+    assert backend.history == [sample_rate_query()]
 
