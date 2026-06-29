@@ -188,7 +188,7 @@ def acquisition_count_query() -> str:
 def memory_depth_query() -> str:
     """Return the SCPI query for the current analog acquisition memory depth."""
 
-    return ":ACQuire:POINts:ANALog?"
+    return ":ACQuire:POINts?"
 
 
 def parse_memory_depth(response: str) -> int:

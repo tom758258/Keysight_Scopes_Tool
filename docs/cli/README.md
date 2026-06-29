@@ -56,10 +56,10 @@ Current implemented scope:
   `:ACQuire:TYPE` and `:ACQuire:COUNt`.
 - Query the current analog acquisition sample rate in Hz with
   `:ACQuire:SRATe?`.
-- Query the current analog acquisition memory depth / record length in
-  points with `:ACQuire:POINts:ANALog?`. This command is read-only. It
-  does not configure memory depth, and it is separate from waveform
-  transfer point count controlled by `capture --points`.
+- Query the current analog acquisition points / memory depth / record length
+  with `:ACQuire:POINts?`. This command is read-only. It does not configure
+  memory depth, and it is separate from waveform transfer point count
+  controlled by `capture --points`.
 - Enable, disable, or query analog channel display state with
   `:CHANnel<n>:DISPlay`.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
@@ -335,16 +335,15 @@ Query the current analog acquisition memory depth / record length:
 ```
 
 The `memory-depth` command is query-only and requires `--query`. It first
-queries `*IDN?`, then sends `:ACQuire:POINts:ANALog?` and performs one
+queries `*IDN?`, then sends `:ACQuire:POINts?` and performs one
 `:SYSTem:ERRor?` post-check. The response is parsed as an integer
-representing the configured analog acquisition memory depth / record length
-in points, together with the raw readback. It does not configure memory
+representing the current analog acquisition points / memory depth / record
+length, together with the raw readback. It does not configure memory
 depth, change acquisition mode, timebase, sample-rate, trigger settings,
 waveform format, waveform points, VISA timeout, or return-to-local
 behavior. `memory-depth --query` reads acquisition memory depth and is
 separate from `capture --points`, which controls waveform transfer point
-count. Live hardware validation has not been performed for this command
-yet.
+count.
 
 Run the acquisition configuration validation workflow and write a report
 directory:

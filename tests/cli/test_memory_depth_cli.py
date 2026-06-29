@@ -162,7 +162,7 @@ def test_memory_depth_cli_simulate_scpi_order(monkeypatch, capsys):
 
 
 def test_memory_depth_cli_command_order_with_fake_backend():
-    backend = FakeBackend(responses={":ACQuire:POINts:ANALog?": "1000000"})
+    backend = FakeBackend(responses={":ACQuire:POINts?": "1000000"})
     client = SCPIClient(backend)
 
     raw = client.query(memory_depth_query())

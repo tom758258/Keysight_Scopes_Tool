@@ -13,7 +13,7 @@ from keysight_scope_core.simulator_backend import SimulatorBackend
 
 
 def test_memory_depth_query_returns_keysight_short_form():
-    assert memory_depth_query() == ":ACQuire:POINts:ANALog?"
+    assert memory_depth_query() == ":ACQuire:POINts?"
 
 
 @pytest.mark.parametrize(
@@ -41,21 +41,21 @@ def test_parse_memory_depth_rejects_invalid_response(raw):
 def test_simulator_backend_reports_default_memory_depth():
     backend = SimulatorBackend()
 
-    assert backend.query(":ACQuire:POINts:ANALog?") == "1000000"
+    assert backend.query(":ACQuire:POINts?") == "1000000"
 
 
 def test_simulator_backend_reports_configured_memory_depth():
     backend = SimulatorBackend(memory_depth_points=2500)
 
-    assert backend.query(":ACQuire:POINts:ANALog?") == "2500"
+    assert backend.query(":ACQuire:POINts?") == "2500"
 
 
 def test_fake_backend_records_memory_depth_query():
-    backend = FakeBackend(responses={":ACQuire:POINts:ANALog?": "1000000"})
+    backend = FakeBackend(responses={":ACQuire:POINts?": "1000000"})
     client = SCPIClient(backend)
 
     raw = client.query(memory_depth_query())
     value = parse_memory_depth(raw)
 
     assert value == 1000000
-    assert backend.history == [":ACQuire:POINts:ANALog?"]
+    assert backend.history == [":ACQuire:POINts?"]

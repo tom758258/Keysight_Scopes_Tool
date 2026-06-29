@@ -280,7 +280,7 @@ class SimulatorBackend:
             return self.acquisition_type
         if upper == ":ACQUIRE:SRATE?":
             return f"{self.sample_rate_hz:.6E}"
-        if upper == ":ACQUIRE:POINTS:ANALOG?":
+        if upper == ":ACQUIRE:POINTS?":
             return str(self.memory_depth_points)
         if upper == ":ACQUIRE:COUNT?":
             return str(self.acquisition_count)
