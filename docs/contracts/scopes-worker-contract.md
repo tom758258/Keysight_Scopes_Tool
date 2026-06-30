@@ -122,8 +122,8 @@ The worker does not implement `/trigger`, `trigger_url`, or `soft-*` endpoints.
 Worker `/command` supports the existing Scopes capability surface:
 
 - `identify`, `check-error`, `doctor`
-- `run`, `single`, `stop-acquisition`
-- `acquisition`, `acquisition-check`
+- `run`, `single`, `stop-acquisition`, `force-trigger`
+- `acquisition`, `acquisition-check`, `sample-rate`, `memory-depth`
 - `capture`, `capture-batch`, `screenshot`, `smoke`
 - `measure`, `measure-stats`, `measure-sweep`, `measure-log`
 - `channel-display`, `channel-scale`, `channel-offset`, `channel-coupling`,
@@ -136,13 +136,9 @@ Worker `/command` supports the existing Scopes capability surface:
 flows. `hardware-report` remains a local report renderer. They are not accepted
 by worker `/command`.
 
-Unsupported command names include `force-trigger`, `sample-rate`,
-`memory-depth`, `snapshot`, `restore`, `diff`, generic `math`, and domain
-`status`. Worker status is reserved for lifecycle `GET /status` and
-`keysight-scopes status`.
-One-shot CLI `sample-rate` query is implemented and remains a one-shot
-command only. Worker `sample-rate` remains unsupported.
-One-shot CLI `force-trigger` action is implemented and remains a one-shot command only. Worker `force-trigger` remains unsupported.
+Unsupported command names include `snapshot`, `restore`, `diff`, generic
+`math`, and domain `status`. Worker status is reserved for lifecycle
+`GET /status` and `keysight-scopes status`.
 
 Arguments use the CLI option names without leading dashes and with underscores
 accepted as JSON keys, for example:
@@ -157,6 +153,23 @@ accepted as JSON keys, for example:
     "plot": "plot.png"
   }
 }
+```
+
+Query-only worker commands require the same explicit CLI query flag in JSON
+form:
+
+```json
+{"command": "sample-rate", "arguments": {"query": true}}
+```
+
+```json
+{"command": "memory-depth", "arguments": {"query": true}}
+```
+
+`force-trigger` is accepted only as an explicit command:
+
+```json
+{"command": "force-trigger", "arguments": {}}
 ```
 
 Validation errors must reject before enqueue and before any artifact, VISA, or
@@ -205,6 +218,10 @@ recorded as absolute paths. Default worker outputs are:
 - `screenshot`: `screen.png` in the job directory.
 - `capture-batch`, `measure-log`, `smoke`, and `acquisition-check`: the job
   directory is the default `output_dir`.
+
+`sample-rate`, `memory-depth`, and `force-trigger` do not create command
+artifacts. Their terminal `result.json.result` contains the existing one-shot
+structured `result` fields for that command.
 
 Directory-output commands may use the worker job directory even though
 `request.json` already exists there. Other pre-existing command artifact paths

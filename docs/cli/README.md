@@ -99,7 +99,7 @@ Current implemented scope:
 - Provide hardware-free tests through `FakeBackend`.
 - Force one trigger event explicitly with `force-trigger` / `:TRIGger:FORCe`,
   without wait, poll, capture, or trigger/acquisition/timebase/waveform
-  reconfiguration. Worker `/command` support remains unsupported.
+  reconfiguration.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
 does not perform return-to-local behavior. State-changing commands are exposed
@@ -293,12 +293,18 @@ points, waveform format, display state, VISA timeout, trigger source, trigger
 level, trigger slope, trigger sweep, or return-to-local behavior. `force-trigger`
 must not be combined with `capture`, `measure`, `doctor`, `smoke`,
 `acquisition-check`, `single`, `run`, `stop-acquisition`, `autoscale`,
-`setup-save`, or `setup-recall`. Worker `/command` support remains
-unsupported. Force-trigger wait/poll/capture integration remains
-unsupported.
+`setup-save`, or `setup-recall`. Worker `/command` support is available only
+through the explicit `force-trigger` command with `arguments: {}`.
+Force-trigger wait/poll/capture integration remains unsupported.
 
 The long trigger force form is used for DSO-X 4000X firmware 07.20
 compatibility.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command force-trigger --arguments-json "{}" --json
+```
 
 Configure or query acquisition type and average count:
 
@@ -333,6 +339,12 @@ memory depth, acquisition mode, sample-rate auto/manual mode, waveform
 points, trigger settings, VISA timeout, or return-to-local behavior.
 The short query form is used for DSO-X 4000X firmware 07.20 compatibility.
 
+Worker usage requires the same query-only intent:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true}" --json
+```
+
 Query the current analog acquisition memory depth / record length:
 
 ```powershell
@@ -349,6 +361,12 @@ waveform format, waveform points, VISA timeout, or return-to-local
 behavior. `memory-depth --query` reads acquisition memory depth and is
 separate from `capture --points`, which controls waveform transfer point
 count.
+
+Worker usage requires the same query-only intent:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command memory-depth --arguments-json "{\"query\":true}" --json
+```
 
 Run the acquisition configuration validation workflow and write a report
 directory:

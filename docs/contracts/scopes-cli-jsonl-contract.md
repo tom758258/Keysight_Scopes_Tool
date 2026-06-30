@@ -132,6 +132,8 @@ Discovery and identification:
 Control and setup:
 
 - `run`, `stop-acquisition`, `single`: `action`, `command`.
+- `force-trigger`: `operation`, `forced`, `scpi_command`, and
+  `human_output`.
 - `channel-*`: `channel`, `operation`, `command`, and the setting value such as
   `display`, `volts_per_division`, `volts`, `coupling`, `probe_ratio`, or
   `bandwidth_limit`.
@@ -144,6 +146,10 @@ Control and setup:
   `x2_seconds`, optional `y1_volts`, `y2_volts`, `auto_timebase`,
   `auto_vertical`, and `diagnostic`.
 - `acquisition`: `operation`, `commands`, `type`, `scpi_type`, `count`.
+- `sample-rate`: `operation`, `sample_rate_hz`, `raw_value`, `unit`,
+  `scpi_command`, and `human_output`.
+- `memory-depth`: `operation`, `memory_depth_points`, `raw_value`, `unit`,
+  `scpi_command`, and `human_output`.
 - `autoscale`: `operation`, `commands`, `source_channels`, optional
   `fallback`.
 - `setup-save` and `setup-recall`: `operation`, `command`, `slot`, `file`.

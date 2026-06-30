@@ -35,11 +35,14 @@ through `keysight-scopes send-command`:
 ```text
 keysight-scopes send-command --port 8765 --command identify --arguments-json "{}" --json
 keysight-scopes send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000}" --json
+keysight-scopes send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command memory-depth --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command force-trigger --arguments-json "{}" --json
 ```
 
 The accepted response only means the Common envelope was accepted and the
-Scopes job was enqueued. It is not command success. Poll status or read the job
-artifact:
+Scopes job was enqueued. It is not command success, trigger success, or query
+success. Poll status or read the job artifact:
 
 ```text
 keysight-scopes status --port 8765 --json

@@ -15,9 +15,11 @@ import pytest
 
 from keysight_scope_cli import cli
 from keysight_scope_cli import worker
+from keysight_scope_core.acquisition import memory_depth_query, sample_rate_query
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.idn import parse_idn
+from keysight_scope_core.trigger import force_trigger_command
 
 
 def _runtime(artifact_root=Path("data/worker"), queue_max=32):
@@ -216,6 +218,20 @@ def test_worker_request_rejects_non_object_arguments():
         worker.validate_command_request({"command": "identify", "arguments": []})
 
 
+@pytest.mark.parametrize(
+    "command,arguments",
+    (
+        ("sample-rate", {"query": True}),
+        ("memory-depth", {"query": True}),
+        ("force-trigger", {}),
+    ),
+)
+def test_worker_request_accepts_trigger_and_acquisition_queries(command, arguments):
+    assert worker.validate_command_request(
+        {"command": command, "arguments": arguments, "job_id": "job-1"}
+    ) == (command, arguments, "job-1")
+
+
 def test_command_acceptance_returns_common_envelope_and_artifact(tmp_path):
     runtime = _runtime(tmp_path)
     with _worker_server(runtime):
@@ -371,6 +387,44 @@ def test_worker_parses_domain_arguments_without_opening_backend():
     assert parsed.json_output is True
 
 
+def test_worker_parses_sample_rate_query_without_opening_backend():
+    parsed = worker.parse_domain_command(
+        "sample-rate",
+        {"query": True},
+        _runtime(),
+    )
+
+    assert parsed.command == "sample-rate"
+    assert parsed.sample_rate_query is True
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+
+
+def test_worker_parses_memory_depth_query_without_opening_backend():
+    parsed = worker.parse_domain_command(
+        "memory-depth",
+        {"query": True},
+        _runtime(),
+    )
+
+    assert parsed.command == "memory-depth"
+    assert parsed.memory_depth_query_flag is True
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+
+
+def test_worker_parses_force_trigger_without_opening_backend():
+    parsed = worker.parse_domain_command(
+        "force-trigger",
+        {},
+        _runtime(),
+    )
+
+    assert parsed.command == "force-trigger"
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+
+
 def test_worker_parse_rejects_invalid_domain_arguments():
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command(
@@ -378,6 +432,12 @@ def test_worker_parse_rejects_invalid_domain_arguments():
             {"channel": 9, "volts_per_division": 0.5},
             _runtime(),
         )
+
+
+@pytest.mark.parametrize("command", ("sample-rate", "memory-depth"))
+def test_worker_parse_rejects_query_commands_without_query_flag(command):
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command(command, {}, _runtime())
 
 
 def test_send_command_dry_run_does_not_contact_http(capsys):
@@ -702,6 +762,50 @@ def test_stop_cancels_queued_job_with_terminal_result(tmp_path):
     assert result["ok"] is False
     assert result["exit_code"] == 3
     assert runtime.cancelled == 1
+
+
+def _execute_worker_job(runtime, command, arguments, artifact_path):
+    artifact_path.mkdir(parents=True)
+    (artifact_path / "request.json").write_text("{}", encoding="utf-8")
+    job = worker.WorkerJob(
+        command=command,
+        arguments=arguments,
+        job_id="client-job",
+        worker_job_id=command.replace("-", "_"),
+        artifact_path=artifact_path,
+        request_time="requested",
+        accepted_time="accepted",
+    )
+    runtime.jobs[job.worker_job_id] = job
+    thread = threading.Thread(target=worker._job_loop, args=(runtime,), daemon=True)
+    thread.start()
+    runtime.queue.put(job)
+    runtime.queue.join()
+    return job, json.loads((artifact_path / "result.json").read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments", "scpi_command", "field", "expected_value"),
+    (
+        ("sample-rate", {"query": True}, sample_rate_query(), "sample_rate_hz", 5e9),
+        ("memory-depth", {"query": True}, memory_depth_query(), "memory_depth_points", 1000000),
+        ("force-trigger", {}, force_trigger_command(), "forced", True),
+    ),
+)
+def test_worker_executes_trigger_and_acquisition_queries_in_simulator(
+    tmp_path, command, arguments, scpi_command, field, expected_value
+):
+    runtime = _runtime(tmp_path)
+
+    job, result = _execute_worker_job(runtime, command, arguments, tmp_path / command)
+
+    assert result["state"] == "succeeded"
+    assert result["ok"] is True
+    assert result["exit_code"] == 0
+    assert result["files"] == []
+    assert result["result"]["scpi_command"] == scpi_command
+    assert result["result"][field] == expected_value
+    assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
 
 
 class _FakeBackend:
