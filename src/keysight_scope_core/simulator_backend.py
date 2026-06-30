@@ -120,6 +120,7 @@ class SimulatorBackend:
     acquisition_type: str = "NORMal"
     acquisition_count: int = 8
     sample_rate_hz: float = 5e9
+    maximum_sample_rate_hz: float = 5e9
     memory_depth_points: int = 1000000
 
     run_state: str = "stopped"
@@ -278,6 +279,8 @@ class SimulatorBackend:
             return "1" if self.hardcopy_inksaver else "0"
         if upper == ":ACQUIRE:TYPE?":
             return self.acquisition_type
+        if upper == ":ACQUIRE:SRATE? MAXIMUM":
+            return f"{self.maximum_sample_rate_hz:.6E}"
         if upper == ":ACQUIRE:SRATE?":
             return f"{self.sample_rate_hz:.6E}"
         if upper == ":ACQUIRE:POINTS?":

@@ -22,6 +22,7 @@ from keysight_scope_core.acquisition import (
     normalize_acquisition_type,
     parse_memory_depth,
     parse_sample_rate,
+    sample_rate_maximum_query,
     sample_rate_query,
     memory_depth_query,
     validate_acquisition_count,
@@ -967,6 +968,12 @@ def _build_parser() -> argparse.ArgumentParser:
         required=True,
         help="query the current analog acquisition sample rate",
     )
+    sample_rate_parser.add_argument(
+        "--maximum",
+        dest="sample_rate_maximum",
+        action="store_true",
+        help="query the maximum analog acquisition sample rate",
+    )
 
     memory_depth_parser = subparsers.add_parser(
         "memory-depth",
@@ -1839,13 +1846,17 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "state_changing": True,
         }
     if command == "sample-rate":
-        planned = ["*IDN?", sample_rate_query(), ":SYSTem:ERRor?"]
-        return planned, [], {
+        query_command = _sample_rate_query_command(args)
+        planned = ["*IDN?", query_command, ":SYSTem:ERRor?"]
+        result = {
             "operation": "query",
-            "scpi_command": sample_rate_query(),
+            "scpi_command": query_command,
             "planned_scpi": list(planned),
             "unit": "Hz",
         }
+        if getattr(args, "sample_rate_maximum", False):
+            result["query_kind"] = "maximum"
+        return planned, [], result
     if command == "memory-depth":
         planned = ["*IDN?", memory_depth_query(), ":SYSTem:ERRor?"]
         return planned, [], {
@@ -3262,6 +3273,12 @@ def _cmd_force_trigger(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
+def _sample_rate_query_command(args: argparse.Namespace) -> str:
+    if getattr(args, "sample_rate_maximum", False):
+        return sample_rate_maximum_query()
+    return sample_rate_query()
+
+
 def _cmd_sample_rate(args: argparse.Namespace) -> int:
     resource = _require_resource(args)
     if resource is None:
@@ -3279,19 +3296,31 @@ def _cmd_sample_rate(args: argparse.Namespace) -> int:
             print("Capabilities: unavailable for this model")
             return 1
 
-        print("Planned query: analog acquisition sample rate")
-        raw = scope.scpi.query(sample_rate_query())
+        query_command = _sample_rate_query_command(args)
+        if getattr(args, "sample_rate_maximum", False):
+            print("Planned query: maximum analog acquisition sample rate")
+        else:
+            print("Planned query: analog acquisition sample rate")
+        raw = scope.scpi.query(query_command)
         sample_rate_hz = parse_sample_rate(raw)
-        print("Command: " + sample_rate_query())
-        print("Sample rate: " + f"{sample_rate_hz:.6e}" + " Hz")
+        print("Command: " + query_command)
+        if getattr(args, "sample_rate_maximum", False):
+            print("Maximum sample rate: " + f"{sample_rate_hz:.6e}" + " Hz")
+        else:
+            print("Sample rate: " + f"{sample_rate_hz:.6e}" + " Hz")
         print("Raw value: " + raw.strip())
-        _json_update_result(
-            operation="query",
-            sample_rate_hz=sample_rate_hz,
-            raw_value=raw.strip(),
-            unit="Hz",
-            scpi_command=sample_rate_query(),
-        )
+        result = {
+            "operation": "query",
+            "raw_value": raw.strip(),
+            "unit": "Hz",
+            "scpi_command": query_command,
+        }
+        if getattr(args, "sample_rate_maximum", False):
+            result["query_kind"] = "maximum"
+            result["maximum_sample_rate_hz"] = sample_rate_hz
+        else:
+            result["sample_rate_hz"] = sample_rate_hz
+        _json_update_result(**result)
         entry = scope.query_system_error()
         _json_record_system_error(entry)
         print("System error: " + entry.format())

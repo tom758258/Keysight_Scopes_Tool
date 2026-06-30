@@ -15,7 +15,11 @@ import pytest
 
 from keysight_scope_cli import cli
 from keysight_scope_cli import worker
-from keysight_scope_core.acquisition import memory_depth_query, sample_rate_query
+from keysight_scope_core.acquisition import (
+    memory_depth_query,
+    sample_rate_maximum_query,
+    sample_rate_query,
+)
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.idn import parse_idn
@@ -222,6 +226,7 @@ def test_worker_request_rejects_non_object_arguments():
     "command,arguments",
     (
         ("sample-rate", {"query": True}),
+        ("sample-rate", {"query": True, "maximum": True}),
         ("memory-depth", {"query": True}),
         ("force-trigger", {}),
     ),
@@ -251,6 +256,50 @@ def test_command_acceptance_returns_common_envelope_and_artifact(tmp_path):
         "arguments": {},
         "job_id": "job-1",
     }
+
+
+def test_command_acceptance_validates_sample_rate_maximum_before_enqueue(tmp_path):
+    runtime = _runtime(tmp_path)
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": "sample-rate",
+                "arguments": {"query": True, "maximum": True},
+                "job_id": "job-maximum",
+            },
+        )
+
+    assert status == 202
+    assert payload["status"] == "accepted"
+    assert payload["command"] == "sample-rate"
+    assert payload["job_id"] == "job-maximum"
+    request_path = Path(payload["artifact_path"]) / "request.json"
+    assert json.loads(request_path.read_text(encoding="utf-8")) == {
+        "command": "sample-rate",
+        "arguments": {"query": True, "maximum": True},
+        "job_id": "job-maximum",
+    }
+
+
+def test_command_acceptance_rejects_sample_rate_maximum_without_query_before_artifact(tmp_path):
+    runtime = _runtime(tmp_path)
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": "sample-rate",
+                "arguments": {"maximum": True},
+                "job_id": "job-bad",
+            },
+        )
+
+    assert status == 400
+    assert payload["status"] == "error"
+    assert payload["command"] == "sample-rate"
+    assert payload["job_id"] == "job-bad"
+    assert runtime.jobs == {}
+    assert not (tmp_path / runtime.run_id).exists()
 
 
 def test_worker_correlation_flows_through_events_and_artifacts(tmp_path):
@@ -400,6 +449,20 @@ def test_worker_parses_sample_rate_query_without_opening_backend():
     assert parsed.json_output is True
 
 
+def test_worker_parses_sample_rate_maximum_query_without_opening_backend():
+    parsed = worker.parse_domain_command(
+        "sample-rate",
+        {"query": True, "maximum": True},
+        _runtime(),
+    )
+
+    assert parsed.command == "sample-rate"
+    assert parsed.sample_rate_query is True
+    assert parsed.sample_rate_maximum is True
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+
+
 def test_worker_parses_memory_depth_query_without_opening_backend():
     parsed = worker.parse_domain_command(
         "memory-depth",
@@ -438,6 +501,11 @@ def test_worker_parse_rejects_invalid_domain_arguments():
 def test_worker_parse_rejects_query_commands_without_query_flag(command):
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command(command, {}, _runtime())
+
+
+def test_worker_parse_rejects_sample_rate_maximum_without_query_flag():
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command("sample-rate", {"maximum": True}, _runtime())
 
 
 def test_send_command_dry_run_does_not_contact_http(capsys):
@@ -788,7 +856,20 @@ def _execute_worker_job(runtime, command, arguments, artifact_path):
     ("command", "arguments", "scpi_command", "field", "expected_value"),
     (
         ("sample-rate", {"query": True}, sample_rate_query(), "sample_rate_hz", 5e9),
-        ("memory-depth", {"query": True}, memory_depth_query(), "memory_depth_points", 1000000),
+        (
+            "sample-rate",
+            {"query": True, "maximum": True},
+            sample_rate_maximum_query(),
+            "maximum_sample_rate_hz",
+            5e9,
+        ),
+        (
+            "memory-depth",
+            {"query": True},
+            memory_depth_query(),
+            "memory_depth_points",
+            1000000,
+        ),
         ("force-trigger", {}, force_trigger_command(), "forced", True),
     ),
 )
@@ -805,6 +886,8 @@ def test_worker_executes_trigger_and_acquisition_queries_in_simulator(
     assert result["files"] == []
     assert result["result"]["scpi_command"] == scpi_command
     assert result["result"][field] == expected_value
+    if arguments.get("maximum"):
+        assert result["result"]["query_kind"] == "maximum"
     assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
 
 

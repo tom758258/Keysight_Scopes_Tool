@@ -155,6 +155,12 @@ def sample_rate_query() -> str:
     return ":ACQuire:SRATe?"
 
 
+def sample_rate_maximum_query() -> str:
+    """Return the SCPI query for the maximum analog acquisition sample rate."""
+
+    return ":ACQuire:SRATe? MAXimum"
+
+
 def parse_sample_rate(response: str) -> float:
     """Parse an NR3 sample-rate response in Hz."""
 

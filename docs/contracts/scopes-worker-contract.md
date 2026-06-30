@@ -163,6 +163,10 @@ form:
 ```
 
 ```json
+{"command": "sample-rate", "arguments": {"query": true, "maximum": true}}
+```
+
+```json
 {"command": "memory-depth", "arguments": {"query": true}}
 ```
 
@@ -221,7 +225,8 @@ recorded as absolute paths. Default worker outputs are:
 
 `sample-rate`, `memory-depth`, and `force-trigger` do not create command
 artifacts. Their terminal `result.json.result` contains the existing one-shot
-structured `result` fields for that command.
+structured `result` fields for that command. For `sample-rate` maximum queries,
+that includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.
 
 Directory-output commands may use the worker job directory even though
 `request.json` already exists there. Other pre-existing command artifact paths

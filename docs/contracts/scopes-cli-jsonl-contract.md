@@ -146,8 +146,9 @@ Control and setup:
   `x2_seconds`, optional `y1_volts`, `y2_volts`, `auto_timebase`,
   `auto_vertical`, and `diagnostic`.
 - `acquisition`: `operation`, `commands`, `type`, `scpi_type`, `count`.
-- `sample-rate`: `operation`, `sample_rate_hz`, `raw_value`, `unit`,
-  `scpi_command`, and `human_output`.
+- `sample-rate`: `operation`, `sample_rate_hz` for current-rate queries,
+  `query_kind` and `maximum_sample_rate_hz` for maximum-rate queries,
+  `raw_value`, `unit`, `scpi_command`, and `human_output`.
 - `memory-depth`: `operation`, `memory_depth_points`, `raw_value`, `unit`,
   `scpi_command`, and `human_output`.
 - `autoscale`: `operation`, `commands`, `source_channels`, optional

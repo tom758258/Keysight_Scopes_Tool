@@ -5,7 +5,11 @@ import json
 import pytest
 
 from keysight_scope_cli import cli
-from keysight_scope_core.acquisition import parse_sample_rate, sample_rate_query
+from keysight_scope_core.acquisition import (
+    parse_sample_rate,
+    sample_rate_maximum_query,
+    sample_rate_query,
+)
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.fake_backend import FakeBackend
 from keysight_scope_core.idn import parse_idn
@@ -43,6 +47,8 @@ class _SampleRateDummyScope:
     def query(self, command):
         self.calls.append(("query", command))
         if command == sample_rate_query():
+            return "5.000000E+09"
+        if command == sample_rate_maximum_query():
             return "5.000000E+09"
         raise AssertionError("unexpected SCPI command: " + command)
 
@@ -97,6 +103,39 @@ def test_sample_rate_cli_dry_run_includes_planned_scpi_without_visa(monkeypatch,
     assert payload["files"] == []
 
 
+def test_sample_rate_cli_maximum_dry_run_includes_planned_scpi_without_visa(monkeypatch, capsys):
+    _install_sample_rate_scope(monkeypatch)
+
+    def fail_open(resource, visa_library=None):
+        raise AssertionError("dry-run must not open VISA")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert cli.main([
+        "sample-rate",
+        "--query",
+        "--maximum",
+        "--dry-run",
+        "--json",
+    ]) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["ok"] is True
+    assert payload["command"] == "sample-rate"
+    assert payload["mode"] == "dry_run"
+    assert payload["result"]["operation"] == "query"
+    assert payload["result"]["query_kind"] == "maximum"
+    assert payload["result"]["scpi_command"] == sample_rate_maximum_query()
+    assert payload["result"]["planned_scpi"] == [
+        "*IDN?",
+        sample_rate_maximum_query(),
+        ":SYSTem:ERRor?",
+    ]
+    assert payload["scpi"]["planned"] == payload["result"]["planned_scpi"]
+    assert payload["files"] == []
+
+
 def test_sample_rate_cli_simulate_returns_sample_rate_in_hz(monkeypatch, capsys):
     _install_sample_rate_scope(monkeypatch)
 
@@ -122,6 +161,33 @@ def test_sample_rate_cli_simulate_returns_sample_rate_in_hz(monkeypatch, capsys)
     assert ":SYSTem:ERRor?" in sent
 
 
+def test_sample_rate_cli_simulate_returns_maximum_sample_rate_in_hz(monkeypatch, capsys):
+    _install_sample_rate_scope(monkeypatch)
+
+    assert cli.main([
+        "sample-rate",
+        "--query",
+        "--maximum",
+        "--simulate",
+        "--json",
+    ]) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["ok"] is True
+    assert payload["mode"] == "simulate"
+    assert payload["result"]["operation"] == "query"
+    assert payload["result"]["query_kind"] == "maximum"
+    assert payload["result"]["unit"] == "Hz"
+    assert payload["result"]["scpi_command"] == sample_rate_maximum_query()
+    assert payload["result"]["maximum_sample_rate_hz"] == pytest.approx(5e9)
+    assert payload["result"]["raw_value"] == "5.000000E+09"
+    sent = payload["scpi"]["sent"]
+    assert "*IDN?" in sent
+    assert sample_rate_maximum_query() in sent
+    assert ":SYSTem:ERRor?" in sent
+
+
 def test_sample_rate_cli_command_order_with_fake_backend():
     backend = FakeBackend(responses={sample_rate_query(): "5.000000E+09"})
     client = SCPIClient(backend)
@@ -131,6 +197,17 @@ def test_sample_rate_cli_command_order_with_fake_backend():
 
     assert value == 5e9
     assert backend.history == [sample_rate_query()]
+
+
+def test_sample_rate_cli_maximum_command_order_with_fake_backend():
+    backend = FakeBackend(responses={sample_rate_maximum_query(): "5.000000E+09"})
+    client = SCPIClient(backend)
+
+    raw = client.query(sample_rate_maximum_query())
+    value = parse_sample_rate(raw)
+
+    assert value == 5e9
+    assert backend.history == [sample_rate_maximum_query()]
 
 
 def test_sample_rate_cli_simulate_scpi_order(monkeypatch, capsys):
@@ -148,6 +225,26 @@ def test_sample_rate_cli_simulate_scpi_order(monkeypatch, capsys):
     assert payload["scpi"]["sent"] == [
         "*IDN?",
         sample_rate_query(),
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_sample_rate_cli_maximum_simulate_scpi_order(monkeypatch, capsys):
+    _install_sample_rate_scope(monkeypatch)
+
+    assert cli.main([
+        "sample-rate",
+        "--query",
+        "--maximum",
+        "--simulate",
+        "--json",
+    ]) == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        sample_rate_maximum_query(),
         ":SYSTem:ERRor?",
     ]
 

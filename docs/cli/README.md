@@ -331,18 +331,28 @@ Query the current analog acquisition sample rate:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli sample-rate --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
 ```
 
+Query the maximum analog acquisition sample rate:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli sample-rate --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --maximum --log-scpi
+```
+
 The `sample-rate` command is query-only and requires `--query`. It first
-queries `*IDN?`, then sends `:ACQuire:SRATe?` and performs one
+queries `*IDN?`, then sends `:ACQuire:SRATe?` for the current sample rate or
+`:ACQuire:SRATe? MAXimum` when `--maximum` is supplied, and performs one
 `:SYSTem:ERRor?` post-check. The response is parsed as an NR3 number and
-reported in Hz together with the raw readback. It does not change timebase,
-memory depth, acquisition mode, sample-rate auto/manual mode, waveform
-points, trigger settings, VISA timeout, or return-to-local behavior.
-The short query form is used for DSO-X 4000X firmware 07.20 compatibility.
+reported in Hz together with the raw readback. Maximum queries report
+`query_kind: "maximum"` and `maximum_sample_rate_hz` in JSON. This command does
+not change timebase, memory depth, acquisition mode, sample-rate auto/manual
+mode, waveform points, trigger settings, VISA timeout, or return-to-local
+behavior. The short query forms are used for DSO-X 4000X firmware 07.20
+compatibility.
 
 Worker usage requires the same query-only intent:
 
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true,\"maximum\":true}" --json
 ```
 
 Query the current analog acquisition memory depth / record length:

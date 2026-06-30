@@ -4,6 +4,7 @@ import pytest
 
 from keysight_scope_core.acquisition import (
     parse_sample_rate,
+    sample_rate_maximum_query,
     sample_rate_query,
 )
 from keysight_scope_core.errors import AcquisitionResponseError
@@ -14,6 +15,10 @@ from keysight_scope_core.simulator_backend import SimulatorBackend
 
 def test_sample_rate_query_returns_keysight_short_form():
     assert sample_rate_query() == ":ACQuire:SRATe?"
+
+
+def test_sample_rate_maximum_query_returns_keysight_maximum_form():
+    assert sample_rate_maximum_query() == ":ACQuire:SRATe? MAXimum"
 
 
 @pytest.mark.parametrize(
@@ -49,6 +54,13 @@ def test_simulator_backend_reports_configured_sample_rate():
     backend = SimulatorBackend(sample_rate_hz=1.25e8)
 
     assert backend.query(sample_rate_query()) == "1.250000E+08"
+
+
+def test_simulator_backend_reports_configured_maximum_sample_rate():
+    backend = SimulatorBackend(sample_rate_hz=1.25e8, maximum_sample_rate_hz=5e9)
+
+    assert backend.query(sample_rate_query()) == "1.250000E+08"
+    assert backend.query(sample_rate_maximum_query()) == "5.000000E+09"
 
 
 def test_fake_backend_records_sample_rate_query():
