@@ -191,36 +191,54 @@ def acquisition_count_query() -> str:
 
     return ":ACQuire:COUNt?"
 
-def memory_depth_query() -> str:
-    """Return the SCPI query for the current analog acquisition memory depth."""
+def acquisition_points_query() -> str:
+    """Return the SCPI query for the current analog acquisition points."""
 
     return ":ACQuire:POINts?"
 
 
-def parse_memory_depth(response: str) -> int:
-    """Parse an analog acquisition memory-depth response in points."""
+def record_length_query() -> str:
+    """Return the SCPI query for the current analog acquisition record length."""
+
+    return ":ACQuire:RLENgth?"
+
+
+def _parse_positive_integer_response(response: str, *, label: str) -> int:
+    """Parse a positive integer SCPI response that may use NR3 notation."""
 
     raw = response.strip()
     if not raw:
         raise AcquisitionResponseError(
-            f"Could not parse memory depth response: {response!r}"
+            f"Could not parse {label} response: {response!r}"
         )
     try:
         value = float(raw)
     except ValueError as exc:
         raise AcquisitionResponseError(
-            f"Could not parse memory depth response: {response!r}"
+            f"Could not parse {label} response: {response!r}"
         ) from exc
     if not math.isfinite(value):
         raise AcquisitionResponseError(
-            f"Could not parse memory depth response: {response!r}"
+            f"Could not parse {label} response: {response!r}"
         )
     if value <= 0:
         raise AcquisitionResponseError(
-            f"Could not parse memory depth response: {response!r}"
+            f"Could not parse {label} response: {response!r}"
         )
     if not value.is_integer():
         raise AcquisitionResponseError(
-            f"Could not parse memory depth response: {response!r}"
+            f"Could not parse {label} response: {response!r}"
         )
     return int(value)
+
+
+def parse_acquisition_points(response: str) -> int:
+    """Parse an analog acquisition-points response in points."""
+
+    return _parse_positive_integer_response(response, label="acquisition points")
+
+
+def parse_record_length(response: str) -> int:
+    """Parse an analog acquisition record-length response in points."""
+
+    return _parse_positive_integer_response(response, label="record length")

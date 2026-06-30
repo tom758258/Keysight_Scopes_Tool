@@ -121,7 +121,8 @@ class SimulatorBackend:
     acquisition_count: int = 8
     sample_rate_hz: float = 5e9
     maximum_sample_rate_hz: float = 5e9
-    memory_depth_points: int = 1000000
+    acquisition_points: int = 1000000
+    record_length_points: int = 65536
 
     run_state: str = "stopped"
     timebase_scale: float = 1e-3
@@ -284,7 +285,9 @@ class SimulatorBackend:
         if upper == ":ACQUIRE:SRATE?":
             return f"{self.sample_rate_hz:.6E}"
         if upper == ":ACQUIRE:POINTS?":
-            return str(self.memory_depth_points)
+            return str(self.acquisition_points)
+        if upper == ":ACQUIRE:RLENGTH?":
+            return str(self.record_length_points)
         if upper == ":ACQUIRE:COUNT?":
             return str(self.acquisition_count)
         if upper == ":TIMEBASE:SCALE?":

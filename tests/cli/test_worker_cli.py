@@ -16,7 +16,8 @@ import pytest
 from keysight_scope_cli import cli
 from keysight_scope_cli import worker
 from keysight_scope_core.acquisition import (
-    memory_depth_query,
+    acquisition_points_query,
+    record_length_query,
     sample_rate_maximum_query,
     sample_rate_query,
 )
@@ -227,7 +228,8 @@ def test_worker_request_rejects_non_object_arguments():
     (
         ("sample-rate", {"query": True}),
         ("sample-rate", {"query": True, "maximum": True}),
-        ("memory-depth", {"query": True}),
+        ("acquisition-points", {"query": True}),
+        ("record-length", {"query": True}),
         ("force-trigger", {}),
     ),
 )
@@ -298,6 +300,74 @@ def test_command_acceptance_rejects_sample_rate_maximum_without_query_before_art
     assert payload["status"] == "error"
     assert payload["command"] == "sample-rate"
     assert payload["job_id"] == "job-bad"
+    assert runtime.jobs == {}
+    assert not (tmp_path / runtime.run_id).exists()
+
+
+@pytest.mark.parametrize("command", ("acquisition-points", "record-length"))
+def test_command_acceptance_validates_points_queries_before_enqueue(tmp_path, command):
+    runtime = _runtime(tmp_path)
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": command,
+                "arguments": {"query": True},
+                "job_id": "job-query",
+            },
+        )
+
+    assert status == 202
+    assert payload["status"] == "accepted"
+    assert payload["command"] == command
+    assert payload["job_id"] == "job-query"
+    request_path = Path(payload["artifact_path"]) / "request.json"
+    assert json.loads(request_path.read_text(encoding="utf-8")) == {
+        "command": command,
+        "arguments": {"query": True},
+        "job_id": "job-query",
+    }
+
+
+@pytest.mark.parametrize("command", ("acquisition-points", "record-length"))
+def test_command_acceptance_rejects_points_queries_without_query_before_artifact(
+    tmp_path, command
+):
+    runtime = _runtime(tmp_path)
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": command,
+                "arguments": {},
+                "job_id": "job-bad",
+            },
+        )
+
+    assert status == 400
+    assert payload["status"] == "error"
+    assert payload["command"] == command
+    assert payload["job_id"] == "job-bad"
+    assert runtime.jobs == {}
+    assert not (tmp_path / runtime.run_id).exists()
+
+
+def test_command_acceptance_rejects_memory_depth_before_artifact(tmp_path):
+    runtime = _runtime(tmp_path)
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": "memory-depth",
+                "arguments": {"query": True},
+                "job_id": "job-removed",
+            },
+        )
+
+    assert status == 400
+    assert payload["status"] == "error"
+    assert payload["command"] == "memory-depth"
+    assert payload["job_id"] == "job-removed"
     assert runtime.jobs == {}
     assert not (tmp_path / runtime.run_id).exists()
 
@@ -463,15 +533,35 @@ def test_worker_parses_sample_rate_maximum_query_without_opening_backend():
     assert parsed.json_output is True
 
 
-def test_worker_parses_memory_depth_query_without_opening_backend():
+def test_worker_request_rejects_removed_memory_depth_command():
+    with pytest.raises(KeysightScopeError, match="unknown command: memory-depth"):
+        worker.validate_command_request(
+            {"command": "memory-depth", "arguments": {"query": True}}
+        )
+
+
+def test_worker_parses_acquisition_points_query_without_opening_backend():
     parsed = worker.parse_domain_command(
-        "memory-depth",
+        "acquisition-points",
         {"query": True},
         _runtime(),
     )
 
-    assert parsed.command == "memory-depth"
-    assert parsed.memory_depth_query_flag is True
+    assert parsed.command == "acquisition-points"
+    assert parsed.acquisition_points_query_flag is True
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+
+
+def test_worker_parses_record_length_query_without_opening_backend():
+    parsed = worker.parse_domain_command(
+        "record-length",
+        {"query": True},
+        _runtime(),
+    )
+
+    assert parsed.command == "record-length"
+    assert parsed.record_length_query_flag is True
     assert parsed.simulate is True
     assert parsed.json_output is True
 
@@ -497,7 +587,7 @@ def test_worker_parse_rejects_invalid_domain_arguments():
         )
 
 
-@pytest.mark.parametrize("command", ("sample-rate", "memory-depth"))
+@pytest.mark.parametrize("command", ("sample-rate", "acquisition-points", "record-length"))
 def test_worker_parse_rejects_query_commands_without_query_flag(command):
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command(command, {}, _runtime())
@@ -864,11 +954,18 @@ def _execute_worker_job(runtime, command, arguments, artifact_path):
             5e9,
         ),
         (
-            "memory-depth",
+            "acquisition-points",
             {"query": True},
-            memory_depth_query(),
-            "memory_depth_points",
+            acquisition_points_query(),
+            "acquisition_points",
             1000000,
+        ),
+        (
+            "record-length",
+            {"query": True},
+            record_length_query(),
+            "record_length_points",
+            65536,
         ),
         ("force-trigger", {}, force_trigger_command(), "forced", True),
     ),

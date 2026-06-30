@@ -123,7 +123,8 @@ Worker `/command` supports the existing Scopes capability surface:
 
 - `identify`, `check-error`, `doctor`
 - `run`, `single`, `stop-acquisition`, `force-trigger`
-- `acquisition`, `acquisition-check`, `sample-rate`, `memory-depth`
+- `acquisition`, `acquisition-check`, `sample-rate`, `acquisition-points`,
+  `record-length`
 - `capture`, `capture-batch`, `screenshot`, `smoke`
 - `measure`, `measure-stats`, `measure-sweep`, `measure-log`
 - `channel-display`, `channel-scale`, `channel-offset`, `channel-coupling`,
@@ -167,7 +168,11 @@ form:
 ```
 
 ```json
-{"command": "memory-depth", "arguments": {"query": true}}
+{"command": "acquisition-points", "arguments": {"query": true}}
+```
+
+```json
+{"command": "record-length", "arguments": {"query": true}}
 ```
 
 `force-trigger` is accepted only as an explicit command:
@@ -223,10 +228,11 @@ recorded as absolute paths. Default worker outputs are:
 - `capture-batch`, `measure-log`, `smoke`, and `acquisition-check`: the job
   directory is the default `output_dir`.
 
-`sample-rate`, `memory-depth`, and `force-trigger` do not create command
-artifacts. Their terminal `result.json.result` contains the existing one-shot
-structured `result` fields for that command. For `sample-rate` maximum queries,
-that includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.
+`sample-rate`, `acquisition-points`, `record-length`, and `force-trigger` do
+not create command artifacts. Their terminal `result.json.result` contains the
+existing one-shot structured `result` fields for that command. For
+`sample-rate` maximum queries, that includes `query_kind: "maximum"` and
+`maximum_sample_rate_hz`.
 
 Directory-output commands may use the worker job directory even though
 `request.json` already exists there. Other pre-existing command artifact paths

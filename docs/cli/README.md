@@ -56,10 +56,12 @@ Current implemented scope:
   `:ACQuire:TYPE` and `:ACQuire:COUNt`.
 - Query the current analog acquisition sample rate in Hz with
   `:ACQuire:SRATe?`.
-- Query the current analog acquisition points / memory depth / record length
-  with `:ACQuire:POINts?`. This command is read-only. It does not configure
-  memory depth, and it is separate from waveform transfer point count
+- Query the current analog acquisition points with `:ACQuire:POINts?`.
+  This command is read-only and separate from waveform transfer point count
   controlled by `capture --points`.
+- Query the current analog acquisition record length with `:ACQuire:RLENgth?`.
+  This command is read-only and separate from acquisition points and waveform
+  transfer point count controlled by `capture --points`.
 - Enable, disable, or query analog channel display state with
   `:CHANnel<n>:DISPlay`.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
@@ -190,8 +192,9 @@ and must not be parsed as JSON.
 ```powershell
 uv run python -m keysight_scope_cli.cli identify --dry-run --json
 uv run python -m keysight_scope_cli.cli identify --simulate --json
-uv run python -m keysight_scope_cli.cli memory-depth --query --dry-run --json --model DSOX4024A
-uv run python -m keysight_scope_cli.cli memory-depth --query --simulate --json --model DSOX4024A
+uv run python -m keysight_scope_cli.cli acquisition-points --query --dry-run --json --model DSOX4024A
+uv run python -m keysight_scope_cli.cli acquisition-points --query --simulate --json --model DSOX4024A
+uv run python -m keysight_scope_cli.cli record-length --query --simulate --json --model DSOX4024A
 uv run python -m keysight_scope_cli.cli capture --simulate --json --simulate-preset phase-shifted-pair --channel 1 --channel 2 --csv .tmp_tests\preset.csv
 uv run python -m keysight_scope_cli.cli measure --simulate --json --simulate-scenario path\to\scenario.json --channel 1 --item frequency
 uv run python -m keysight_scope_cli.cli measure --simulate --json --simulate-signal CH1:square:1000:1.0:0:0:0.02 --channel 1 --item vpp
@@ -288,7 +291,8 @@ Force one trigger event explicitly:
 queries `*IDN?`, then sends `:TRIGger:FORCe`, then performs one `:SYSTem:ERRor?`
 post-check. It does not arm a single acquisition, does not wait for trigger
 or acquisition completion, does not capture waveform data, and does not
-change timebase, memory depth, acquisition mode, sample-rate mode, waveform
+change timebase, acquisition points, record length, acquisition mode,
+sample-rate mode, waveform
 points, waveform format, display state, VISA timeout, trigger source, trigger
 level, trigger slope, trigger sweep, or return-to-local behavior. `force-trigger`
 must not be combined with `capture`, `measure`, `doctor`, `smoke`,
@@ -343,8 +347,9 @@ queries `*IDN?`, then sends `:ACQuire:SRATe?` for the current sample rate or
 `:SYSTem:ERRor?` post-check. The response is parsed as an NR3 number and
 reported in Hz together with the raw readback. Maximum queries report
 `query_kind: "maximum"` and `maximum_sample_rate_hz` in JSON. This command does
-not change timebase, memory depth, acquisition mode, sample-rate auto/manual
-mode, waveform points, trigger settings, VISA timeout, or return-to-local
+not change timebase, acquisition points, record length, acquisition mode,
+sample-rate auto/manual mode, waveform points, trigger settings, VISA timeout,
+or return-to-local
 behavior. The short query forms are used for DSO-X 4000X firmware 07.20
 compatibility.
 
@@ -355,27 +360,48 @@ Worker usage requires the same query-only intent:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true,\"maximum\":true}" --json
 ```
 
-Query the current analog acquisition memory depth / record length:
+Query the current analog acquisition points:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli memory-depth --query --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli acquisition-points --query --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
 ```
 
-The `memory-depth` command is query-only and requires `--query`. It first
+The `acquisition-points` command is query-only and requires `--query`. It first
 queries `*IDN?`, then sends `:ACQuire:POINts?` and performs one
 `:SYSTem:ERRor?` post-check. The response is parsed as an integer
-representing the current analog acquisition points / memory depth / record
-length, together with the raw readback. It does not configure memory
-depth, change acquisition mode, timebase, sample-rate, trigger settings,
-waveform format, waveform points, VISA timeout, or return-to-local
-behavior. `memory-depth --query` reads acquisition memory depth and is
-separate from `capture --points`, which controls waveform transfer point
+representing the current analog acquisition points, together with the raw
+readback. It does not configure acquisition points, record length, acquisition
+mode, timebase, sample-rate, trigger settings, waveform format, waveform
+points, VISA timeout, or return-to-local behavior. `acquisition-points --query`
+is separate from `capture --points`, which controls waveform transfer point
 count.
 
 Worker usage requires the same query-only intent:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command memory-depth --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
+```
+
+Query the current analog acquisition record length:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli record-length --query --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
+```
+
+The `record-length` command is query-only and requires `--query`. It first
+queries `*IDN?`, then sends `:ACQuire:RLENgth?` and performs one
+`:SYSTem:ERRor?` post-check. The response is parsed as an integer
+representing the current analog acquisition record length, together with the
+raw readback. It does not configure record length, acquisition points,
+acquisition mode, timebase, sample-rate, trigger settings, waveform format,
+waveform points, VISA timeout, or return-to-local behavior.
+`record-length --query` is separate from `capture --points`, which controls
+waveform transfer point count.
+
+Worker usage requires the same query-only intent:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command record-length --arguments-json "{\"query\":true}" --json
 ```
 
 Run the acquisition configuration validation workflow and write a report

@@ -149,7 +149,9 @@ Control and setup:
 - `sample-rate`: `operation`, `sample_rate_hz` for current-rate queries,
   `query_kind` and `maximum_sample_rate_hz` for maximum-rate queries,
   `raw_value`, `unit`, `scpi_command`, and `human_output`.
-- `memory-depth`: `operation`, `memory_depth_points`, `raw_value`, `unit`,
+- `acquisition-points`: `operation`, `acquisition_points`, `raw_value`,
+  `unit`, `scpi_command`, and `human_output`.
+- `record-length`: `operation`, `record_length_points`, `raw_value`, `unit`,
   `scpi_command`, and `human_output`.
 - `autoscale`: `operation`, `commands`, `source_channels`, optional
   `fallback`.

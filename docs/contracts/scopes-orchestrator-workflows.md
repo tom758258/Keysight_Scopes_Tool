@@ -37,7 +37,8 @@ keysight-scopes send-command --port 8765 --command identify --arguments-json "{}
 keysight-scopes send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000}" --json
 keysight-scopes send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true,\"maximum\":true}" --json
-keysight-scopes send-command --port 8765 --command memory-depth --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command record-length --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command force-trigger --arguments-json "{}" --json
 ```
 

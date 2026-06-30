@@ -134,7 +134,7 @@ def test_force_trigger_simulator_does_not_change_simulated_state():
     baseline_acquisition_type = backend.acquisition_type
     baseline_acquisition_count = backend.acquisition_count
     baseline_sample_rate = backend.sample_rate_hz
-    baseline_memory_depth = backend.memory_depth_points
+    baseline_acquisition_points = backend.acquisition_points
     baseline_timebase_scale = backend.timebase_scale
     baseline_timebase_position = backend.timebase_position
 
@@ -148,7 +148,7 @@ def test_force_trigger_simulator_does_not_change_simulated_state():
     assert backend.acquisition_type == baseline_acquisition_type
     assert backend.acquisition_count == baseline_acquisition_count
     assert backend.sample_rate_hz == baseline_sample_rate
-    assert backend.memory_depth_points == baseline_memory_depth
+    assert backend.acquisition_points == baseline_acquisition_points
     assert backend.timebase_scale == baseline_timebase_scale
     assert backend.timebase_position == baseline_timebase_position
 
