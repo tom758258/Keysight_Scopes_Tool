@@ -210,6 +210,7 @@ class MeasurementController:
         """Query one measurement without changing acquisition or display state."""
 
         channel = validate_analog_channel(channel, self.capabilities)
+        validate_measurements_supported(self.capabilities)
         item = normalize_measurement_item(item)
         raw = self.scpi.query(
             measurement_query(
@@ -235,6 +236,7 @@ class MeasurementController:
         source_channel, reference_channel = _validate_channel_pair(
             source_channel, reference_channel, self.capabilities
         )
+        validate_measurements_supported(self.capabilities)
         item = normalize_measurement_item(item)
         raw = self.scpi.query(
             pair_measurement_query(
@@ -262,6 +264,7 @@ class MeasurementController:
         settle_seconds: float | None = None,
     ) -> MeasurementStatisticsResult:
         channel = validate_analog_channel(channel, self.capabilities)
+        validate_measurements_supported(self.capabilities)
         normalized_items = validate_statistics_items(items)
         mode = normalize_statistics_mode(mode)
         if max_count is not None:
@@ -378,6 +381,8 @@ def measurement_query(
     """Build a read-only measurement query for one analog channel."""
 
     item = normalize_measurement_item(item)
+    if capabilities is not None:
+        validate_measurements_supported(capabilities)
     if item in _PARAMETERIZED_MEASUREMENT_ITEMS:
         return _parameterized_measurement_query(
             item,
@@ -416,6 +421,8 @@ def pair_measurement_query(
     """Build a read-only measurement query for two analog channels."""
 
     item = normalize_measurement_item(item)
+    if capabilities is not None:
+        validate_measurements_supported(capabilities)
     if item not in _PAIR_MEASUREMENT_QUERY_TEMPLATES:
         raise ParameterValidationError(
             f"{item} measurement uses a single channel; use measurement_query()."
@@ -560,6 +567,13 @@ def _validate_delay_supported(capabilities: ScopeCapabilities | None) -> None:
     if not capabilities.supports_delay_measurement:
         raise ParameterValidationError(
             "delay pair measurement is not supported by this scope capability profile."
+        )
+
+
+def validate_measurements_supported(capabilities: ScopeCapabilities) -> None:
+    if not capabilities.supports_measurements:
+        raise ParameterValidationError(
+            "measurements are not supported by this scope capability profile."
         )
 
 

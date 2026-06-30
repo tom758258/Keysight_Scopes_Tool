@@ -183,6 +183,7 @@ from keysight_scope_core.waveform import (
     WORD_UNSIGNED,
     WaveformCapture,
     waveform_byte_order_command,
+    validate_word_format_supported,
     validate_waveform_channels,
     validate_waveform_points,
     waveform_time_axis_tolerance_summary,
@@ -1808,6 +1809,8 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
     if command in {"capture", "capture-batch"}:
         channels = _resolve_capture_channels(args.channel, capabilities)
         points = validate_waveform_points(args.points, capabilities)
+        if args.waveform_format == "word":
+            validate_word_format_supported(capabilities)
         planned = _planned_waveform_scpi(channels, args.waveform_format, points) + [":SYSTem:ERRor?"]
         files = _planned_capture_files(args, command)
         result = {"channels": list(channels), "points": points, "format": args.waveform_format.upper(), "files": files}
@@ -2230,7 +2233,13 @@ def _capabilities_json(capabilities: ScopeCapabilities | None) -> dict[str, obje
         "analog_channels": capabilities.analog_channels,
         "default_waveform_points": capabilities.default_waveform_points,
         "safe_max_waveform_points": capabilities.safe_max_waveform_points,
+        "supports_word_format": capabilities.supports_word_format,
+        "supports_raw_points_mode": capabilities.supports_raw_points_mode,
+        "supports_measurements": capabilities.supports_measurements,
+        "supports_delay_measurement": capabilities.supports_delay_measurement,
         "supports_screenshot": capabilities.supports_screenshot,
+        "supports_segmented_memory": capabilities.supports_segmented_memory,
+        "supports_serial_decode": capabilities.supports_serial_decode,
     }
 
 
@@ -3117,6 +3126,8 @@ def _cmd_capture_batch(args: argparse.Namespace) -> int:
                 channels = _resolve_capture_channels(args.channel, scope.capabilities)
                 points = validate_waveform_points(args.points, scope.capabilities)
                 waveform_format = args.waveform_format.upper()
+                if args.waveform_format == "word":
+                    validate_word_format_supported(scope.capabilities)
                 manifest.channels = list(channels)
                 manifest.points = points
                 manifest.format = waveform_format
@@ -4126,6 +4137,10 @@ def _capture_waveform(
     points: int,
 ) -> WaveformCapture | MultiChannelWaveformCapture:
     normalized_format = waveform_format.lower()
+    if normalized_format == "word":
+        if scope.capabilities is None:
+            raise KeysightScopeError("Waveform operations require known capabilities.")
+        validate_word_format_supported(scope.capabilities)
     if len(channels) == 1:
         channel = channels[0]
         if normalized_format == "word":

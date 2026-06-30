@@ -48,7 +48,7 @@ Current implemented scope:
 - Filter that list to resources that can be opened and respond to `*IDN?`.
 - Verify basic communication by querying and parsing `*IDN?`.
 - Detect 2000X, 3000X, and 4000X series models.
-- Load conservative capability profiles.
+- Load runtime-supported capability profiles.
 - Read one or more entries from the system error queue with
   `:SYSTem:ERRor?`.
 - Send basic acquisition control commands: `:STOP`, `:RUN`, and `:SINGle`.
@@ -688,6 +688,8 @@ Capture waveform data:
 The current capture slice supports BYTE and WORD waveform formats with 1000,
 5000, and 10000 requested points. BYTE remains the default. WORD capture sets
 `:WAVeform:BYTeorder MSBFirst` and `:WAVeform:UNSigned ON` before reading data.
+Capability flags describe the runtime-supported and guarded feature surface,
+not whether each feature has completed live validation on every model.
 Repeat `--channel` to capture multiple analog channels sequentially in one
 session. Use `--channel all` to capture every analog channel reported by the
 detected model capability profile; this does not query or filter by displayed

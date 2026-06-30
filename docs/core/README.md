@@ -24,7 +24,7 @@ Core owns runtime behavior:
   `:OPERegister:CONDition?`, classify DSO-X 2000X/3000X/4000X completion by
   the Operation Status Condition Run bit, and expose raw poll values for
   adapter JSON.
-- Model capability profiles used by the runtime.
+- Model capability profiles for the runtime-supported feature surface.
 
 Core does not own CLI output schema, command-line parser behavior, console
 script documentation, or WebUI workflow.

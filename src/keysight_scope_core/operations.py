@@ -52,6 +52,7 @@ from .trigger import TriggerWaitConfig, wait_for_trigger_completion
 from .waveform import (
     MultiChannelWaveformCapture,
     WaveformCapture,
+    validate_word_format_supported,
     validate_waveform_points,
     waveform_time_axis_tolerance_summary,
 )
@@ -153,6 +154,8 @@ def run_capture(scope: KeysightScope, resource: str, request: CaptureRequest) ->
     channels = resolve_capture_channels(request.channels, scope.capabilities)
     points = validate_waveform_points(request.points, scope.capabilities)
     waveform_format = request.waveform_format.upper()
+    if request.waveform_format.lower() == "word":
+        validate_word_format_supported(scope.capabilities)
     if len(channels) == 1:
         human.append(
             f"Planned capture: CH{channels[0]}, {points} points, {waveform_format} format"

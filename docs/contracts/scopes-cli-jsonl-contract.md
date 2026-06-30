@@ -95,7 +95,9 @@ Top-level fields currently used by Scopes:
   environment-derived resource.
 - `backend`: backend display name when known.
 - `idn`: parsed `*IDN?` object when known.
-- `capabilities`: model capability object when known.
+- `capabilities`: model capability object when known. This object describes
+  the runtime-supported and guarded feature surface for the detected model; it
+  does not report live hardware validation status.
 - `scpi`: object with `planned` and `sent` command lists.
 - `result`: command-specific structured result.
 - `files`: list of artifact descriptors with `kind` and `path`.
@@ -200,6 +202,13 @@ Dry-run payloads include planned SCPI and planned artifact paths. Simulate and
 live payloads include sent SCPI history when available. Raw waveform sample
 arrays are intentionally omitted from top-level JSON; use artifact files for
 raw data.
+
+Capability JSON currently includes `series`, `analog_channels`,
+`default_waveform_points`, `safe_max_waveform_points`,
+`supports_word_format`, `supports_raw_points_mode`, `supports_measurements`,
+`supports_delay_measurement`, `supports_screenshot`,
+`supports_segmented_memory`, and `supports_serial_decode`. Consumers must
+ignore unknown future capability fields under schema version `1`.
 
 ## Artifact JSON
 

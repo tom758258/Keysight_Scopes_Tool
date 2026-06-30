@@ -345,6 +345,39 @@ def test_measurement_controller_queries_vpp_for_channel():
     assert backend.history == [":MEASure:VPP? CHANnel1"]
 
 
+def test_measurement_controller_rejects_unsupported_single_query_before_scpi():
+    backend = FakeBackend()
+    capabilities = replace(capabilities_for_model("DSOX4024A"), supports_measurements=False)
+    controller = MeasurementController(SCPIClient(backend), capabilities)
+
+    with pytest.raises(ParameterValidationError, match="measurements are not supported"):
+        controller.query(1, "vpp")
+
+    assert not any(command.startswith(":MEASure:") for command in backend.history)
+
+
+def test_measurement_controller_rejects_unsupported_pair_query_before_scpi():
+    backend = FakeBackend()
+    capabilities = replace(capabilities_for_model("DSOX4024A"), supports_measurements=False)
+    controller = MeasurementController(SCPIClient(backend), capabilities)
+
+    with pytest.raises(ParameterValidationError, match="measurements are not supported"):
+        controller.query_pair(1, 2, "phase")
+
+    assert not any(command.startswith(":MEASure:") for command in backend.history)
+
+
+def test_measurement_controller_rejects_unsupported_statistics_before_scpi():
+    backend = FakeBackend()
+    capabilities = replace(capabilities_for_model("DSOX4024A"), supports_measurements=False)
+    controller = MeasurementController(SCPIClient(backend), capabilities)
+
+    with pytest.raises(ParameterValidationError, match="measurements are not supported"):
+        controller.statistics(1, ("vpp",))
+
+    assert not any(command.startswith(":MEASure:") for command in backend.history)
+
+
 @pytest.mark.parametrize(
     ("model", "expected_command"),
     [

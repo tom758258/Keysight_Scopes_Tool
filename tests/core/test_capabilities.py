@@ -27,10 +27,17 @@ def test_capabilities_for_supported_models(model, series, channels):
     assert capabilities.supports_screenshot is True
 
 
-def test_capabilities_are_conservative_for_phase_1():
+@pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A", "DSOX4024A"])
+def test_runtime_capabilities_enable_word_and_measurements(model):
+    capabilities = capabilities_for_model(model)
+
+    assert capabilities.supports_word_format is True
+    assert capabilities.supports_measurements is True
+
+
+def test_capabilities_keep_unsupported_future_surfaces_disabled():
     capabilities = capabilities_for_model("DSOX4024A")
 
-    assert capabilities.supports_word_format is False
     assert capabilities.supports_raw_points_mode is False
     assert capabilities.supports_segmented_memory is False
     assert capabilities.supports_serial_decode is False

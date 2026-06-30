@@ -40,6 +40,19 @@ def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
     assert payload["mode"] == "dry_run"
     assert payload["scpi"]["planned"] == ["*IDN?"]
     assert payload["scpi"]["sent"] == []
+    assert payload["capabilities"] == {
+        "series": "4000X",
+        "analog_channels": 4,
+        "default_waveform_points": 1000,
+        "safe_max_waveform_points": 10000,
+        "supports_word_format": True,
+        "supports_raw_points_mode": False,
+        "supports_measurements": True,
+        "supports_delay_measurement": True,
+        "supports_screenshot": True,
+        "supports_segmented_memory": False,
+        "supports_serial_decode": False,
+    }
 
 
 def test_one_shot_live_flag_conflicts_with_simulate_and_dry_run(capsys):
@@ -249,6 +262,21 @@ def test_acquisition_check_dry_run_json_reports_plan_for_target_models(monkeypat
             ":SYSTem:ERRor?",
         ]
         assert not output_dir.exists()
+
+
+def test_advanced_autoscale_dry_run_json_accepts_2000x_and_3000x(monkeypatch, capsys):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("dry-run must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    for model in ("DSOX2004A", "DSOX3024A"):
+        assert cli.main(["autoscale", "--dry-run", "--json", "--model", model]) == 0
+
+        payload = _json_stdout(capsys)
+        assert payload["capabilities"]["series"] in {"2000X", "3000X"}
+        assert payload["scpi"]["planned"] == [":AUToscale", ":SYSTem:ERRor?"]
 
 
 def test_acquisition_check_simulate_json_writes_report_and_scpi_log(capsys, tmp_path):

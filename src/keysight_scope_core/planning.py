@@ -27,6 +27,7 @@ from .screenshot import hardcopy_inksaver_command, hardcopy_inksaver_for_backgro
 from .waveform import (
     WORD_BYTE_ORDER,
     WORD_UNSIGNED,
+    validate_word_format_supported,
     validate_waveform_channels,
     validate_waveform_points,
     waveform_byte_order_command,
@@ -96,6 +97,8 @@ def plan_capture(request: CapturePlanRequest, capabilities: ScopeCapabilities) -
 
     channels = resolve_capture_channels(request.channels, capabilities)
     points = validate_waveform_points(request.points, capabilities)
+    if request.waveform_format.lower() == "word":
+        validate_word_format_supported(capabilities)
     files = _capture_files(request)
     result = {
         "channels": list(channels),

@@ -1,4 +1,4 @@
-"""Advanced DSO-X 4000A controls."""
+"""Advanced InfiniiVision runtime controls."""
 
 from __future__ import annotations
 

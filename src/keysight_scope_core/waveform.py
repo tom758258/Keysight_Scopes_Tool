@@ -139,6 +139,7 @@ class WaveformController:
 
         channel = validate_analog_channel(channel, self.capabilities)
         points = validate_waveform_points(points, self.capabilities)
+        validate_word_format_supported(self.capabilities)
         self.scpi.write(waveform_source_command(channel))
         self.scpi.write(waveform_format_word_command())
         self.scpi.write(waveform_byte_order_command(WORD_BYTE_ORDER))
@@ -178,6 +179,7 @@ class WaveformController:
 
         channels = validate_waveform_channels(channels, self.capabilities)
         points = validate_waveform_points(points, self.capabilities)
+        validate_word_format_supported(self.capabilities)
         captures = tuple(self.capture_word(channel, points=points) for channel in channels)
         return MultiChannelWaveformCapture(captures)
 
@@ -232,6 +234,15 @@ def validate_waveform_points(points: int, capabilities: ScopeCapabilities) -> in
             f"waveform points {value} exceed safe maximum {capabilities.safe_max_waveform_points}."
         )
     return value
+
+
+def validate_word_format_supported(capabilities: ScopeCapabilities) -> None:
+    """Reject WORD waveform capture when the runtime profile does not allow it."""
+
+    if not capabilities.supports_word_format:
+        raise ParameterValidationError(
+            "WORD waveform format is not supported by this scope capability profile."
+        )
 
 
 def waveform_source_command(channel: int) -> str:

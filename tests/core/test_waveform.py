@@ -169,6 +169,17 @@ def test_waveform_controller_captures_word_data_with_fixed_binary_options():
     assert backend.binary_query_kwargs == [{"datatype": "H", "is_big_endian": True}]
 
 
+def test_waveform_controller_rejects_unsupported_word_format_before_scpi():
+    backend = FakeBackend()
+    capabilities = replace(capabilities_for_model("DSOX4024A"), supports_word_format=False)
+    controller = WaveformController(SCPIClient(backend), capabilities)
+
+    with pytest.raises(ParameterValidationError, match="WORD waveform format"):
+        controller.capture_word(1, points=1000)
+
+    assert backend.history == []
+
+
 def test_waveform_controller_captures_multiple_byte_channels_in_order():
     backend = FakeBackend(
         responses={":WAVeform:PREamble?": PREAMBLE},

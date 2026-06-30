@@ -1,4 +1,4 @@
-"""Conservative model capability profiles."""
+"""Runtime model capability profiles."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from .idn import detect_series, normalize_model_key
 
 @dataclass(frozen=True)
 class ScopeCapabilities:
-    """Conservative capability profile for an oscilloscope model."""
+    """Runtime-supported capability profile for an oscilloscope model."""
 
     series: str
     analog_channels: int
@@ -32,9 +32,9 @@ _BASE_PROFILES = {
         analog_channels=4,
         default_waveform_points=1000,
         safe_max_waveform_points=10000,
-        supports_word_format=False,
+        supports_word_format=True,
         supports_raw_points_mode=False,
-        supports_measurements=False,
+        supports_measurements=True,
         supports_delay_measurement=False,
         supports_screenshot=True,
         supports_segmented_memory=False,
@@ -45,9 +45,9 @@ _BASE_PROFILES = {
         analog_channels=4,
         default_waveform_points=1000,
         safe_max_waveform_points=10000,
-        supports_word_format=False,
+        supports_word_format=True,
         supports_raw_points_mode=False,
-        supports_measurements=False,
+        supports_measurements=True,
         supports_delay_measurement=False,
         supports_screenshot=True,
         supports_segmented_memory=False,
@@ -58,9 +58,9 @@ _BASE_PROFILES = {
         analog_channels=4,
         default_waveform_points=1000,
         safe_max_waveform_points=10000,
-        supports_word_format=False,
+        supports_word_format=True,
         supports_raw_points_mode=False,
-        supports_measurements=False,
+        supports_measurements=True,
         supports_delay_measurement=True,
         supports_screenshot=True,
         supports_segmented_memory=False,
@@ -73,7 +73,7 @@ _CHANNEL_COUNT_RE = re.compile(r"^(?:DSO|MSO)X\d{3}(?P<channels>[24])[A-Z]?$", r
 
 
 def capabilities_for_model(model: str) -> ScopeCapabilities:
-    """Return the conservative capability profile for a model string."""
+    """Return the runtime-supported capability profile for a model string."""
 
     series = detect_series(model)
     if series is None or series not in _BASE_PROFILES:
