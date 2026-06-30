@@ -35,6 +35,7 @@ through `keysight-scopes send-command`:
 ```text
 keysight-scopes send-command --port 8765 --command identify --arguments-json "{}" --json
 keysight-scopes send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000}" --json
+keysight-scopes send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000,\"wait_trigger\":true,\"trigger_timeout_ms\":5000,\"trigger_poll_interval_ms\":100}" --json
 keysight-scopes send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true,\"maximum\":true}" --json
 keysight-scopes send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
@@ -53,6 +54,11 @@ keysight-scopes status --port 8765 --json
 Then read `data/worker/<run_id>/<worker_job_id>/result.json`. Use
 `result.json` state, `ok`, `exit_code`, `error`, and command artifact files for
 pass/fail decisions.
+
+For `capture` jobs with `wait_trigger`, use
+`result.json.result.trigger.outcome` and `capture_allowed` to distinguish
+natural trigger completion, forced trigger completion, timeout, and unknown
+poll state. `timeout` and `unknown` outcomes do not produce capture artifacts.
 
 Use cooperative cleanup:
 

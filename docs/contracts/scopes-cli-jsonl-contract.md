@@ -174,8 +174,16 @@ Measurement and artifact-producing flows:
   `completed_rows`, `csv_path`, `manifest_path`, `scpi_log_path`, and compact
   row records. Measurement values are written to CSV.
 - `capture`: `channels`, `requested_points`, `actual_points`, `format`,
-  `files`, compact per-channel waveform summaries, and optional
-  `time_axis_tolerance`.
+  `files`, compact per-channel waveform summaries, optional
+  `time_axis_tolerance`, and optional `trigger` when `--wait-trigger` is used.
+  Trigger metadata includes `wait_enabled`, `arm_command`, `poll_source`,
+  `poll_command`, `timeout_ms`, `poll_interval_ms`, `force_on_timeout`,
+  `force_command`, `outcome`, `forced`, `timed_out`, `poll_count`,
+  `elapsed_ms`, `condition_values`, `raw_values`, `capture_allowed`,
+  `capture_block_reason`, and `error`. Runtime `outcome` is one of
+  `natural`, `forced`, `timeout`, or `unknown`; dry-run payloads may use the
+  same schema with `outcome: "unknown"` and `capture_block_reason: "dry_run"`.
+  `timeout` and `unknown` outcomes do not write waveform artifacts.
 - `capture-batch`: `status`, `channels`, `format`, `requested_count`,
   `completed_count`, `manifest_path`, `scpi_log_path`, and compact capture
   entries.

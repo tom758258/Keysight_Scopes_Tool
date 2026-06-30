@@ -32,6 +32,8 @@ names are intended for package consumers and tests:
 - `ScopeCapabilities`
 - `SystemErrorEntry`
 - `TimebaseController`
+- `TriggerWaitConfig`
+- `TriggerWaitResult`
 - `WaveformCapture`
 - `WaveformPreamble`
 - `capabilities_for_model`

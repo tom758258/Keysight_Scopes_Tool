@@ -24,7 +24,11 @@ from keysight_scope_core.acquisition import (
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.trigger import force_trigger_command
+from keysight_scope_core.trigger import (
+    force_trigger_command,
+    operation_condition_query,
+    single_command,
+)
 
 
 def _runtime(artifact_root=Path("data/worker"), queue_max=32):
@@ -492,6 +496,25 @@ def test_queue_full_rejection_uses_rejected_reason(tmp_path):
     }
 
 
+def test_worker_http_rejects_invalid_capture_wait_trigger_before_artifacts(tmp_path):
+    runtime = _runtime(tmp_path)
+
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": "capture",
+                "arguments": {"channel": [1], "wait_trigger": True},
+                "job_id": "bad-wait",
+            },
+        )
+
+    assert status == 400
+    assert payload["command"] == "capture"
+    assert "--trigger-timeout-ms is required" in payload["message"]
+    assert not list(tmp_path.rglob("request.json"))
+
+
 def test_worker_parses_domain_arguments_without_opening_backend():
     parsed = worker.parse_domain_command(
         "channel-scale",
@@ -578,6 +601,28 @@ def test_worker_parses_force_trigger_without_opening_backend():
     assert parsed.json_output is True
 
 
+def test_worker_parses_capture_wait_trigger_without_opening_backend():
+    parsed = worker.parse_domain_command(
+        "capture",
+        {
+            "channel": [1],
+            "wait_trigger": True,
+            "trigger_timeout_ms": 5000,
+            "trigger_poll_interval_ms": 100,
+            "force_trigger_on_timeout": True,
+        },
+        _runtime(),
+    )
+
+    assert parsed.command == "capture"
+    assert parsed.wait_trigger is True
+    assert parsed.trigger_timeout_ms == 5000
+    assert parsed.trigger_poll_interval_ms == 100
+    assert parsed.force_trigger_on_timeout is True
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+
+
 def test_worker_parse_rejects_invalid_domain_arguments():
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command(
@@ -596,6 +641,24 @@ def test_worker_parse_rejects_query_commands_without_query_flag(command):
 def test_worker_parse_rejects_sample_rate_maximum_without_query_flag():
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command("sample-rate", {"maximum": True}, _runtime())
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        {"channel": [1], "wait_trigger": True},
+        {"channel": [1], "force_trigger_on_timeout": True},
+        {
+            "channel": [1],
+            "wait_trigger": True,
+            "trigger_timeout_ms": 10,
+            "trigger_poll_interval_ms": 11,
+        },
+    ),
+)
+def test_worker_parse_rejects_invalid_capture_wait_trigger_arguments(arguments):
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command("capture", arguments, _runtime())
 
 
 def test_send_command_dry_run_does_not_contact_http(capsys):
@@ -940,6 +1003,40 @@ def _execute_worker_job(runtime, command, arguments, artifact_path):
     runtime.queue.put(job)
     runtime.queue.join()
     return job, json.loads((artifact_path / "result.json").read_text(encoding="utf-8"))
+
+
+def test_worker_executes_capture_wait_trigger_in_simulator(tmp_path):
+    runtime = _runtime(tmp_path)
+    artifact_path = tmp_path / "capture_wait"
+
+    job, result = _execute_worker_job(
+        runtime,
+        "capture",
+        {
+            "channel": [1],
+            "wait_trigger": True,
+            "trigger_timeout_ms": 1,
+            "trigger_poll_interval_ms": 1,
+        },
+        artifact_path,
+    )
+
+    assert result["state"] == "succeeded"
+    assert result["ok"] is True
+    assert result["exit_code"] == 0
+    assert result["result"]["trigger"]["outcome"] == "natural"
+    assert result["result"]["trigger"]["raw_values"] == ["8", "0"]
+    assert result["files"] == [
+        {"kind": "csv", "path": str(artifact_path / "capture.csv")},
+        {"kind": "metadata", "path": str(artifact_path / "capture_meta.json")},
+    ]
+    assert (artifact_path / "capture.csv").exists()
+    assert job.result["scpi"]["sent"][:4] == [
+        "*IDN?",
+        single_command(),
+        operation_condition_query(),
+        operation_condition_query(),
+    ]
 
 
 @pytest.mark.parametrize(

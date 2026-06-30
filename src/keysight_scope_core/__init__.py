@@ -41,13 +41,15 @@ from .screenshot import ScreenshotCapture, ScreenshotController
 from .scope import KeysightScope
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
-from .trigger import EdgeTriggerController, EdgeTriggerState
+from .trigger import EdgeTriggerController, EdgeTriggerState, TriggerWaitConfig, TriggerWaitResult
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformPreamble
 
 __all__ = [
     "ChannelController",
     "EdgeTriggerController",
     "EdgeTriggerState",
+    "TriggerWaitConfig",
+    "TriggerWaitResult",
     "IDN",
     "KeysightScope",
     "MeasurementController",

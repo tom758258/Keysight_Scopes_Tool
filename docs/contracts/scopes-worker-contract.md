@@ -156,6 +156,34 @@ accepted as JSON keys, for example:
 }
 ```
 
+Triggered capture is an explicit opt-in extension of `capture`; it is not a new
+worker command:
+
+```json
+{
+  "command": "capture",
+  "arguments": {
+    "channel": [1],
+    "points": 1000,
+    "wait_trigger": true,
+    "trigger_timeout_ms": 5000,
+    "trigger_poll_interval_ms": 100,
+    "force_trigger_on_timeout": true
+  }
+}
+```
+
+`wait_trigger` sends `:SINGle`, then polls only
+`:OPERegister:CONDition?` before waveform capture. `trigger_timeout_ms` is
+required when `wait_trigger` is true. `trigger_poll_interval_ms` must be
+positive and less than or equal to the timeout. `force_trigger_on_timeout` is
+valid only with `wait_trigger`; it sends `:TRIGger:FORCe` only after the first
+finite wait times out, then repeats the finite poll window. The worker does not
+use `:TRIGger:STATus?` or `*OPC?`. For DSO-X 2000X/3000X/4000X models,
+operation-condition classification uses the Operation Status Condition Run bit:
+Run set is pending, and Run clear is complete. Other live series remain
+conservative until separately validated.
+
 Query-only worker commands require the same explicit CLI query flag in JSON
 form:
 
@@ -183,6 +211,12 @@ form:
 
 Validation errors must reject before enqueue and before any artifact, VISA, or
 SCPI side effect.
+
+Triggered capture `result.json.result.trigger` records raw operation-condition
+poll values and the classified outcome. Only `natural` and `forced` outcomes
+write capture artifacts. `timeout` and `unknown` outcomes return non-zero and
+write no command artifacts. Unsupported live operation-condition values remain
+unclassified and do not allow capture.
 
 ## Artifacts
 
@@ -223,7 +257,8 @@ relative output paths are resolved under
 recorded as absolute paths. Default worker outputs are:
 
 - `capture`: `capture.csv` and `capture_meta.json` in the job directory; a
-  plot is created only when a path string is supplied.
+  plot is created only when a path string is supplied. With `wait_trigger`,
+  these artifacts are written only when the trigger outcome allows capture.
 - `screenshot`: `screen.png` in the job directory.
 - `capture-batch`, `measure-log`, `smoke`, and `acquisition-check`: the job
   directory is the default `output_dir`.

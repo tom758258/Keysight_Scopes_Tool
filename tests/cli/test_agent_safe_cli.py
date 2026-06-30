@@ -83,6 +83,118 @@ def test_capture_dry_run_json_reports_files_without_writing(monkeypatch, capsys,
     assert payload["scpi"]["planned"][-1] == ":SYSTem:ERRor?"
 
 
+def test_capture_dry_run_wait_trigger_reports_trigger_plan_without_opening(
+    monkeypatch, capsys, tmp_path
+):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("dry-run must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--dry-run",
+                "--json",
+                "--channel",
+                "1",
+                "--csv",
+                str(csv_path),
+                "--wait-trigger",
+                "--trigger-timeout-ms",
+                "10",
+                "--trigger-poll-interval-ms",
+                "5",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["planned"][:2] == [":SINGle", ":OPERegister:CONDition?"]
+    assert payload["result"]["trigger"]["timeout_ms"] == 10
+    assert payload["result"]["trigger"]["outcome"] == "unknown"
+    assert not csv_path.exists()
+
+
+def test_capture_wait_trigger_invalid_combinations_reject_before_backend(monkeypatch, capsys):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("invalid wait-trigger arguments must not open a scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--dry-run",
+                "--json",
+                "--channel",
+                "1",
+                "--wait-trigger",
+            ]
+        )
+        == 1
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert "--trigger-timeout-ms is required" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--dry-run",
+                "--json",
+                "--channel",
+                "1",
+                "--force-trigger-on-timeout",
+            ]
+        )
+        == 1
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert "--force-trigger-on-timeout requires --wait-trigger" in payload["error"]["message"]
+
+
+def test_capture_simulate_wait_trigger_json_reports_trigger_metadata(capsys, tmp_path):
+    csv_path = tmp_path / "capture.csv"
+
+    assert (
+        cli.main(
+            [
+                "capture",
+                "--simulate",
+                "--json",
+                "--channel",
+                "1",
+                "--csv",
+                str(csv_path),
+                "--wait-trigger",
+                "--trigger-timeout-ms",
+                "1",
+                "--trigger-poll-interval-ms",
+                "1",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert csv_path.exists()
+    assert payload["result"]["trigger"]["outcome"] == "natural"
+    assert payload["result"]["trigger"]["raw_values"] == ["8", "0"]
+    assert payload["scpi"]["sent"][:4] == [
+        "*IDN?",
+        ":SINGle",
+        ":OPERegister:CONDition?",
+        ":OPERegister:CONDition?",
+    ]
+
+
 def test_acquisition_check_dry_run_json_reports_plan_for_target_models(monkeypatch, capsys, tmp_path):
     def fail_open(resource, visa_library=None):
         del resource, visa_library

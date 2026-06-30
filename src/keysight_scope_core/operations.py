@@ -48,6 +48,7 @@ from .planning import (
     resolve_sweep_channels,
 )
 from .scope import KeysightScope
+from .trigger import TriggerWaitConfig, wait_for_trigger_completion
 from .waveform import (
     MultiChannelWaveformCapture,
     WaveformCapture,
@@ -79,6 +80,7 @@ class CaptureRequest:
     meta_path: str | Path | None = None
     plot_path: str | Path | None = None
     allow_time_axis_tolerance: bool = False
+    trigger_wait: TriggerWaitConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -160,6 +162,42 @@ def run_capture(scope: KeysightScope, resource: str, request: CaptureRequest) ->
             f"Planned capture: {_format_channel_list(channels)}, {points} points, "
             f"{waveform_format} format"
         )
+    trigger_json = None
+    if request.trigger_wait is not None:
+        human.append(
+            "Trigger wait: arming single acquisition and polling operation condition"
+        )
+        trigger_wait = wait_for_trigger_completion(
+            scope.scpi,
+            request.trigger_wait,
+            classifier_profile=_trigger_wait_classifier_profile(scope),
+        )
+        trigger_json = trigger_wait.to_json(request.trigger_wait)
+        if not trigger_wait.capture_allowed:
+            entry = scope.query_system_error()
+            system_error = _system_error_json(entry)
+            result = {
+                "channels": list(channels),
+                "requested_points": points,
+                "format": waveform_format,
+                "files": [],
+                "trigger": trigger_json,
+            }
+            human.extend(
+                [
+                    f"Trigger wait outcome: {trigger_wait.outcome}",
+                    f"System error: {entry.format()}",
+                ]
+            )
+            return OperationResult(
+                1,
+                result,
+                [],
+                system_error,
+                human,
+                idn=idn,
+                **_scope_backend_json(scope),
+            )
     capture = _capture_waveform(scope, channels, request.waveform_format, points)
     human.extend(_waveform_capture_commands(channels, request.waveform_format, points))
 
@@ -192,12 +230,15 @@ def run_capture(scope: KeysightScope, resource: str, request: CaptureRequest) ->
         "files": files,
         **_waveform_capture_summary(capture),
     }
+    if trigger_json is not None:
+        result["trigger"] = trigger_json
     if time_axis_tolerance is not None:
         result["time_axis_tolerance"] = time_axis_tolerance
     entry = scope.query_system_error()
     system_error = _system_error_json(entry)
     human.extend(
         [
+            *([f"Trigger wait outcome: {trigger_json['outcome']}"] if trigger_json is not None else []),
             _format_actual_points(capture),
             f"CSV: {written_csv}",
             f"Metadata: {written_meta}",
@@ -1232,6 +1273,18 @@ def _scope_backend_json(scope: KeysightScope) -> dict[str, object]:
         "backend": getattr(scope.backend, "backend", None),
         "timeout_ms": getattr(scope.backend, "timeout", None),
     }
+
+
+def _trigger_wait_classifier_profile(scope: KeysightScope) -> str:
+    if getattr(scope.backend, "backend", None) == "Keysight simulator":
+        return "simulator"
+    if scope.capabilities is not None and scope.capabilities.series in {
+        "2000X",
+        "3000X",
+        "4000X",
+    }:
+        return scope.capabilities.series.lower()
+    return "live"
 
 
 def _system_error_json(entry) -> dict[str, object]:

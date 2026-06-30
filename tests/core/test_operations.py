@@ -1,5 +1,6 @@
-﻿import json
+import json
 
+from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
@@ -7,6 +8,7 @@ from keysight_scope_core.operations import (
     MeasureRequest,
     MeasureSweepRequest,
     SmokeRequest,
+    _trigger_wait_classifier_profile,
     run_acquisition_check,
     run_capture,
     run_doctor,
@@ -17,10 +19,28 @@ from keysight_scope_core.operations import (
 )
 from keysight_scope_core.scope import KeysightScope
 from keysight_scope_core.simulator_backend import SimulatorBackend
+from keysight_scope_core.trigger import TriggerWaitConfig
+
+
+class _StepClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
 
 
 def _scope(model="DSOX4024A", **kwargs):
     return KeysightScope(SimulatorBackend(model=model, resource_name=f"SIM::{model}::INSTR", **kwargs))
+
+
+class _ProfileScope:
+    def __init__(self, *, backend_name, model):
+        self.backend = type("Backend", (), {"backend": backend_name})()
+        self.capabilities = capabilities_for_model(model)
 
 
 def test_run_capture_writes_files_and_checks_system_error(tmp_path):
@@ -35,6 +55,117 @@ def test_run_capture_writes_files_and_checks_system_error(tmp_path):
     assert (tmp_path / "capture.csv").exists()
     assert result.files[1]["kind"] == "metadata"
     assert scope.backend.history[-1] == ":SYSTem:ERRor?"
+
+
+def test_run_capture_wait_trigger_natural_path_writes_files(tmp_path):
+    clock = _StepClock()
+    with _scope(operation_condition_values=[56, 56, 48]) as scope:
+        result = run_capture(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            CaptureRequest(
+                (1,),
+                1000,
+                csv_path=tmp_path / "capture.csv",
+                trigger_wait=TriggerWaitConfig(
+                    10, poll_interval_ms=1, clock=clock, sleep=clock.sleep
+                ),
+            ),
+        )
+
+    assert result.exit_code == 0
+    assert (tmp_path / "capture.csv").exists()
+    assert result.result["trigger"]["outcome"] == "natural"
+    assert result.result["trigger"]["raw_values"] == ["56", "56", "48"]
+    assert ":WAVeform:DATA?" in scope.backend.history
+
+
+def test_run_capture_wait_trigger_timeout_writes_no_artifacts(tmp_path):
+    clock = _StepClock()
+    with _scope(operation_condition_values=[56]) as scope:
+        result = run_capture(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            CaptureRequest(
+                (1,),
+                1000,
+                csv_path=tmp_path / "capture.csv",
+                trigger_wait=TriggerWaitConfig(
+                    2, poll_interval_ms=1, clock=clock, sleep=clock.sleep
+                ),
+            ),
+        )
+
+    assert result.exit_code == 1
+    assert result.files == []
+    assert not (tmp_path / "capture.csv").exists()
+    assert result.result["trigger"]["outcome"] == "timeout"
+    assert ":WAVeform:DATA?" not in scope.backend.history
+    assert scope.backend.history[-1] == ":SYSTem:ERRor?"
+
+
+def test_run_capture_wait_trigger_force_after_timeout_then_captures(tmp_path):
+    clock = _StepClock()
+    with _scope(operation_condition_values=[56], force_operation_condition_values=[56, 48]) as scope:
+        result = run_capture(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            CaptureRequest(
+                (1,),
+                1000,
+                csv_path=tmp_path / "capture.csv",
+                trigger_wait=TriggerWaitConfig(
+                    2,
+                    poll_interval_ms=1,
+                    force_on_timeout=True,
+                    clock=clock,
+                    sleep=clock.sleep,
+                ),
+            ),
+        )
+
+    assert result.exit_code == 0
+    assert (tmp_path / "capture.csv").exists()
+    assert result.result["trigger"]["outcome"] == "forced"
+    assert result.result["trigger"]["forced"] is True
+    assert ":TRIGger:FORCe" in scope.backend.history
+
+
+def test_run_capture_wait_trigger_unknown_writes_no_artifacts(tmp_path):
+    clock = _StepClock()
+    with _scope(query_failures={":OPERegister:CONDition?": RuntimeError("configured query failure")}) as scope:
+        result = run_capture(
+            scope,
+            "SIM::DSOX4024A::INSTR",
+            CaptureRequest(
+                (1,),
+                1000,
+                csv_path=tmp_path / "capture.csv",
+                trigger_wait=TriggerWaitConfig(
+                    10, poll_interval_ms=1, clock=clock, sleep=clock.sleep
+                ),
+            ),
+        )
+
+    assert result.exit_code == 1
+    assert result.files == []
+    assert not (tmp_path / "capture.csv").exists()
+    assert result.result["trigger"]["outcome"] == "unknown"
+    assert result.result["trigger"]["condition_values"] == []
+    assert "configured query failure" in result.result["trigger"]["error"]
+    assert ":WAVeform:DATA?" not in scope.backend.history
+
+
+def test_trigger_wait_classifier_profile_uses_x_series_run_bit_for_live_models():
+    assert _trigger_wait_classifier_profile(
+        _ProfileScope(backend_name="fake live", model="DSOX2004A")
+    ) == "2000x"
+    assert _trigger_wait_classifier_profile(
+        _ProfileScope(backend_name="fake live", model="DSOX3024A")
+    ) == "3000x"
+    assert _trigger_wait_classifier_profile(
+        _ProfileScope(backend_name="fake live", model="DSOX4024A")
+    ) == "4000x"
 
 
 def test_run_doctor_returns_channel_snapshot():

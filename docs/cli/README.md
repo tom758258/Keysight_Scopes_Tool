@@ -91,8 +91,9 @@ Current implemented scope:
 - Run capture-safe hardware smoke checks that write a report directory with
   JSON, SCPI log, waveform CSV, metadata, and screenshot artifacts.
 - Capture one or more analog channel waveforms in BYTE or WORD format and
-  export CSV plus JSON metadata, with optional PNG plot output and an optional
-  default timestamped CSV path under `data`.
+  export CSV plus JSON metadata, with optional PNG plot output, an optional
+  default timestamped CSV path under `data`, and optional explicit triggered
+  capture via `capture --wait-trigger`.
 - Capture a finite batch of waveforms with `capture-batch`, writing per-capture
   CSV and metadata files, `manifest.json`, and `scpi.log` into one run
   directory.
@@ -100,8 +101,7 @@ Current implemented scope:
   optional default timestamped output path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
 - Force one trigger event explicitly with `force-trigger` / `:TRIGger:FORCe`,
-  without wait, poll, capture, or trigger/acquisition/timebase/waveform
-  reconfiguration.
+  without changing the standalone `single` or default `capture` behavior.
 
 The package does not send `*RST`, does not change VISA timeout defaults, and
 does not perform return-to-local behavior. State-changing commands are exposed
@@ -299,7 +299,9 @@ must not be combined with `capture`, `measure`, `doctor`, `smoke`,
 `acquisition-check`, `single`, `run`, `stop-acquisition`, `autoscale`,
 `setup-save`, or `setup-recall`. Worker `/command` support is available only
 through the explicit `force-trigger` command with `arguments: {}`.
-Force-trigger wait/poll/capture integration remains unsupported.
+Triggered capture integration is available only through explicit
+`capture --wait-trigger` options; the standalone `force-trigger` command
+remains unchanged.
 
 The long trigger force form is used for DSO-X 4000X firmware 07.20
 compatibility.
@@ -679,6 +681,8 @@ Capture waveform data:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --channel 2 --points 1000 --csv data\ch1_ch2.csv --allow-time-axis-tolerance --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel all --points 1000 --csv data\all_channels.csv --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --points 1000 --wait-trigger --trigger-timeout-ms 5000 --trigger-poll-interval-ms 100 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli capture --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --points 1000 --wait-trigger --trigger-timeout-ms 5000 --force-trigger-on-timeout --log-scpi
 ```
 
 The current capture slice supports BYTE and WORD waveform formats with 1000,
@@ -709,10 +713,30 @@ model, series, format, and requested point fields plus ordered `channels`
 entries containing each channel number, actual point count, preamble, and WORD
 byte-order fields where applicable.
 The command performs one `:SYSTem:ERRor?` post-check. It does not change VISA
-timeout, acquisition mode, trigger waiting, waveform point mode, or
-return-to-local behavior. If the CSV or metadata file cannot be written because
-it is open in another program or the folder is not writable, the CLI reports a
-plain `error:` message instead of a Python traceback.
+timeout, acquisition mode, waveform point mode, or return-to-local behavior. If
+the CSV or metadata file cannot be written because it is open in another
+program or the folder is not writable, the CLI reports a plain `error:` message
+instead of a Python traceback.
+
+`capture --wait-trigger` is an explicit state-changing triggered capture mode.
+It sends `:SINGle`, then polls only `:OPERegister:CONDition?` before waveform
+readout. `--trigger-timeout-ms` is required with `--wait-trigger`.
+`--trigger-poll-interval-ms` defaults to 100 ms and must be less than or equal
+to the timeout. `--force-trigger-on-timeout` is valid only with
+`--wait-trigger`; after the first finite wait times out it sends
+`:TRIGger:FORCe`, then repeats the same finite poll window before capture. The
+command does not use `:TRIGger:STATus?` or `*OPC?`.
+For DSO-X 2000X/3000X/4000X models, operation-condition classification uses
+the Operation Status Condition Run bit: Run set is pending, and Run clear is
+complete. Other live series remain conservative until separately validated.
+
+Triggered capture JSON adds `result.trigger`. Outcomes are `natural`, `forced`,
+`timeout`, or `unknown`. Only `natural` and `forced` write waveform artifacts.
+`timeout`, unsupported poll query, parse failure, or unclassified operation
+condition state returns non-zero, writes no capture artifacts, records raw poll
+values in `raw_values` and `condition_values`, and still performs one
+`:SYSTem:ERRor?` post-check when possible. Unsupported live operation-condition
+values remain unclassified and do not allow capture.
 
 Capture a finite waveform batch:
 

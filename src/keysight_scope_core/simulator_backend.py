@@ -12,6 +12,7 @@ import zlib
 
 from .capabilities import capabilities_for_model
 from .errors import BackendClosedError, KeysightScopeError
+from .trigger import OPERATION_CONDITION_RUN_MASK
 
 
 class SimulatorBackendError(KeysightScopeError):
@@ -123,6 +124,11 @@ class SimulatorBackend:
     maximum_sample_rate_hz: float = 5e9
     acquisition_points: int = 1000000
     record_length_points: int = 65536
+    operation_condition_values: list[int] = field(
+        default_factory=lambda: [OPERATION_CONDITION_RUN_MASK, 0]
+    )
+    force_operation_condition_values: list[int] = field(default_factory=lambda: [0])
+    operation_condition_index: int = 0
 
     run_state: str = "stopped"
     timebase_scale: float = 1e-3
@@ -166,9 +172,11 @@ class SimulatorBackend:
         upper = command.upper()
         if upper in {":RUN", ":STOP", ":SINGLE"}:
             self.run_state = {"RUN": "running", "STOP": "stopped", "SINGLE": "single"}[upper[1:]]
+            if upper == ":SINGLE":
+                self.operation_condition_index = 0
         elif upper == ":TRIGGER:FORCE":
-            # Force one trigger event; record but do not change simulated state.
-            pass
+            self.operation_condition_values = list(self.force_operation_condition_values)
+            self.operation_condition_index = 0
         elif upper.startswith(":WAVEFORM:SOURCE CHANNEL"):
             self.waveform_source = self._validate_channel(
                 int(command.rsplit("CHANnel", 1)[1])
@@ -288,6 +296,8 @@ class SimulatorBackend:
             return str(self.acquisition_points)
         if upper == ":ACQUIRE:RLENGTH?":
             return str(self.record_length_points)
+        if upper == ":OPEREGISTER:CONDITION?":
+            return str(self._operation_condition_value())
         if upper == ":ACQUIRE:COUNT?":
             return str(self.acquisition_count)
         if upper == ":TIMEBASE:SCALE?":
@@ -404,6 +414,15 @@ class SimulatorBackend:
         if self.strict_unknown_commands:
             raise SimulatorBackendError(f"Unsupported simulator {operation}: {command}")
         return "0"
+
+    def _operation_condition_value(self) -> int:
+        if not self.operation_condition_values:
+            return 0
+        index = min(self.operation_condition_index, len(self.operation_condition_values) - 1)
+        value = int(self.operation_condition_values[index])
+        if self.operation_condition_index < len(self.operation_condition_values) - 1:
+            self.operation_condition_index += 1
+        return value
 
     def _waveform_preamble(self) -> str:
         self._validate_waveform_points()

@@ -161,6 +161,7 @@ from keysight_scope_core.timebase import (
     validate_timebase_scale,
 )
 from keysight_scope_core.trigger import (
+    TriggerWaitConfig,
     edge_trigger_level_command,
     edge_trigger_level_query,
     edge_trigger_slope_command,
@@ -169,6 +170,8 @@ from keysight_scope_core.trigger import (
     edge_trigger_source_query,
     force_trigger_command,
     normalize_edge_slope,
+    operation_condition_query,
+    single_command,
     trigger_mode_edge_command,
     validate_trigger_level,
 )
@@ -816,6 +819,28 @@ def _build_parser() -> argparse.ArgumentParser:
             "allow small multi-channel time-axis drift up to half the first "
             "channel sample interval"
         ),
+    )
+    capture_parser.add_argument(
+        "--wait-trigger",
+        action="store_true",
+        help="arm a single acquisition and poll for trigger completion before capture",
+    )
+    capture_parser.add_argument(
+        "--trigger-timeout-ms",
+        type=_positive_int,
+        default=None,
+        help="finite trigger wait timeout in milliseconds; required with --wait-trigger",
+    )
+    capture_parser.add_argument(
+        "--trigger-poll-interval-ms",
+        type=_positive_int,
+        default=100,
+        help="trigger wait polling interval in milliseconds; defaults to 100",
+    )
+    capture_parser.add_argument(
+        "--force-trigger-on-timeout",
+        action="store_true",
+        help="after trigger wait timeout, send :TRIGger:FORCe and continue finite polling",
     )
 
     capture_batch_parser = subparsers.add_parser(
@@ -1552,6 +1577,7 @@ def _utc_timestamp() -> str:
 def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> tuple[list[str], list[dict[str, str]], dict[str, object]]:
     command = args.command
     if command == "capture":
+        trigger_wait = _capture_trigger_wait_config(args)
         plan = plan_capture(
             CapturePlanRequest(
                 channels=args.channel,
@@ -1563,7 +1589,34 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             ),
             capabilities,
         )
-        return list(plan.planned_scpi), list(plan.files), plan.result
+        planned = list(plan.planned_scpi)
+        result = dict(plan.result)
+        if trigger_wait is not None:
+            wait_scpi = [single_command(), operation_condition_query()]
+            if trigger_wait.force_on_timeout:
+                wait_scpi.extend([force_trigger_command(), operation_condition_query()])
+            planned = wait_scpi + planned
+            result["trigger"] = {
+                "wait_enabled": True,
+                "arm_command": single_command(),
+                "poll_source": "operation_condition",
+                "poll_command": operation_condition_query(),
+                "timeout_ms": trigger_wait.timeout_ms,
+                "poll_interval_ms": trigger_wait.poll_interval_ms,
+                "force_on_timeout": trigger_wait.force_on_timeout,
+                "force_command": force_trigger_command(),
+                "outcome": "unknown",
+                "forced": False,
+                "timed_out": False,
+                "poll_count": 0,
+                "elapsed_ms": 0.0,
+                "condition_values": [],
+                "raw_values": [],
+                "capture_allowed": False,
+                "capture_block_reason": "dry_run",
+                "error": None,
+            }
+        return planned, list(plan.files), result
     if command == "doctor":
         plan = plan_doctor(capabilities)
         return list(plan.planned_scpi), list(plan.files), plan.result
@@ -2952,6 +3005,7 @@ def _cmd_measure_stats(args: argparse.Namespace) -> int:
 
 
 def _cmd_capture(args: argparse.Namespace) -> int:
+    trigger_wait = _capture_trigger_wait_config(args)
     resource = _require_resource(args)
     if resource is None:
         return 2
@@ -2976,6 +3030,7 @@ def _cmd_capture(args: argparse.Namespace) -> int:
                 meta_path=meta_path,
                 plot_path=plot_path,
                 allow_time_axis_tolerance=args.allow_time_axis_tolerance,
+                trigger_wait=trigger_wait,
             ),
         )
         if operation_result.idn is not None:
@@ -2984,6 +3039,30 @@ def _cmd_capture(args: argparse.Namespace) -> int:
         for line in operation_result.human_lines:
             print(line)
         return operation_result.exit_code
+
+
+def _capture_trigger_wait_config(args: argparse.Namespace) -> TriggerWaitConfig | None:
+    wait_trigger = bool(getattr(args, "wait_trigger", False))
+    timeout_ms = getattr(args, "trigger_timeout_ms", None)
+    poll_interval_ms = int(getattr(args, "trigger_poll_interval_ms", 100))
+    force_on_timeout = bool(getattr(args, "force_trigger_on_timeout", False))
+    if not wait_trigger:
+        if timeout_ms is not None:
+            raise KeysightScopeError("--trigger-timeout-ms requires --wait-trigger")
+        if force_on_timeout:
+            raise KeysightScopeError("--force-trigger-on-timeout requires --wait-trigger")
+        return None
+    if timeout_ms is None:
+        raise KeysightScopeError("--trigger-timeout-ms is required with --wait-trigger")
+    if poll_interval_ms > timeout_ms:
+        raise KeysightScopeError(
+            "--trigger-poll-interval-ms must be less than or equal to --trigger-timeout-ms"
+        )
+    return TriggerWaitConfig(
+        timeout_ms=timeout_ms,
+        poll_interval_ms=poll_interval_ms,
+        force_on_timeout=force_on_timeout,
+    )
 
 
 def _cmd_capture_batch(args: argparse.Namespace) -> int:
