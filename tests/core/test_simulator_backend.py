@@ -93,6 +93,38 @@ def test_simulator_state_queries_reflect_channel_timebase_and_trigger_writes():
     assert backend.query(":TRIGger:EDGE:SLOPe?") == "NEGative"
 
 
+def test_simulator_label_and_display_annotation_roundtrip_4000x():
+    backend = SimulatorBackend(model="DSOX4024A")
+
+    backend.write(':CHANnel1:LABel "Input a"')
+    backend.write(":DISPlay:LABel OFF")
+    backend.write(":DISPlay:ANNotation2 ON")
+    backend.write(':DISPlay:ANNotation2:TEXT "Note"')
+    backend.write(":DISPlay:ANNotation2:COLor RED")
+    backend.write(":DISPlay:ANNotation2:BACKground OPAQ")
+    backend.write(":DISPlay:ANNotation2:X1Position 10")
+    backend.write(":DISPlay:ANNotation2:Y1Position 20")
+
+    assert backend.query(":CHANnel1:LABel?") == '"Input a"'
+    assert backend.query(":DISPlay:LABel?") == "0"
+    assert backend.query(":DISPlay:ANNotation2?") == "1"
+    assert backend.query(":DISPlay:ANNotation2:TEXT?") == '"Note"'
+    assert backend.query(":DISPlay:ANNotation2:COLor?") == "RED"
+    assert backend.query(":DISPlay:ANNotation2:BACKground?") == "OPAQ"
+    assert backend.query(":DISPlay:ANNotation2:X1Position?") == "10"
+    assert backend.query(":DISPlay:ANNotation2:Y1Position?") == "20"
+
+
+def test_simulator_unindexed_annotation_roundtrip_3000x():
+    backend = SimulatorBackend(model="DSOX3024A")
+
+    backend.write(":DISPlay:ANNotation ON")
+    backend.write(':DISPlay:ANNotation:TEXT "Note"')
+
+    assert backend.query(":DISPlay:ANNotation?") == "1"
+    assert backend.query(":DISPlay:ANNotation:TEXT?") == '"Note"'
+
+
 def test_simulator_waveform_model_reflects_scale_offset_timebase_and_channel_phase():
     backend = SimulatorBackend()
 

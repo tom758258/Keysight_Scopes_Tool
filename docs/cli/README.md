@@ -64,6 +64,9 @@ Current implemented scope:
   transfer point count controlled by `capture --points`.
 - Enable, disable, or query analog channel display state with
   `:CHANnel<n>:DISPlay`.
+- Set or query analog channel labels with `:CHANnel<n>:LABel`. 2000X/3000X
+  profiles allow up to 10 printable ASCII characters; 4000X profiles allow up
+  to 32. Text is sent as supplied and is not uppercased or truncated.
 - Set or query analog channel scale and offset with `:CHANnel<n>:SCALe` and
   `:CHANnel<n>:OFFSet`.
 - Set or query analog channel coupling, probe ratio, and bandwidth limit with
@@ -73,6 +76,9 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
+- Enable, disable, or query display labels with `:DISPlay:LABel`; set, clear,
+  or query display annotations with `:DISPlay:ANNotation`. 4000X annotation
+  commands use indexed slots `1..10` and support `X1Position`/`Y1Position`.
 - Query, hide, or configure manual cursors; set/query trigger holdoff; run
   explicit autoscale; save/recall setup slots or `.scp` files; and configure
   FFT math functions.
@@ -483,6 +489,59 @@ Channel coupling supports `ac` and `dc`. Probe ratio must be a positive finite
 number. Bandwidth limit is a per-channel on/off setting. These commands first
 query `*IDN?` to validate the channel number against the detected model, then
 perform one `:SYSTem:ERRor?` post-check.
+
+Set or query one analog channel label:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-label --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --text "Input A" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-label --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+```
+
+Channel labels accept printable ASCII text without double quotes or control
+characters. The CLI validates model-specific length before sending SCPI:
+2000X/3000X allow up to 10 characters, and 4000X allows up to 32. Some
+instruments may normalize returned label case; JSON reports the query readback
+as returned by SCPI parsing.
+
+Enable, disable, or query front-panel label display:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-label --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --on --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-label --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+```
+
+Set, clear, or query display annotations:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli annotation --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --on --text "Run note" --color white --background opaque --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli annotation --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli annotation --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --model DSOX4024A --slot 2 --text "Run note" --x 10 --y 20 --log-scpi
+```
+
+`annotation --query` cannot be combined with setters. Non-query annotation
+commands require at least one setter/action. `--clear` sends an empty annotation
+text string and cannot be combined with `--text`. 2000X/3000X annotation uses
+the unindexed `:DISPlay:ANNotation` commands and does not send or query X/Y
+position; JSON query results still include `x: null` and `y: null`. 4000X uses
+indexed `:DISPlay:ANNotation<n>` slots from 1 through 10 and validates `--x`
+as 0 through 800 and `--y` as 0 through 480 before sending
+`:X1Position`/`:Y1Position` SCPI. Annotation background values are `opaque`,
+`inverted`, and `transparent`; annotation color values are `ch1`, `ch2`,
+`ch3`, `ch4`, `dig`, `math`, `ref`, `marker`, `white`, and `red`.
+Annotation value forms are distinct:
+
+- CLI input aliases: `white`, `marker`, and `transparent`.
+- SCPI command tokens: `WHITE`, `MARKer`, and `OPAQ`.
+- Query canonical enums: `WHITE`, `MARK`, `DIG`, `OPAQ`, and `TRAN`.
+
+Annotation query results preserve instrument semantics using canonical SCPI
+enum values. Color readback abbreviations such as `WHIT` are accepted and
+normalized to stable canonical values such as `WHITE`; background readback
+canonical values remain `OPAQ`, `INV`, and `TRAN`.
+
+These one-shot commands are not worker commands. The worker command allowlist
+and worker JSONL contract do not expose channel label, display label, or
+annotation operations.
 
 Set or query the horizontal timebase scale:
 

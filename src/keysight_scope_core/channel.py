@@ -98,6 +98,19 @@ class ChannelController:
             "bandwidth limit",
         )
 
+    def set_label(self, channel: int, text: str) -> None:
+        """Set one analog channel label."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        text = validate_channel_label(text, self.capabilities)
+        self.scpi.write(channel_label_command(channel, text, self.capabilities))
+
+    def query_label(self, channel: int) -> str:
+        """Query one analog channel label."""
+
+        channel = validate_analog_channel(channel, self.capabilities)
+        return parse_channel_label(self.scpi.query(channel_label_query(channel)))
+
 
 def validate_analog_channel(channel: int, capabilities: ScopeCapabilities) -> int:
     """Validate an analog channel number against a capability profile."""
@@ -238,6 +251,18 @@ def channel_bandwidth_limit_query(channel: int) -> str:
     return f":CHANnel{channel}:BWLimit?"
 
 
+def channel_label_command(channel: int, text: str, capabilities: ScopeCapabilities) -> str:
+    """Build the SCPI command for analog channel label text."""
+
+    return f':CHANnel{channel}:LABel "{validate_channel_label(text, capabilities)}"'
+
+
+def channel_label_query(channel: int) -> str:
+    """Build the SCPI query for analog channel label text."""
+
+    return f":CHANnel{channel}:LABel?"
+
+
 def parse_channel_display(raw: str) -> bool:
     """Parse a channel display query response."""
 
@@ -280,6 +305,33 @@ def parse_channel_float(raw: str, setting_name: str) -> float:
             f"Could not parse channel {setting_name} response: {raw!r}"
         )
     return value
+
+
+def validate_channel_label(text: str, capabilities: ScopeCapabilities) -> str:
+    """Validate an analog channel label before sending it to the instrument."""
+
+    if not isinstance(text, str):
+        raise ParameterValidationError("channel label must be text.")
+    max_length = capabilities.channel_label_max_length
+    if len(text) > max_length:
+        raise ParameterValidationError(
+            f"channel label must be at most {max_length} characters for this model."
+        )
+    for char in text:
+        if char == '"' or ord(char) < 32 or ord(char) > 126:
+            raise ParameterValidationError(
+                "channel label must be printable ASCII and must not contain double quotes."
+            )
+    return text
+
+
+def parse_channel_label(raw: str) -> str:
+    """Parse an analog channel label query response."""
+
+    text = raw.strip()
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        return text[1:-1]
+    return text
 
 
 def _format_scpi_float(value: float) -> str:

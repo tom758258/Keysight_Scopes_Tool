@@ -112,6 +112,9 @@ class SimulatorBackend:
     channel_coupling: dict[int, str] = field(default_factory=dict)
     channel_probe: dict[int, float] = field(default_factory=dict)
     channel_bandwidth_limit: dict[int, bool] = field(default_factory=dict)
+    channel_label: dict[int, str] = field(default_factory=dict)
+    display_label: bool = True
+    annotation_state: dict[int, dict[str, Any]] = field(default_factory=dict)
     waveform_source: int = 1
     waveform_format: str = "BYTE"
     waveform_points: int = 1000
@@ -200,6 +203,10 @@ class SimulatorBackend:
             self.waveform_points = points
         elif upper.startswith(":HARDCOPY:INKSAVER "):
             self.hardcopy_inksaver = upper.endswith(" ON")
+        elif upper.startswith(":DISPLAY:LABEL "):
+            self.display_label = upper.endswith(" ON")
+        elif self._apply_annotation_write(command):
+            pass
         elif upper.startswith(":ACQUIRE:TYPE "):
             self.acquisition_type = command.rsplit(" ", 1)[1]
         elif upper.startswith(":ACQUIRE:COUNT "):
@@ -286,6 +293,11 @@ class SimulatorBackend:
             return self._waveform_preamble()
         if upper == ":HARDCOPY:INKSAVER?":
             return "1" if self.hardcopy_inksaver else "0"
+        if upper == ":DISPLAY:LABEL?":
+            return "1" if self.display_label else "0"
+        annotation_response = self._query_annotation(command)
+        if annotation_response is not None:
+            return annotation_response
         if upper == ":ACQUIRE:TYPE?":
             return self.acquisition_type
         if upper == ":ACQUIRE:SRATE? MAXIMUM":
@@ -1072,6 +1084,8 @@ class SimulatorBackend:
             self.channel_probe[channel] = float(value)
         elif ":BWLIMIT " in upper:
             self.channel_bandwidth_limit[channel] = upper.endswith(" ON")
+        elif ":LABEL " in upper:
+            self.channel_label[channel] = _parse_scpi_string_arg(command.split(" ", 1)[1])
         else:
             return False
         return True
@@ -1094,6 +1108,8 @@ class SimulatorBackend:
             return f"{self.channel_probe.get(channel, 10.0):.12g}"
         if ":BWLIMIT?" in upper:
             return "1" if self.channel_bandwidth_limit.get(channel, False) else "0"
+        if ":LABEL?" in upper:
+            return f'"{self.channel_label.get(channel, "")}"'
         return None
 
     def _validate_channel(self, channel: int) -> int:
@@ -1104,6 +1120,65 @@ class SimulatorBackend:
                 f"CH{channel} is not available."
             )
         return channel
+
+    def _apply_annotation_write(self, command: str) -> bool:
+        parsed = _parse_annotation_path(command)
+        if parsed is None or parsed[2]:
+            return False
+        slot, field_name, _query = parsed
+        state = self._annotation_slot(slot)
+        upper = command.upper()
+        if field_name == "STATE":
+            state["enabled"] = upper.endswith(" ON")
+        elif field_name == "TEXT":
+            state["text"] = _parse_scpi_string_arg(command.split(" ", 1)[1])
+        elif field_name == "COLOR":
+            state["color"] = command.rsplit(" ", 1)[1].upper()
+        elif field_name == "BACKGROUND":
+            state["background"] = command.rsplit(" ", 1)[1].upper()
+        elif field_name == "X1POSITION":
+            state["x"] = int(command.rsplit(" ", 1)[1])
+        elif field_name == "Y1POSITION":
+            state["y"] = int(command.rsplit(" ", 1)[1])
+        else:
+            return False
+        return True
+
+    def _query_annotation(self, command: str) -> str | None:
+        parsed = _parse_annotation_path(command)
+        if parsed is None or not parsed[2]:
+            return None
+        slot, field_name, _query = parsed
+        state = self._annotation_slot(slot)
+        if field_name == "STATE":
+            return "1" if state["enabled"] else "0"
+        if field_name == "TEXT":
+            return f'"{state["text"]}"'
+        if field_name == "COLOR":
+            return str(state["color"])
+        if field_name == "BACKGROUND":
+            return str(state["background"])
+        if field_name == "X1POSITION":
+            return str(state["x"])
+        if field_name == "Y1POSITION":
+            return str(state["y"])
+        return None
+
+    def _annotation_slot(self, slot: int) -> dict[str, Any]:
+        max_slot = self._capabilities.annotation_slots
+        if slot < 1 or slot > max_slot:
+            raise SimulatorBackendError(f"Simulator annotation slot must be in range 1-{max_slot}.")
+        return self.annotation_state.setdefault(
+            slot,
+            {
+                "enabled": False,
+                "text": "",
+                "color": "WHITE",
+                "background": "OPAQ",
+                "x": 0,
+                "y": 0,
+            },
+        )
 
 
 def _extract_channel(command: str) -> int | None:
@@ -1118,6 +1193,26 @@ def _extract_channel(command: str) -> int | None:
         else:
             break
     return int("".join(digits)) if digits else None
+
+
+def _parse_annotation_path(command: str) -> tuple[int, str, bool] | None:
+    match = re.fullmatch(
+        r":DISPlay:ANNotation(\d*)(?:(?::(TEXT|COLor|BACKground|X1Position|Y1Position))?(\?)?(?:\s+.*)?)",
+        command,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    raw_slot, field_name, query = match.groups()
+    slot = int(raw_slot) if raw_slot else 1
+    return slot, (field_name or "STATE").upper(), query == "?"
+
+
+def _parse_scpi_string_arg(value: str) -> str:
+    text = value.strip()
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        return text[1:-1]
+    return text
 
 
 def _coerce_simulated_signal(

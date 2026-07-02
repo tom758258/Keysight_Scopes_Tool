@@ -14,8 +14,8 @@ Core owns runtime behavior:
 - Safe resource opening and run-mode resolution.
 - IDN parsing and series detection.
 - Capability profiles for supported InfiniiVision models.
-- Channel, timebase, trigger, acquisition, measurement, waveform, screenshot,
-  and operation helpers.
+- Channel, display label, display annotation, timebase, trigger, acquisition,
+  measurement, waveform, screenshot, and operation helpers.
 - Simulator and fake backend support for hardware-free tests.
 - Read-only analog acquisition sample rate query helpers.
 - Read-only acquisition points and record-length query helpers, separate from

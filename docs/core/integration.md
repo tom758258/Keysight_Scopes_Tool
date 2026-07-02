@@ -10,6 +10,8 @@ The public import surface is defined by `keysight_scope_core.__all__`. These
 names are intended for package consumers and tests:
 
 - `ChannelController`
+- `DisplayController`
+- `AnnotationState`
 - `EdgeTriggerController`
 - `EdgeTriggerState`
 - `IDN`
@@ -40,6 +42,7 @@ names are intended for package consumers and tests:
 - `detect_series`
 - `parse_channel_display`
 - `parse_channel_coupling`
+- `parse_display_label`
 - `parse_idn`
 - `parse_system_error`
 - `resolve_run_mode`

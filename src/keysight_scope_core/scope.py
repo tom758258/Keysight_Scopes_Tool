@@ -15,6 +15,7 @@ from .advanced import (
 )
 from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import ChannelController
+from .display import AnnotationState, DisplayController
 from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
 from .measurements import MeasurementController, MeasurementResult, MeasurementStatisticsResult
@@ -150,6 +151,49 @@ class KeysightScope:
         """Query whether one analog channel bandwidth limit is enabled."""
 
         return self._channel_controller().query_bandwidth_limit(channel)
+
+    def set_channel_label(self, channel: int, text: str) -> None:
+        """Set one analog channel label."""
+
+        self._channel_controller().set_label(channel, text)
+
+    def query_channel_label(self, channel: int) -> str:
+        """Query one analog channel label."""
+
+        return self._channel_controller().query_label(channel)
+
+    def set_display_label(self, enabled: bool) -> None:
+        """Turn display labels on or off."""
+
+        self._display_controller().set_label(enabled)
+
+    def query_display_label(self) -> bool:
+        """Query whether display labels are enabled."""
+
+        return self._display_controller().query_label()
+
+    def set_annotation_enabled(self, enabled: bool, *, slot: int = 1) -> None:
+        self._display_controller().set_annotation_enabled(enabled, slot=slot)
+
+    def clear_annotation(self, *, slot: int = 1) -> None:
+        self._display_controller().clear_annotation(slot=slot)
+
+    def set_annotation_text(self, text: str, *, slot: int = 1) -> None:
+        self._display_controller().set_annotation_text(text, slot=slot)
+
+    def set_annotation_color(self, color: str, *, slot: int = 1) -> None:
+        self._display_controller().set_annotation_color(color, slot=slot)
+
+    def set_annotation_background(self, background: str, *, slot: int = 1) -> None:
+        self._display_controller().set_annotation_background(background, slot=slot)
+
+    def set_annotation_position(
+        self, x: int | None = None, y: int | None = None, *, slot: int = 1
+    ) -> None:
+        self._display_controller().set_annotation_position(x=x, y=y, slot=slot)
+
+    def query_annotation(self, *, slot: int = 1) -> AnnotationState:
+        return self._display_controller().query_annotation(slot=slot)
 
     def set_timebase_scale(self, seconds_per_division: float) -> None:
         """Set the horizontal scale in seconds per division."""
@@ -375,8 +419,15 @@ class KeysightScope:
         if self.capabilities is None:
             raise ParameterValidationError(
                 "Channel operations require known capabilities; call query_idn() first."
-        )
+            )
         return ChannelController(self.scpi, self.capabilities)
+
+    def _display_controller(self) -> DisplayController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Display operations require known capabilities; call query_idn() first."
+            )
+        return DisplayController(self.scpi, self.capabilities)
 
     def _timebase_controller(self) -> TimebaseController:
         if self.capabilities is None:

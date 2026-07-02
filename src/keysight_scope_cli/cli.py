@@ -108,6 +108,8 @@ from keysight_scope_core.channel import (
     channel_coupling_query,
     channel_display_command,
     channel_display_query,
+    channel_label_command,
+    channel_label_query,
     channel_offset_command,
     channel_offset_query,
     channel_probe_ratio_command,
@@ -117,8 +119,18 @@ from keysight_scope_core.channel import (
     normalize_channel_coupling,
     validate_analog_channel,
     validate_channel_offset,
+    validate_channel_label,
     validate_channel_scale,
     validate_probe_ratio,
+)
+from keysight_scope_core.display import (
+    annotation_commands,
+    annotation_query_commands,
+    display_label_command,
+    display_label_query,
+    normalize_annotation_background,
+    normalize_annotation_color,
+    validate_annotation_slot,
 )
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.idn import normalize_model_key, parse_idn
@@ -419,6 +431,30 @@ def _build_parser() -> argparse.ArgumentParser:
         help="query the channel display state",
     )
 
+    channel_label_parser = subparsers.add_parser(
+        "channel-label",
+        help="set or query one analog channel label",
+    )
+    _add_scope_connection_args(channel_label_parser)
+    channel_label_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    label_action = channel_label_parser.add_mutually_exclusive_group(required=True)
+    label_action.add_argument(
+        "--text",
+        dest="label_text",
+        help="channel label text",
+    )
+    label_action.add_argument(
+        "--query",
+        dest="label_query",
+        action="store_true",
+        help="query the channel label text",
+    )
+
     channel_scale_parser = subparsers.add_parser(
         "channel-scale",
         help="set or query one analog channel vertical scale",
@@ -554,6 +590,55 @@ def _build_parser() -> argparse.ArgumentParser:
         const="query",
         help="query the channel bandwidth limit state",
     )
+
+    display_label_parser = subparsers.add_parser(
+        "display-label",
+        help="enable, disable, or query front-panel labels",
+    )
+    _add_scope_connection_args(display_label_parser)
+    display_label_action = display_label_parser.add_mutually_exclusive_group(required=True)
+    display_label_action.add_argument(
+        "--on",
+        dest="display_label_action",
+        action="store_const",
+        const="on",
+        help="turn display labels on",
+    )
+    display_label_action.add_argument(
+        "--off",
+        dest="display_label_action",
+        action="store_const",
+        const="off",
+        help="turn display labels off",
+    )
+    display_label_action.add_argument(
+        "--query",
+        dest="display_label_action",
+        action="store_const",
+        const="query",
+        help="query display label state",
+    )
+
+    annotation_parser = subparsers.add_parser(
+        "annotation",
+        help="set, clear, or query display annotation text",
+    )
+    _add_scope_connection_args(annotation_parser)
+    annotation_parser.add_argument(
+        "--slot",
+        type=_positive_int,
+        default=1,
+        help="annotation slot; 4000X supports 1-10, 2000X/3000X support 1",
+    )
+    annotation_parser.add_argument("--query", action="store_true", help="query annotation state")
+    annotation_parser.add_argument("--on", action="store_true", help="turn annotation on")
+    annotation_parser.add_argument("--off", action="store_true", help="turn annotation off")
+    annotation_parser.add_argument("--text", help="annotation text")
+    annotation_parser.add_argument("--clear", action="store_true", help="clear annotation text")
+    annotation_parser.add_argument("--color", help="annotation text color")
+    annotation_parser.add_argument("--background", help="annotation background color")
+    annotation_parser.add_argument("--x", type=_nonnegative_int, help="4000X annotation x position, 0-800")
+    annotation_parser.add_argument("--y", type=_nonnegative_int, help="4000X annotation y position, 0-480")
 
     timebase_scale_parser = subparsers.add_parser(
         "timebase-scale",
@@ -1251,6 +1336,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_force_trigger(args)
     if args.command == "channel-display":
         return _cmd_channel_display(args)
+    if args.command == "channel-label":
+        return _cmd_channel_label(args)
     if args.command == "channel-scale":
         return _cmd_channel_scale(args)
     if args.command == "channel-offset":
@@ -1261,6 +1348,10 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_channel_probe(args)
     if args.command == "channel-bandwidth-limit":
         return _cmd_channel_bandwidth_limit(args)
+    if args.command == "display-label":
+        return _cmd_display_label(args)
+    if args.command == "annotation":
+        return _cmd_annotation(args)
     if args.command == "timebase-scale":
         return _cmd_timebase_scale(args)
     if args.command == "timebase-position":
@@ -1668,6 +1759,11 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         enabled = None if query else args.display_action == "on"
         planned = [channel_display_query(channel)] if query else [channel_display_command(channel, enabled)]
         return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if query else "set", "command": planned[0], "display": enabled}
+    if command == "channel-label":
+        channel = validate_analog_channel(args.channel, capabilities)
+        text = None if args.label_query else validate_channel_label(args.label_text, capabilities)
+        planned = [channel_label_query(channel)] if args.label_query else [channel_label_command(channel, text, capabilities)]
+        return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if args.label_query else "set", "command": planned[0], "text": text}
     if command == "channel-scale":
         channel = validate_analog_channel(args.channel, capabilities)
         scale = None if args.scale_query else validate_channel_scale(args.scale_value)
@@ -1694,6 +1790,15 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         enabled = None if query else args.bandwidth_action == "on"
         planned = [channel_bandwidth_limit_query(channel)] if query else [channel_bandwidth_limit_command(channel, enabled)]
         return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if query else "set", "command": planned[0], "bandwidth_limit": enabled}
+    if command == "display-label":
+        query = args.display_label_action == "query"
+        enabled = None if query else args.display_label_action == "on"
+        planned = [display_label_query()] if query else [display_label_command(enabled)]
+        return planned + [":SYSTem:ERRor?"], [], {"operation": "query" if query else "set", "command": planned[0], "display_label": enabled}
+    if command == "annotation":
+        operation, commands, result = _annotation_plan(args, capabilities)
+        result["operation"] = operation
+        return commands + [":SYSTem:ERRor?"], [], result
     if command == "timebase-scale":
         scale = None if args.timebase_scale_query else validate_timebase_scale(args.timebase_scale_value)
         planned = [timebase_scale_query()] if args.timebase_scale_query else [timebase_scale_command(scale)]
@@ -1994,6 +2099,79 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
     return [], [], {}
 
 
+def _annotation_plan(
+    args: argparse.Namespace, capabilities: ScopeCapabilities
+) -> tuple[str, list[str], dict[str, object]]:
+    query_setters = (
+        args.on,
+        args.off,
+        args.text is not None,
+        args.clear,
+        args.color is not None,
+        args.background is not None,
+        args.x is not None,
+        args.y is not None,
+    )
+    if args.query and any(query_setters):
+        raise KeysightScopeError(
+            "--query cannot be combined with --on, --off, --text, --clear, --color, --background, --x, or --y"
+        )
+    if args.on and args.off:
+        raise KeysightScopeError("--on and --off are mutually exclusive")
+    if args.clear and args.text is not None:
+        raise KeysightScopeError("--clear and --text are mutually exclusive")
+    if not args.query and not any(query_setters):
+        raise KeysightScopeError("annotation requires --query or at least one setter/action")
+    slot = validate_annotation_slot(args.slot, capabilities)
+    if args.query:
+        commands = annotation_query_commands(slot=slot, capabilities=capabilities)
+        return (
+            "query",
+            commands,
+            {
+                "commands": commands,
+                "slot": slot,
+                "enabled": None,
+                "text": None,
+                "color": None,
+                "background": None,
+                "x": None,
+                "y": None,
+            },
+        )
+    enabled = None
+    if args.on:
+        enabled = True
+    elif args.off:
+        enabled = False
+    commands = annotation_commands(
+        capabilities=capabilities,
+        slot=slot,
+        enabled=enabled,
+        clear=args.clear,
+        text=args.text,
+        color=args.color,
+        background=args.background,
+        x=args.x,
+        y=args.y,
+    )
+    return (
+        "set",
+        commands,
+        {
+            "commands": commands,
+            "slot": slot,
+            "enabled": enabled,
+            "text": args.text,
+            "clear": bool(args.clear),
+            "color": None if args.color is None else normalize_annotation_color(args.color),
+            "background": None if args.background is None else normalize_annotation_background(args.background),
+            "x": args.x,
+            "y": args.y,
+        },
+    )
+
+
 def _acquisition_check_planned_scpi(
     average_count: int,
     *,
@@ -2240,6 +2418,13 @@ def _capabilities_json(capabilities: ScopeCapabilities | None) -> dict[str, obje
         "supports_screenshot": capabilities.supports_screenshot,
         "supports_segmented_memory": capabilities.supports_segmented_memory,
         "supports_serial_decode": capabilities.supports_serial_decode,
+        "supports_channel_label": capabilities.supports_channel_label,
+        "channel_label_max_length": capabilities.channel_label_max_length,
+        "supports_display_label": capabilities.supports_display_label,
+        "supports_annotation": capabilities.supports_annotation,
+        "supports_annotation_position": capabilities.supports_annotation_position,
+        "annotation_slots": capabilities.annotation_slots,
+        "supports_indexed_annotation": capabilities.supports_indexed_annotation,
     }
 
 
@@ -2559,6 +2744,45 @@ def _cmd_channel_display(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
+def _cmd_channel_label(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        if args.label_query:
+            command = channel_label_query(channel)
+            print(f"Planned query: CH{channel} label")
+            text = scope.query_channel_label(channel)
+            _json_update_result(channel=channel, operation="query", command=command, text=text)
+            print(f"Command: {command}")
+            print(f"Label: {text}")
+        else:
+            text = validate_channel_label(args.label_text, scope.capabilities)
+            command = channel_label_command(channel, text, scope.capabilities)
+            print(f"Planned change: CH{channel} label")
+            scope.set_channel_label(channel, text)
+            _json_update_result(channel=channel, operation="set", command=command, text=text)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
 def _cmd_channel_scale(args: argparse.Namespace) -> int:
     resource = _require_resource(args)
     if resource is None:
@@ -2748,6 +2972,110 @@ def _cmd_channel_bandwidth_limit(args: argparse.Namespace) -> int:
             scope.set_channel_bandwidth_limit(channel, enabled)
             _json_update_result(channel=channel, operation="set", command=command, bandwidth_limit=enabled)
             print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_display_label(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.display_label_action == "query":
+            command = display_label_query()
+            print("Planned query: display labels")
+            enabled = scope.query_display_label()
+            _json_update_result(operation="query", command=command, display_label=enabled)
+            print(f"Command: {command}")
+            print(f"Display labels: {'ON' if enabled else 'OFF'}")
+        else:
+            enabled = args.display_label_action == "on"
+            command = display_label_command(enabled)
+            print(f"Planned change: display labels {'ON' if enabled else 'OFF'}")
+            scope.set_display_label(enabled)
+            _json_update_result(operation="set", command=command, display_label=enabled)
+            print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_annotation(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        operation, commands, result = _annotation_plan(args, scope.capabilities)
+        if operation == "query":
+            print(f"Planned query: annotation slot {args.slot}")
+            state = scope.query_annotation(slot=args.slot)
+            _json_update_result(
+                operation="query",
+                commands=commands,
+                slot=state.slot,
+                enabled=state.enabled,
+                text=state.text,
+                color=state.color,
+                background=state.background,
+                x=state.x,
+                y=state.y,
+            )
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Annotation: {'ON' if state.enabled else 'OFF'}")
+            print(f"Text: {state.text}")
+            print(f"Color: {state.color}")
+            print(f"Background: {state.background}")
+            if state.x is not None and state.y is not None:
+                print(f"Position: {state.x},{state.y}")
+        else:
+            print(f"Planned change: annotation slot {args.slot}")
+            if args.on:
+                scope.set_annotation_enabled(True, slot=args.slot)
+            if args.off:
+                scope.set_annotation_enabled(False, slot=args.slot)
+            if args.clear:
+                scope.clear_annotation(slot=args.slot)
+            if args.text is not None:
+                scope.set_annotation_text(args.text, slot=args.slot)
+            if args.color is not None:
+                scope.set_annotation_color(args.color, slot=args.slot)
+            if args.background is not None:
+                scope.set_annotation_background(args.background, slot=args.slot)
+            if args.x is not None or args.y is not None:
+                scope.set_annotation_position(args.x, args.y, slot=args.slot)
+            _json_update_result(operation="set", **result)
+            for command in commands:
+                print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)
@@ -4519,6 +4847,16 @@ def _positive_int(value: str) -> int:
         raise argparse.ArgumentTypeError("must be an integer") from exc
     if parsed < 1:
         raise argparse.ArgumentTypeError("must be at least 1")
+    return parsed
+
+
+def _nonnegative_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be an integer") from exc
+    if parsed < 0:
+        raise argparse.ArgumentTypeError("must be non-negative")
     return parsed
 
 

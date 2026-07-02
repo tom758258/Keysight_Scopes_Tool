@@ -9,6 +9,8 @@ from keysight_scope_core.channel import (
     channel_coupling_query,
     channel_display_command,
     channel_display_query,
+    channel_label_command,
+    channel_label_query,
     channel_offset_command,
     channel_offset_query,
     channel_probe_ratio_command,
@@ -20,8 +22,10 @@ from keysight_scope_core.channel import (
     parse_channel_coupling,
     parse_channel_display,
     parse_channel_float,
+    parse_channel_label,
     validate_analog_channel,
     validate_channel_offset,
+    validate_channel_label,
     validate_channel_scale,
     validate_probe_ratio,
 )
@@ -51,6 +55,13 @@ def test_channel_parameter_commands_use_keysight_channel_syntax():
     assert channel_bandwidth_limit_command(1, True) == ":CHANnel1:BWLimit ON"
     assert channel_bandwidth_limit_command(2, False) == ":CHANnel2:BWLimit OFF"
     assert channel_bandwidth_limit_query(3) == ":CHANnel3:BWLimit?"
+
+
+def test_channel_label_commands_use_keysight_channel_syntax():
+    capabilities = capabilities_for_model("DSOX4024A")
+
+    assert channel_label_command(1, "Input a", capabilities) == ':CHANnel1:LABel "Input a"'
+    assert channel_label_query(2) == ":CHANnel2:LABel?"
 
 
 @pytest.mark.parametrize("raw", ["1", "+1", "ON", " on "])
@@ -100,12 +111,30 @@ def test_parse_channel_float_rejects_unexpected_response(raw):
         parse_channel_float(raw, "scale")
 
 
+def test_parse_channel_label_accepts_quoted_or_plain_response():
+    assert parse_channel_label('"Input a"') == "Input a"
+    assert parse_channel_label("Input a") == "Input a"
+
+
 def test_validate_analog_channel_uses_capability_channel_count():
     capabilities = capabilities_for_model("DSOX4022A")
 
     assert validate_analog_channel(2, capabilities) == 2
     with pytest.raises(ParameterValidationError):
         validate_analog_channel(3, capabilities)
+
+
+def test_validate_channel_label_enforces_model_length_and_ascii():
+    assert validate_channel_label("lower ok", capabilities_for_model("DSOX3024A")) == "lower ok"
+    with pytest.raises(ParameterValidationError):
+        validate_channel_label("12345678901", capabilities_for_model("DSOX3024A"))
+    assert validate_channel_label("x" * 32, capabilities_for_model("DSOX4024A")) == "x" * 32
+    with pytest.raises(ParameterValidationError):
+        validate_channel_label('bad"quote', capabilities_for_model("DSOX4024A"))
+    with pytest.raises(ParameterValidationError):
+        validate_channel_label("bad\nline", capabilities_for_model("DSOX4024A"))
+    with pytest.raises(ParameterValidationError):
+        validate_channel_label("non-ascii-\u00e9", capabilities_for_model("DSOX4024A"))
 
 
 @pytest.mark.parametrize("value", [1.0, 0.5, "0.001"])
@@ -223,6 +252,17 @@ def test_channel_controller_sets_coupling_probe_and_bandwidth_limit():
         ":CHANnel1:BWLimit ON",
         ":CHANnel1:BWLimit?",
     ]
+
+
+def test_channel_controller_sets_label_and_reads_back_text():
+    backend = FakeBackend(responses={":CHANnel1:LABel?": '"Input a"'})
+    controller = ChannelController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    controller.set_label(1, "Input a")
+    label = controller.query_label(1)
+
+    assert label == "Input a"
+    assert backend.history == [':CHANnel1:LABel "Input a"', ":CHANnel1:LABel?"]
 
 
 def test_channel_controller_rejects_invalid_scale_before_scpi():

@@ -52,7 +52,217 @@ def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
         "supports_screenshot": True,
         "supports_segmented_memory": False,
         "supports_serial_decode": False,
+        "supports_channel_label": True,
+        "channel_label_max_length": 32,
+        "supports_display_label": True,
+        "supports_annotation": True,
+        "supports_annotation_position": True,
+        "annotation_slots": 10,
+        "supports_indexed_annotation": True,
     }
+
+
+def test_label_and_annotation_dry_run_json_reports_planned_scpi_without_opening(
+    monkeypatch, capsys
+):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("dry-run must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert (
+        cli.main(
+            [
+                "channel-label",
+                "--dry-run",
+                "--json",
+                "--model",
+                "DSOX4024A",
+                "--channel",
+                "1",
+                "--text",
+                "Input a",
+            ]
+        )
+        == 0
+    )
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["planned"] == [':CHANnel1:LABel "Input a"', ":SYSTem:ERRor?"]
+    assert payload["result"]["text"] == "Input a"
+
+    assert cli.main(["display-label", "--dry-run", "--json", "--off"]) == 0
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["planned"] == [":DISPlay:LABel OFF", ":SYSTem:ERRor?"]
+    assert payload["result"]["display_label"] is False
+
+    assert (
+        cli.main(
+            [
+                "annotation",
+                "--dry-run",
+                "--json",
+                "--model",
+                "DSOX4024A",
+                "--slot",
+                "2",
+                "--on",
+                "--text",
+                "Note",
+                "--x",
+                "10",
+                "--y",
+                "20",
+            ]
+        )
+        == 0
+    )
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["planned"] == [
+        ":DISPlay:ANNotation2 ON",
+        ':DISPlay:ANNotation2:TEXT "Note"',
+        ":DISPlay:ANNotation2:X1Position 10",
+        ":DISPlay:ANNotation2:Y1Position 20",
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_annotation_validation_errors_do_not_open_backend(monkeypatch, capsys):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("validation failure must not open a scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert (
+        cli.main(
+            [
+                "annotation",
+                "--dry-run",
+                "--json",
+                "--query",
+                "--text",
+                "bad",
+            ]
+        )
+        == 1
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert "--query cannot be combined" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "annotation",
+                "--dry-run",
+                "--json",
+                "--model",
+                "DSOX3024A",
+                "--text",
+                "Note",
+                "--x",
+                "10",
+            ]
+        )
+        == 1
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert "annotation x is supported only" in payload["error"]["message"]
+
+
+def test_annotation_simulate_json_roundtrip_4000x(capsys):
+    assert (
+        cli.main(
+            [
+                "annotation",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX4024A",
+                "--slot",
+                "2",
+                "--on",
+                "--text",
+                "Note",
+                "--color",
+                "red",
+                "--background",
+                "opaque",
+                "--x",
+                "10",
+                "--y",
+                "20",
+            ]
+        )
+        == 0
+    )
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":DISPlay:ANNotation2 ON",
+        ':DISPlay:ANNotation2:TEXT "Note"',
+        ":DISPlay:ANNotation2:COLor RED",
+        ":DISPlay:ANNotation2:BACKground OPAQ",
+        ":DISPlay:ANNotation2:X1Position 10",
+        ":DISPlay:ANNotation2:Y1Position 20",
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_annotation_query_simulate_json_3000x_reports_null_position(capsys):
+    assert (
+        cli.main(
+            [
+                "annotation",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX3024A",
+                "--query",
+            ]
+        )
+        == 0
+    )
+    payload = _json_stdout(capsys)
+    assert payload["result"]["x"] is None
+    assert payload["result"]["y"] is None
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":DISPlay:ANNotation?",
+        ":DISPlay:ANNotation:TEXT?",
+        ":DISPlay:ANNotation:COLor?",
+        ":DISPlay:ANNotation:BACKground?",
+        ":SYSTem:ERRor?",
+    ]
+
+
+def test_annotation_query_json_reports_canonical_readback_enums(monkeypatch, capsys):
+    backend = SimulatorBackend(
+        model="DSOX4034A",
+        query_overrides={
+            ":DISPlay:ANNotation1:COLor?": "WHIT",
+            ":DISPlay:ANNotation1:BACKground?": "tran",
+        },
+    )
+    monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
+
+    assert (
+        cli.main(
+            [
+                "annotation",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX4034A",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["color"] == "WHITE"
+    assert payload["result"]["background"] == "TRAN"
 
 
 def test_one_shot_live_flag_conflicts_with_simulate_and_dry_run(capsys):

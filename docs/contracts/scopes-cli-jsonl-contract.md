@@ -137,8 +137,20 @@ Control and setup:
 - `force-trigger`: `operation`, `forced`, `scpi_command`, and
   `human_output`.
 - `channel-*`: `channel`, `operation`, `command`, and the setting value such as
-  `display`, `volts_per_division`, `volts`, `coupling`, `probe_ratio`, or
-  `bandwidth_limit`.
+  `display`, `text`, `volts_per_division`, `volts`, `coupling`,
+  `probe_ratio`, or `bandwidth_limit`.
+- `display-label`: `operation`, `command`, and `display_label`.
+- `annotation`: `operation`, `commands`, `slot`, `enabled`, `text`, `color`,
+  `background`, `x`, and `y`. Query results always include `x` and `y`; they
+  are `null` for models without annotation position support. Annotation query
+  results preserve instrument semantics using canonical SCPI enum values, not
+  raw readback strings or CLI input aliases. Value forms are distinct:
+  CLI input aliases include `white`, `marker`, and `transparent`; SCPI command
+  tokens include `WHITE`, `MARKer`, and `OPAQ`; query canonical enums include
+  `WHITE`, `MARK`, `DIG`, `OPAQ`, and `TRAN`. Color readback abbreviations
+  such as `WHIT` are accepted and normalized to stable canonical values such as
+  `WHITE`; background readback canonical values remain `OPAQ`, `INV`, and
+  `TRAN`.
 - `timebase-*`: `operation`, `command`, and `seconds_per_division` or
   `position_seconds`.
 - `edge-trigger`: `operation`, `commands`, `source_channel`, `level_volts`,
@@ -207,8 +219,12 @@ Capability JSON currently includes `series`, `analog_channels`,
 `default_waveform_points`, `safe_max_waveform_points`,
 `supports_word_format`, `supports_raw_points_mode`, `supports_measurements`,
 `supports_delay_measurement`, `supports_screenshot`,
-`supports_segmented_memory`, and `supports_serial_decode`. Consumers must
-ignore unknown future capability fields under schema version `1`.
+`supports_segmented_memory`, `supports_serial_decode`,
+`supports_channel_label`, `channel_label_max_length`,
+`supports_display_label`, `supports_annotation`,
+`supports_annotation_position`, `annotation_slots`, and
+`supports_indexed_annotation`. Consumers must ignore unknown future capability
+fields under schema version `1`.
 
 ## Artifact JSON
 
