@@ -18,6 +18,7 @@ def test_core_docs_are_root_level():
     assert (DOC_ROOT / "README.md").exists()
     assert (REPO_ROOT / "CHANGELOG.md").exists()
     assert (DOC_ROOT / "integration.md").exists()
+    assert (DOC_ROOT / "supported-models.md").exists()
     assert (REPO_ROOT / "AGENTS.md").exists()
     assert (REPO_ROOT / "README.md").exists()
     assert (REPO_ROOT / "docs" / "architecture" / "monorepo-layout.md").exists()
@@ -51,6 +52,19 @@ def test_root_readme_discovers_core_and_agent_docs():
     assert "AGENTS.md" in text
     assert "docs/core/README.md" in text
     assert "docs/core/integration.md" in text
+    assert "docs/core/supported-models.md" in text
+
+
+def test_supported_models_doc_names_public_scope_without_local_evidence():
+    text = read_doc("supported-models.md")
+
+    assert "Capability profiles" in text
+    assert "DSOX4024A" in text
+    assert "DSOX4034A" in text
+    assert "DSOX3024A" in text
+    assert "DSOX2004A" in text
+    assert "Local/" not in text
+    assert "USB0::" not in text
 
 
 def test_public_core_classes_and_functions_have_docstrings():

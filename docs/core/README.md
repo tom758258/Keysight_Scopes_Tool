@@ -32,6 +32,8 @@ script documentation, or WebUI workflow.
 ## Docs
 
 - Public import and API integration: `docs/integration.md`
+- Supported model profiles and public validation status:
+  `docs/supported-models.md`
 - Shared CLI, worker, and orchestrator contracts: `../contracts/`
 
 

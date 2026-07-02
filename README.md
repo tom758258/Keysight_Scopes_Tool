@@ -9,7 +9,7 @@ package behavior, and shared machine contracts.
 
 | Area | Distribution | Import / entry point | Public docs |
 | --- | --- | --- | --- |
-| Core | `keysight-scopes` | `keysight_scope_core` | `docs/core/README.md`, `docs/core/integration.md` |
+| Core | `keysight-scopes` | `keysight_scope_core` | `docs/core/README.md`, `docs/core/integration.md`, `docs/core/supported-models.md` |
 | CLI | `keysight-scopes` | `keysight-scopes`, `python -m keysight_scope_cli.cli` | `docs/cli/README.md`, `docs/cli/cli-integration.md` |
 | WebUI | `keysight-scopes` | `keysight_scope_webui` skeleton | `docs/webui/README.md` |
 
@@ -60,7 +60,7 @@ Project-level docs:
 Area docs:
 
 - Core runtime, public import API, VISA/SCPI safety, and capability profiles:
-  `docs/core/README.md`
+  `docs/core/README.md`, `docs/core/supported-models.md`
 - CLI command usage, JSON mode, and automation safety:
   `docs/cli/README.md`
 - WebUI package skeleton and future ownership notes:
