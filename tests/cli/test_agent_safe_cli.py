@@ -1,4 +1,4 @@
-﻿import json
+import json
 from pathlib import Path
 
 from keysight_scope_cli import cli
@@ -168,6 +168,23 @@ def test_annotation_validation_errors_do_not_open_backend(monkeypatch, capsys):
     )
     payload = json.loads(capsys.readouterr().out)
     assert "annotation x is supported only" in payload["error"]["message"]
+
+    assert (
+        cli.main(
+            [
+                "annotation",
+                "--dry-run",
+                "--json",
+                "--model",
+                "DSOX4024A",
+                "--text",
+                "x" * 255,
+            ]
+        )
+        == 1
+    )
+    payload = json.loads(capsys.readouterr().out)
+    assert "annotation text must be at most 254 characters" in payload["error"]["message"]
 
 
 def test_annotation_simulate_json_roundtrip_4000x(capsys):

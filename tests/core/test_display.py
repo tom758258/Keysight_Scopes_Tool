@@ -10,6 +10,7 @@ from keysight_scope_core.display import (
     parse_annotation_background,
     parse_annotation_color,
     parse_display_label,
+    validate_annotation_text,
     validate_annotation_slot,
 )
 from keysight_scope_core.errors import ChannelResponseError, ParameterValidationError
@@ -92,6 +93,23 @@ def test_annotation_slot_uses_profile_slot_count():
     with pytest.raises(ParameterValidationError):
         validate_annotation_slot(2, capabilities_for_model("DSOX3024A"))
     assert validate_annotation_slot(10, capabilities_for_model("DSOX4024A")) == 10
+
+
+def test_validate_annotation_text_accepts_254_printable_ascii_characters():
+    text = "x" * 254
+
+    assert validate_annotation_text(text) == text
+
+
+def test_validate_annotation_text_rejects_255_characters():
+    with pytest.raises(ParameterValidationError, match="at most 254"):
+        validate_annotation_text("x" * 255)
+
+
+@pytest.mark.parametrize("text", ['bad"quote', "bad\nline", "non-ascii-\u00e9"])
+def test_validate_annotation_text_rejects_invalid_characters(text):
+    with pytest.raises(ParameterValidationError):
+        validate_annotation_text(text)
 
 
 @pytest.mark.parametrize(

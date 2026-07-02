@@ -239,7 +239,7 @@ def validate_annotation_y(value: int) -> int:
 
 
 def validate_annotation_text(text: str) -> str:
-    return _validate_ascii_text(text, "annotation text", 255)
+    return _validate_ascii_text(text, "annotation text", 254)
 
 
 def normalize_annotation_color(color: str) -> str:

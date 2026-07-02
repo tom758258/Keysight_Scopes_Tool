@@ -528,6 +528,8 @@ as 0 through 800 and `--y` as 0 through 480 before sending
 `:X1Position`/`:Y1Position` SCPI. Annotation background values are `opaque`,
 `inverted`, and `transparent`; annotation color values are `ch1`, `ch2`,
 `ch3`, `ch4`, `dig`, `math`, `ref`, `marker`, `white`, and `red`.
+Annotation text accepts printable ASCII text up to 254 characters and must not
+contain double quotes or control characters.
 Annotation value forms are distinct:
 
 - CLI input aliases: `white`, `marker`, and `transparent`.
