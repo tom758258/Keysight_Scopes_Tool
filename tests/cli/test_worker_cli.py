@@ -31,12 +31,12 @@ from keysight_scope_core.trigger import (
 )
 
 
-def _runtime(artifact_root=Path("data/worker"), queue_max=32):
+def _runtime(artifact_root=Path("data/worker"), queue_max=32, model="DSOX4024A"):
     return worker.WorkerRuntime(
         host="127.0.0.1",
         port=0,
         mode="simulate",
-        model="DSOX4024A",
+        model=model,
         resource=None,
         artifact_root=Path(artifact_root),
         queue_max=queue_max,
@@ -235,6 +235,11 @@ def test_worker_request_rejects_non_object_arguments():
         ("acquisition-points", {"query": True}),
         ("record-length", {"query": True}),
         ("force-trigger", {}),
+        ("channel-label", {"channel": 1, "text": "Input A"}),
+        ("channel-label", {"channel": 1, "query": True}),
+        ("display-label", {"off": True}),
+        ("display-label", {"query": True}),
+        ("annotation", {"slot": 1, "query": True}),
     ),
 )
 def test_worker_request_accepts_trigger_and_acquisition_queries(command, arguments):
@@ -515,6 +520,55 @@ def test_worker_http_rejects_invalid_capture_wait_trigger_before_artifacts(tmp_p
     assert not list(tmp_path.rglob("request.json"))
 
 
+@pytest.mark.parametrize(
+    ("command", "arguments", "model", "expected_message"),
+    (
+        (
+            "annotation",
+            {"query": True, "text": "bad"},
+            "DSOX4024A",
+            "--query cannot be combined",
+        ),
+        (
+            "annotation",
+            {"text": "Note", "x": 10},
+            "DSOX3024A",
+            "annotation x is supported only",
+        ),
+        (
+            "annotation",
+            {"text": "x" * 255},
+            "DSOX4024A",
+            "annotation text must be at most 254 characters",
+        ),
+        (
+            "channel-label",
+            {"channel": 1, "text": "12345678901"},
+            "DSOX3024A",
+            "channel label must be at most 10 characters",
+        ),
+    ),
+)
+def test_worker_http_rejects_invalid_label_and_annotation_before_artifacts(
+    tmp_path, command, arguments, model, expected_message
+):
+    runtime = _runtime(tmp_path, model=model)
+
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {"command": command, "arguments": arguments, "job_id": "bad-label"},
+        )
+
+    assert status == 400
+    assert payload["status"] == "error"
+    assert payload["command"] == command
+    assert payload["job_id"] == "bad-label"
+    assert expected_message in payload["message"]
+    assert runtime.jobs == {}
+    assert not list(tmp_path.rglob("request.json"))
+
+
 def test_worker_parses_domain_arguments_without_opening_backend():
     parsed = worker.parse_domain_command(
         "channel-scale",
@@ -599,6 +653,96 @@ def test_worker_parses_force_trigger_without_opening_backend():
     assert parsed.command == "force-trigger"
     assert parsed.simulate is True
     assert parsed.json_output is True
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments", "model", "expected_scpi"),
+    (
+        (
+            "channel-label",
+            {"channel": 1, "text": "Input A"},
+            "DSOX4024A",
+            [':CHANnel1:LABel "Input A"', ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-label",
+            {"channel": 1, "query": True},
+            "DSOX4024A",
+            [":CHANnel1:LABel?", ":SYSTem:ERRor?"],
+        ),
+        (
+            "display-label",
+            {"off": True},
+            "DSOX4024A",
+            [":DISPlay:LABel OFF", ":SYSTem:ERRor?"],
+        ),
+        (
+            "display-label",
+            {"query": True},
+            "DSOX4024A",
+            [":DISPlay:LABel?", ":SYSTem:ERRor?"],
+        ),
+        (
+            "annotation",
+            {
+                "slot": 2,
+                "on": True,
+                "text": "Run note",
+                "color": "white",
+                "background": "opaque",
+                "x": 10,
+                "y": 20,
+            },
+            "DSOX4024A",
+            [
+                ":DISPlay:ANNotation2 ON",
+                ':DISPlay:ANNotation2:TEXT "Run note"',
+                ":DISPlay:ANNotation2:COLor WHITE",
+                ":DISPlay:ANNotation2:BACKground OPAQ",
+                ":DISPlay:ANNotation2:X1Position 10",
+                ":DISPlay:ANNotation2:Y1Position 20",
+                ":SYSTem:ERRor?",
+            ],
+        ),
+        (
+            "annotation",
+            {"slot": 2, "query": True},
+            "DSOX4024A",
+            [
+                ":DISPlay:ANNotation2?",
+                ":DISPlay:ANNotation2:TEXT?",
+                ":DISPlay:ANNotation2:COLor?",
+                ":DISPlay:ANNotation2:BACKground?",
+                ":DISPlay:ANNotation2:X1Position?",
+                ":DISPlay:ANNotation2:Y1Position?",
+                ":SYSTem:ERRor?",
+            ],
+        ),
+        (
+            "annotation",
+            {"query": True},
+            "DSOX3024A",
+            [
+                ":DISPlay:ANNotation?",
+                ":DISPlay:ANNotation:TEXT?",
+                ":DISPlay:ANNotation:COLor?",
+                ":DISPlay:ANNotation:BACKground?",
+                ":SYSTem:ERRor?",
+            ],
+        ),
+    ),
+)
+def test_worker_label_and_annotation_dry_run_plans_scpi_without_opening_backend(
+    command, arguments, model, expected_scpi
+):
+    parsed = worker.parse_domain_command(command, arguments, _runtime(model=model))
+
+    payload = cli._dry_run_payload(parsed)
+
+    assert parsed.command == command
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+    assert payload["scpi"]["planned"] == expected_scpi
 
 
 def test_worker_parses_capture_wait_trigger_without_opening_backend():
@@ -1083,6 +1227,57 @@ def test_worker_executes_trigger_and_acquisition_queries_in_simulator(
     if arguments.get("maximum"):
         assert result["result"]["query_kind"] == "maximum"
     assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
+
+
+def test_worker_executes_annotation_set_in_simulator(tmp_path):
+    runtime = _runtime(tmp_path)
+
+    job, result = _execute_worker_job(
+        runtime,
+        "annotation",
+        {
+            "slot": 2,
+            "on": True,
+            "text": "Run note",
+            "color": "white",
+            "background": "opaque",
+            "x": 10,
+            "y": 20,
+        },
+        tmp_path / "annotation",
+    )
+
+    assert result["state"] == "succeeded"
+    assert result["ok"] is True
+    assert result["exit_code"] == 0
+    assert result["files"] == []
+    assert result["result"]["operation"] == "set"
+    assert result["result"]["commands"] == [
+        ":DISPlay:ANNotation2 ON",
+        ':DISPlay:ANNotation2:TEXT "Run note"',
+        ":DISPlay:ANNotation2:COLor WHITE",
+        ":DISPlay:ANNotation2:BACKground OPAQ",
+        ":DISPlay:ANNotation2:X1Position 10",
+        ":DISPlay:ANNotation2:Y1Position 20",
+    ]
+    assert result["result"]["slot"] == 2
+    assert result["result"]["enabled"] is True
+    assert result["result"]["text"] == "Run note"
+    assert result["result"]["clear"] is False
+    assert result["result"]["color"] == "WHITE"
+    assert result["result"]["background"] == "OPAQ"
+    assert result["result"]["x"] == 10
+    assert result["result"]["y"] == 20
+    assert job.result["scpi"]["sent"] == [
+        "*IDN?",
+        ":DISPlay:ANNotation2 ON",
+        ':DISPlay:ANNotation2:TEXT "Run note"',
+        ":DISPlay:ANNotation2:COLor WHITE",
+        ":DISPlay:ANNotation2:BACKground OPAQ",
+        ":DISPlay:ANNotation2:X1Position 10",
+        ":DISPlay:ANNotation2:Y1Position 20",
+        ":SYSTem:ERRor?",
+    ]
 
 
 class _FakeBackend:

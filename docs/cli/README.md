@@ -541,9 +541,8 @@ enum values. Color readback abbreviations such as `WHIT` are accepted and
 normalized to stable canonical values such as `WHITE`; background readback
 canonical values remain `OPAQ`, `INV`, and `TRAN`.
 
-These one-shot commands are not worker commands. The worker command allowlist
-and worker JSONL contract do not expose channel label, display label, or
-annotation operations.
+These one-shot commands are also accepted by the worker `/command` interface
+using the same argument names as the CLI options without leading dashes.
 
 Set or query the horizontal timebase scale:
 

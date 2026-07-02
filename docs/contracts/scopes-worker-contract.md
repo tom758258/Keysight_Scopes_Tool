@@ -127,8 +127,9 @@ Worker `/command` supports the existing Scopes capability surface:
   `record-length`
 - `capture`, `capture-batch`, `screenshot`, `smoke`
 - `measure`, `measure-stats`, `measure-sweep`, `measure-log`
-- `channel-display`, `channel-scale`, `channel-offset`, `channel-coupling`,
-  `channel-probe`, `channel-bandwidth-limit`
+- `channel-display`, `channel-label`, `channel-scale`, `channel-offset`,
+  `channel-coupling`, `channel-probe`, `channel-bandwidth-limit`
+- `display-label`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
@@ -208,6 +209,77 @@ form:
 ```json
 {"command": "force-trigger", "arguments": {}}
 ```
+
+### Label And Annotation Commands
+
+The worker supports the same one-shot label and annotation commands as the CLI:
+
+- `channel-label`
+- `display-label`
+- `annotation`
+
+Arguments use CLI option names without leading dashes:
+
+```json
+{"command": "channel-label", "arguments": {"channel": 1, "text": "Input A"}}
+```
+
+```json
+{"command": "channel-label", "arguments": {"channel": 1, "query": true}}
+```
+
+```json
+{"command": "display-label", "arguments": {"on": true}}
+```
+
+```json
+{"command": "display-label", "arguments": {"off": true}}
+```
+
+```json
+{"command": "display-label", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "annotation",
+  "arguments": {
+    "slot": 1,
+    "on": true,
+    "text": "Run note",
+    "color": "white",
+    "background": "opaque"
+  }
+}
+```
+
+```json
+{
+  "command": "annotation",
+  "arguments": {
+    "slot": 2,
+    "text": "Run note",
+    "x": 10,
+    "y": 20
+  }
+}
+```
+
+```json
+{"command": "annotation", "arguments": {"slot": 2, "query": true}}
+```
+
+These are one-shot worker commands and may change front-panel display state.
+They do not add digital labels, bus labels, `:DISPlay:LABList`
+import/export, label position, or annotation batch operations.
+
+`annotation` follows the CLI validation rules: `query` is mutually exclusive
+with setters, `on` and `off` are mutually exclusive, `clear` and `text` are
+mutually exclusive, and non-query requests require at least one setter/action.
+4000X models support indexed annotation slots 1 through 10 and X/Y position.
+2000X/3000X models use unindexed annotation slot 1 and do not support X/Y.
+Annotation text accepts printable ASCII text up to 254 characters and must not
+contain double quotes or control characters.
 
 Validation errors must reject before enqueue and before any artifact, VISA, or
 SCPI side effect.
