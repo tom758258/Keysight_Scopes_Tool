@@ -80,6 +80,8 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
+- Configure or query analog-channel pulse-width glitch trigger settings with
+  `:TRIGger:MODE GLITch` and `:TRIGger:GLITch:*`.
 - Enable, disable, or query display labels with `:DISPlay:LABel`; clear
   waveform display data with `:DISPlay:CLEar`; set/query display persistence,
   waveform intensity, and vector display with `:DISPlay:PERSistence`,
@@ -655,6 +657,39 @@ The configure command sends `:TRIGger:MODE EDGE`, then sets source, level, and
 slope. Supported slopes are `positive`, `negative`, `either`, and `alternate`.
 Only analog channel sources are supported in this first trigger slice. Trigger
 level must be a finite number in volts.
+
+Configure or query Keysight pulse-width trigger settings with the canonical
+`trigger-glitch` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-glitch --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --polarity positive --qualifier less-than --time-seconds 1e-6 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-glitch --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --polarity negative --qualifier greater-than --time-seconds 5e-6 --level-volts 0.5 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-glitch --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --polarity positive --qualifier range --min-time-seconds 1e-6 --max-time-seconds 10e-6 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-glitch --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+```
+
+`trigger-glitch` maps to the Keysight `:TRIGger:GLITch...` pulse-width trigger
+SCPI family. Configure mode is state-changing: it selects glitch trigger mode,
+sets an analog source channel, optionally sets the trigger level, then sets
+polarity and the selected pulse-width qualifier. Range configure maps
+`--max-time-seconds` to the first SCPI `RANGe` parameter and
+`--min-time-seconds` to the second parameter. Query mode preserves raw source
+and level responses and tolerates current instrument state such as digital,
+external, or `NONE` source readback.
+
+This first slice is analog-channel-only for configure mode. It does not run,
+stop, single, force trigger, wait for a trigger, capture waveform data, or
+implement runt, pattern, transition, delay, TV, USB, serial bus, digital/MSO,
+or zone triggers. Hardware-free tests cover this command; live DSO-X
+2000X/3000X/4000X validation has not been run unless a later hardware report
+states otherwise.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-glitch --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-glitch --arguments-json "{\"channel\":1,\"polarity\":\"positive\",\"qualifier\":\"less_than\",\"time_seconds\":0.000001}" --json
+```
 
 Query read-only measurements:
 

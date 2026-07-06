@@ -37,6 +37,42 @@ _SLOPE_READBACKS = {
     "ALTERNATE": "alternate",
 }
 
+_GLITCH_POLARITY_COMMANDS = {
+    "positive": "POSitive",
+    "pos": "POSitive",
+    "negative": "NEGative",
+    "neg": "NEGative",
+}
+
+_GLITCH_POLARITY_READBACKS = {
+    "POS": "positive",
+    "POSITIVE": "positive",
+    "NEG": "negative",
+    "NEGATIVE": "negative",
+}
+
+_GLITCH_QUALIFIER_COMMANDS = {
+    "greater-than": "GREaterthan",
+    "greater_than": "GREaterthan",
+    "greaterthan": "GREaterthan",
+    "gre": "GREaterthan",
+    "less-than": "LESSthan",
+    "less_than": "LESSthan",
+    "lessthan": "LESSthan",
+    "less": "LESSthan",
+    "range": "RANGe",
+    "rang": "RANGe",
+}
+
+_GLITCH_QUALIFIER_READBACKS = {
+    "GRE": "greater-than",
+    "GREATERTHAN": "greater-than",
+    "LESS": "less-than",
+    "LESSTHAN": "less-than",
+    "RANG": "range",
+    "RANGE": "range",
+}
+
 OPERATION_CONDITION_RUN_MASK = 1 << 3
 OPERATION_CONDITION_RUI_ENAB_MASK = 1 << 4
 OPERATION_CONDITION_WAIT_TRIG_MASK = 1 << 5
@@ -49,6 +85,42 @@ class EdgeTriggerState:
     source_channel: int
     level_volts: float
     slope: str
+
+
+@dataclass(frozen=True)
+class GlitchTriggerState:
+    """Readback state for pulse-width glitch trigger settings."""
+
+    mode: str | None
+    source: str
+    source_kind: str | None
+    channel: int | None
+    digital: int | None
+    polarity: str | None
+    qualifier: str | None
+    greater_than_seconds: float | None
+    less_than_seconds: float | None
+    range_min_seconds: float | None
+    range_max_seconds: float | None
+    level_volts: float | None
+    raw: dict[str, str]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "source": self.source,
+            "source_kind": self.source_kind,
+            "channel": self.channel,
+            "digital": self.digital,
+            "polarity": self.polarity,
+            "qualifier": self.qualifier,
+            "greater_than_seconds": self.greater_than_seconds,
+            "less_than_seconds": self.less_than_seconds,
+            "range_min_seconds": self.range_min_seconds,
+            "range_max_seconds": self.range_max_seconds,
+            "level_volts": self.level_volts,
+            "raw": dict(self.raw),
+        }
 
 
 @dataclass(frozen=True)
@@ -128,6 +200,73 @@ class EdgeTriggerController:
         return EdgeTriggerState(source_channel=source_channel, level_volts=level_volts, slope=slope)
 
 
+class GlitchTriggerController:
+    """Controls for analog pulse-width glitch trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        channel: int,
+        polarity: str,
+        qualifier: str,
+        time_seconds: float | None = None,
+        min_time_seconds: float | None = None,
+        max_time_seconds: float | None = None,
+        level_volts: float | None = None,
+    ) -> None:
+        """Configure analog-channel pulse-width glitch trigger settings."""
+
+        commands = glitch_trigger_configure_commands(
+            channel=channel,
+            polarity=polarity,
+            qualifier=qualifier,
+            capabilities=self.capabilities,
+            time_seconds=time_seconds,
+            min_time_seconds=min_time_seconds,
+            max_time_seconds=max_time_seconds,
+            level_volts=level_volts,
+        )
+        for command in commands:
+            self.scpi.write(command)
+
+    def query(self) -> GlitchTriggerState:
+        """Query pulse-width glitch trigger state without changing acquisition state."""
+
+        raw = {
+            "mode": self.scpi.query(trigger_mode_query()),
+            "source": self.scpi.query(glitch_trigger_source_query()),
+            "polarity": self.scpi.query(glitch_trigger_polarity_query()),
+            "qualifier": self.scpi.query(glitch_trigger_qualifier_query()),
+            "greater_than": self.scpi.query(glitch_trigger_greater_than_query()),
+            "less_than": self.scpi.query(glitch_trigger_less_than_query()),
+            "range": self.scpi.query(glitch_trigger_range_query()),
+            "level": self.scpi.query(glitch_trigger_level_query()),
+        }
+        source_kind, channel, digital = parse_glitch_source(raw["source"])
+        range_min, range_max = parse_glitch_range(raw["range"])
+        return GlitchTriggerState(
+            mode=parse_trigger_mode(raw["mode"]),
+            source=raw["source"].strip(),
+            source_kind=source_kind,
+            channel=channel,
+            digital=digital,
+            polarity=parse_glitch_polarity_readback(raw["polarity"]),
+            qualifier=parse_glitch_qualifier_readback(raw["qualifier"]),
+            greater_than_seconds=parse_optional_trigger_float(
+                raw["greater_than"], "glitch greater-than"
+            ),
+            less_than_seconds=parse_optional_trigger_float(raw["less_than"], "glitch less-than"),
+            range_min_seconds=range_min,
+            range_max_seconds=range_max,
+            level_volts=parse_glitch_level(raw["level"]),
+            raw=raw,
+        )
+
+
 def validate_trigger_level(level_volts: float) -> float:
     """Validate a trigger level before sending it to the instrument."""
 
@@ -152,10 +291,46 @@ def normalize_edge_slope(slope: str) -> str:
         ) from exc
 
 
+def normalize_glitch_polarity(polarity: str) -> str:
+    """Normalize a user-facing glitch polarity into a SCPI argument."""
+
+    normalized = polarity.strip().lower()
+    try:
+        return _GLITCH_POLARITY_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "glitch trigger polarity must be one of: positive, negative."
+        ) from exc
+
+
+def normalize_glitch_qualifier(qualifier: str) -> str:
+    """Normalize a user-facing glitch qualifier into a SCPI argument."""
+
+    normalized = qualifier.strip().lower()
+    try:
+        return _GLITCH_QUALIFIER_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "glitch trigger qualifier must be one of: greater-than, less-than, range."
+        ) from exc
+
+
 def trigger_mode_edge_command() -> str:
     """Build the SCPI command that selects edge trigger mode."""
 
     return ":TRIGger:MODE EDGE"
+
+
+def trigger_mode_glitch_command() -> str:
+    """Build the SCPI command that selects glitch trigger mode."""
+
+    return ":TRIGger:MODE GLITch"
+
+
+def trigger_mode_query() -> str:
+    """Build the SCPI query for trigger mode."""
+
+    return ":TRIGger:MODE?"
 
 
 def single_command() -> str:
@@ -206,6 +381,169 @@ def edge_trigger_slope_query() -> str:
     return ":TRIGger:EDGE:SLOPe?"
 
 
+def glitch_trigger_source_command(channel: int) -> str:
+    """Build the SCPI command for analog glitch trigger source."""
+
+    return f":TRIGger:GLITch:SOURce CHANnel{channel}"
+
+
+def glitch_trigger_source_query() -> str:
+    """Build the SCPI query for glitch trigger source."""
+
+    return ":TRIGger:GLITch:SOURce?"
+
+
+def glitch_trigger_level_command(level_volts: float, channel: int) -> str:
+    """Build the SCPI command for analog glitch trigger level."""
+
+    return f":TRIGger:GLITch:LEVel {_format_scpi_float(level_volts)},CHANnel{channel}"
+
+
+def glitch_trigger_level_query() -> str:
+    """Build the SCPI query for glitch trigger level."""
+
+    return ":TRIGger:GLITch:LEVel?"
+
+
+def glitch_trigger_polarity_command(polarity_command: str) -> str:
+    """Build the SCPI command for glitch trigger polarity."""
+
+    return f":TRIGger:GLITch:POLarity {polarity_command}"
+
+
+def glitch_trigger_polarity_query() -> str:
+    """Build the SCPI query for glitch trigger polarity."""
+
+    return ":TRIGger:GLITch:POLarity?"
+
+
+def glitch_trigger_qualifier_command(qualifier_command: str) -> str:
+    """Build the SCPI command for glitch trigger qualifier."""
+
+    return f":TRIGger:GLITch:QUALifier {qualifier_command}"
+
+
+def glitch_trigger_qualifier_query() -> str:
+    """Build the SCPI query for glitch trigger qualifier."""
+
+    return ":TRIGger:GLITch:QUALifier?"
+
+
+def glitch_trigger_greater_than_command(time_seconds: float) -> str:
+    """Build the SCPI command for glitch greater-than timing."""
+
+    return f":TRIGger:GLITch:GREaterthan {_format_scpi_float(time_seconds)}"
+
+
+def glitch_trigger_greater_than_query() -> str:
+    """Build the SCPI query for glitch greater-than timing."""
+
+    return ":TRIGger:GLITch:GREaterthan?"
+
+
+def glitch_trigger_less_than_command(time_seconds: float) -> str:
+    """Build the SCPI command for glitch less-than timing."""
+
+    return f":TRIGger:GLITch:LESSthan {_format_scpi_float(time_seconds)}"
+
+
+def glitch_trigger_less_than_query() -> str:
+    """Build the SCPI query for glitch less-than timing."""
+
+    return ":TRIGger:GLITch:LESSthan?"
+
+
+def glitch_trigger_range_command(max_time_seconds: float, min_time_seconds: float) -> str:
+    """Build the SCPI command for glitch range timing."""
+
+    return (
+        ":TRIGger:GLITch:RANGe "
+        f"{_format_scpi_float(max_time_seconds)},{_format_scpi_float(min_time_seconds)}"
+    )
+
+
+def glitch_trigger_range_query() -> str:
+    """Build the SCPI query for glitch range timing."""
+
+    return ":TRIGger:GLITch:RANGe?"
+
+
+def glitch_trigger_query_commands() -> list[str]:
+    """Return the glitch trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        glitch_trigger_source_query(),
+        glitch_trigger_polarity_query(),
+        glitch_trigger_qualifier_query(),
+        glitch_trigger_greater_than_query(),
+        glitch_trigger_less_than_query(),
+        glitch_trigger_range_query(),
+        glitch_trigger_level_query(),
+    ]
+
+
+def glitch_trigger_configure_commands(
+    *,
+    channel: int,
+    polarity: str,
+    qualifier: str,
+    capabilities: ScopeCapabilities,
+    time_seconds: float | None = None,
+    min_time_seconds: float | None = None,
+    max_time_seconds: float | None = None,
+    level_volts: float | None = None,
+) -> list[str]:
+    """Return the analog glitch trigger configure SCPI sequence."""
+
+    channel = validate_analog_channel(channel, capabilities)
+    polarity_command = normalize_glitch_polarity(polarity)
+    qualifier_command = normalize_glitch_qualifier(qualifier)
+    level = validate_trigger_level(level_volts) if level_volts is not None else None
+
+    commands = [
+        trigger_mode_glitch_command(),
+        glitch_trigger_source_command(channel),
+    ]
+    if level is not None:
+        commands.append(glitch_trigger_level_command(level, channel))
+    commands.append(glitch_trigger_polarity_command(polarity_command))
+
+    if qualifier_command == "GREaterthan":
+        if time_seconds is None:
+            raise ParameterValidationError(
+                "glitch trigger greater-than requires time_seconds."
+            )
+        if min_time_seconds is not None or max_time_seconds is not None:
+            raise ParameterValidationError(
+                "glitch trigger greater-than does not accept range timing."
+            )
+        commands.append(glitch_trigger_greater_than_command(validate_trigger_time(time_seconds)))
+    elif qualifier_command == "LESSthan":
+        if time_seconds is None:
+            raise ParameterValidationError("glitch trigger less-than requires time_seconds.")
+        if min_time_seconds is not None or max_time_seconds is not None:
+            raise ParameterValidationError("glitch trigger less-than does not accept range timing.")
+        commands.append(glitch_trigger_less_than_command(validate_trigger_time(time_seconds)))
+    else:
+        if time_seconds is not None:
+            raise ParameterValidationError("glitch trigger range does not accept time_seconds.")
+        if min_time_seconds is None or max_time_seconds is None:
+            raise ParameterValidationError(
+                "glitch trigger range requires min_time_seconds and max_time_seconds."
+            )
+        min_time = validate_trigger_time(min_time_seconds)
+        max_time = validate_trigger_time(max_time_seconds)
+        if min_time >= max_time:
+            raise ParameterValidationError(
+                "glitch trigger min_time_seconds must be less than max_time_seconds."
+            )
+        commands.append(glitch_trigger_range_command(max_time, min_time))
+
+    commands.append(glitch_trigger_qualifier_command(qualifier_command))
+    return commands
+
+
 def parse_edge_trigger_source(raw: str) -> int:
     """Parse an edge trigger source readback into an analog channel number."""
 
@@ -224,6 +562,52 @@ def parse_edge_trigger_source(raw: str) -> int:
     if channel < 1:
         raise TriggerResponseError(f"Could not parse edge trigger source response: {raw!r}")
     return channel
+
+
+def parse_trigger_mode(raw: str) -> str | None:
+    """Parse a trigger mode readback when recognized."""
+
+    normalized = raw.strip().upper()
+    if normalized in {"GLIT", "GLITCH"}:
+        return "glitch"
+    if normalized in {"EDGE"}:
+        return "edge"
+    return None
+
+
+def parse_glitch_source(raw: str) -> tuple[str | None, int | None, int | None]:
+    """Parse a glitch source readback without assuming analog-only state."""
+
+    normalized = raw.strip().upper()
+    if normalized in {"", "NONE"}:
+        return "none", None, None
+    if normalized.startswith("CHANNEL"):
+        suffix = normalized.removeprefix("CHANNEL")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("CHAN"):
+        suffix = normalized.removeprefix("CHAN")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("DIGITAL"):
+        suffix = normalized.removeprefix("DIGITAL")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    if normalized.startswith("DIG"):
+        suffix = normalized.removeprefix("DIG")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    if normalized.startswith("EXT"):
+        return "external", None, None
+    return None, None, None
+
+
+def parse_glitch_polarity_readback(raw: str) -> str | None:
+    """Parse a glitch polarity readback when recognized."""
+
+    return _GLITCH_POLARITY_READBACKS.get(raw.strip().upper())
+
+
+def parse_glitch_qualifier_readback(raw: str) -> str | None:
+    """Parse a glitch qualifier readback when recognized."""
+
+    return _GLITCH_QUALIFIER_READBACKS.get(raw.strip().upper())
 
 
 def parse_edge_slope(raw: str) -> str:
@@ -250,8 +634,75 @@ def parse_trigger_float(raw: str, setting_name: str) -> float:
     return value
 
 
+def parse_optional_trigger_float(raw: str, setting_name: str) -> float | None:
+    """Parse a numeric trigger response, preserving explicit NONE as absent."""
+
+    if raw.strip().upper() == "NONE":
+        return None
+    return parse_trigger_float(raw, setting_name)
+
+
+def parse_glitch_level(raw: str) -> float | None:
+    """Parse a glitch trigger level readback."""
+
+    text = raw.strip()
+    if text.upper() == "NONE":
+        return None
+    return parse_trigger_float(text.split(",", 1)[0], "glitch level")
+
+
+def parse_glitch_range(raw: str) -> tuple[float | None, float | None]:
+    """Parse glitch range as CLI min/max from SCPI max,min readback."""
+
+    text = raw.strip()
+    if text.upper() == "NONE":
+        return None, None
+    parts = [part.strip() for part in text.split(",")]
+    if len(parts) != 2:
+        raise TriggerResponseError(f"Could not parse trigger glitch range response: {raw!r}")
+    max_time = parse_trigger_float(parts[0], "glitch range max")
+    min_time = parse_trigger_float(parts[1], "glitch range min")
+    return min_time, max_time
+
+
+def validate_trigger_time(seconds: float) -> float:
+    """Validate a positive trigger timing value in seconds."""
+
+    try:
+        value = float(seconds)
+    except (TypeError, ValueError) as exc:
+        raise ParameterValidationError("trigger time must be a number of seconds.") from exc
+    if not math.isfinite(value) or value <= 0:
+        raise ParameterValidationError("trigger time must be a positive finite number of seconds.")
+    return value
+
+
 def _format_scpi_float(value: float) -> str:
     return f"{value:.12g}"
+
+
+def _parse_channel_suffix(suffix: str) -> int | None:
+    try:
+        value = int(suffix)
+    except ValueError:
+        return None
+    return value if value >= 1 else None
+
+
+def _parse_digital_suffix(suffix: str) -> int | None:
+    try:
+        value = int(suffix)
+    except ValueError:
+        return None
+    return value if value >= 0 else None
+
+
+def _parse_channel_source(suffix: str) -> str | None:
+    return "channel" if _parse_channel_suffix(suffix) is not None else None
+
+
+def _parse_digital_source(suffix: str) -> str | None:
+    return "digital" if _parse_digital_suffix(suffix) is not None else None
 
 
 def force_trigger_command() -> str:

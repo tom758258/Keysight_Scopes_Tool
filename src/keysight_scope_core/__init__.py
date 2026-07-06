@@ -48,7 +48,14 @@ from .screenshot import ScreenshotCapture, ScreenshotController
 from .scope import KeysightScope
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
-from .trigger import EdgeTriggerController, EdgeTriggerState, TriggerWaitConfig, TriggerWaitResult
+from .trigger import (
+    EdgeTriggerController,
+    EdgeTriggerState,
+    GlitchTriggerController,
+    GlitchTriggerState,
+    TriggerWaitConfig,
+    TriggerWaitResult,
+)
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformPreamble
 
 __all__ = [
@@ -58,6 +65,8 @@ __all__ = [
     "DisplayPersistence",
     "EdgeTriggerController",
     "EdgeTriggerState",
+    "GlitchTriggerController",
+    "GlitchTriggerState",
     "TriggerWaitConfig",
     "TriggerWaitResult",
     "IDN",

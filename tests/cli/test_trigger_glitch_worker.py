@@ -1,0 +1,150 @@
+import pytest
+
+from keysight_scope_cli import cli, worker
+from keysight_scope_core.errors import KeysightScopeError
+
+
+def _runtime(tmp_path):
+    return worker.WorkerRuntime(
+        host="127.0.0.1",
+        port=0,
+        mode="simulate",
+        model="DSOX4024A",
+        resource=None,
+        artifact_root=tmp_path,
+        queue_max=1,
+        output_format="jsonl",
+    )
+
+
+@pytest.mark.parametrize(
+    "arguments, expected",
+    [
+        ({"query": True}, ["trigger-glitch", "--query"]),
+        (
+            {
+                "channel": 1,
+                "polarity": "positive",
+                "qualifier": "less_than",
+                "time_seconds": 1e-6,
+            },
+            [
+                "trigger-glitch",
+                "--channel",
+                "1",
+                "--polarity",
+                "positive",
+                "--qualifier",
+                "less-than",
+                "--time-seconds",
+                "1e-06",
+            ],
+        ),
+        (
+            {
+                "channel": 1,
+                "polarity": "negative",
+                "qualifier": "greater_than",
+                "time_seconds": 5e-6,
+                "level_volts": 0.5,
+            },
+            [
+                "trigger-glitch",
+                "--channel",
+                "1",
+                "--polarity",
+                "negative",
+                "--qualifier",
+                "greater-than",
+                "--time-seconds",
+                "5e-06",
+                "--level-volts",
+                "0.5",
+            ],
+        ),
+        (
+            {
+                "channel": 1,
+                "polarity": "positive",
+                "qualifier": "range",
+                "min_time_seconds": 1e-6,
+                "max_time_seconds": 10e-6,
+            },
+            [
+                "trigger-glitch",
+                "--channel",
+                "1",
+                "--polarity",
+                "positive",
+                "--qualifier",
+                "range",
+                "--min-time-seconds",
+                "1e-06",
+                "--max-time-seconds",
+                "1e-05",
+            ],
+        ),
+    ],
+)
+def test_worker_trigger_glitch_arguments_parse(tmp_path, arguments, expected):
+    runtime = _runtime(tmp_path)
+
+    parsed = worker.parse_domain_command("trigger-glitch", arguments, runtime)
+
+    assert parsed.command == "trigger-glitch"
+    assert worker.arguments_to_argv(
+        worker._normalize_trigger_glitch_worker_arguments("trigger-glitch", arguments)
+    ) == expected[1:]
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"query": False},
+        {"query": True, "channel": 1},
+        {"channel": 1, "polarity": "positive", "qualifier": "less_than"},
+        {"channel": 1, "polarity": "positive", "qualifier": "invalid", "time_seconds": 1e-6},
+        {"channel": 1, "polarity": "positive", "qualifier": "range", "time_seconds": 1e-6},
+        {"digital": 0, "polarity": "positive", "qualifier": "less_than", "time_seconds": 1e-6},
+    ],
+)
+def test_worker_trigger_glitch_rejects_invalid_arguments(tmp_path, arguments):
+    runtime = _runtime(tmp_path)
+
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command("trigger-glitch", arguments, runtime)
+
+
+def test_worker_rejects_trigger_glitch_alias():
+    with pytest.raises(KeysightScopeError):
+        worker.validate_command_request({"command": "trigger-pulse", "arguments": {"query": True}})
+
+
+def test_worker_trigger_glitch_simulator_execution_sends_expected_scpi(tmp_path):
+    runtime = _runtime(tmp_path)
+    parsed = worker.parse_domain_command(
+        "trigger-glitch",
+        {
+            "channel": 1,
+            "polarity": "positive",
+            "qualifier": "range",
+            "min_time_seconds": 1e-6,
+            "max_time_seconds": 10e-6,
+        },
+        runtime,
+    )
+
+    payload, exit_code = cli._execute_json_command(parsed)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["files"] == []
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":TRIGger:MODE GLITch",
+        ":TRIGger:GLITch:SOURce CHANnel1",
+        ":TRIGger:GLITch:POLarity POSitive",
+        ":TRIGger:GLITch:RANGe 1e-05,1e-06",
+        ":TRIGger:GLITch:QUALifier RANGe",
+        ":SYSTem:ERRor?",
+    ]

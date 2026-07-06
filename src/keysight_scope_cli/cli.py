@@ -207,11 +207,15 @@ from keysight_scope_core.trigger import (
     edge_trigger_source_command,
     edge_trigger_source_query,
     force_trigger_command,
+    glitch_trigger_configure_commands,
+    glitch_trigger_query_commands,
     normalize_edge_slope,
+    normalize_glitch_qualifier,
     operation_condition_query,
     single_command,
     trigger_mode_edge_command,
     validate_trigger_level,
+    validate_trigger_time,
 )
 from keysight_scope_core.visa_backend import (
     is_asrl_resource,
@@ -893,6 +897,60 @@ def _build_parser() -> argparse.ArgumentParser:
         help="edge trigger slope",
     )
 
+    glitch_trigger_parser = subparsers.add_parser(
+        "trigger-glitch",
+        help="configure or query analog pulse-width glitch trigger settings",
+    )
+    _add_scope_connection_args(glitch_trigger_parser)
+    glitch_trigger_parser.add_argument(
+        "--query",
+        dest="glitch_query",
+        action="store_true",
+        help="query pulse-width glitch trigger state",
+    )
+    glitch_trigger_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the glitch trigger source",
+    )
+    glitch_trigger_parser.add_argument(
+        "--polarity",
+        choices=("positive", "negative"),
+        default=None,
+        help="glitch trigger pulse polarity",
+    )
+    glitch_trigger_parser.add_argument(
+        "--qualifier",
+        choices=("greater-than", "less-than", "range"),
+        default=None,
+        help="glitch trigger pulse-width qualifier",
+    )
+    glitch_trigger_parser.add_argument(
+        "--time-seconds",
+        type=_positive_float,
+        default=None,
+        help="pulse-width threshold in seconds for greater-than or less-than qualifiers",
+    )
+    glitch_trigger_parser.add_argument(
+        "--min-time-seconds",
+        type=_positive_float,
+        default=None,
+        help="lower pulse-width bound in seconds for range qualifier",
+    )
+    glitch_trigger_parser.add_argument(
+        "--max-time-seconds",
+        type=_positive_float,
+        default=None,
+        help="upper pulse-width bound in seconds for range qualifier",
+    )
+    glitch_trigger_parser.add_argument(
+        "--level-volts",
+        type=_trigger_level_float,
+        default=None,
+        help="optional glitch trigger level in volts",
+    )
+
     cursor_parser = subparsers.add_parser(
         "cursor",
         help="query, hide, or configure manual marker cursors",
@@ -1562,6 +1620,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_timebase_position(args)
     if args.command == "edge-trigger":
         return _cmd_edge_trigger(args)
+    if args.command == "trigger-glitch":
+        return _cmd_trigger_glitch(args)
     if args.command == "cursor":
         return _cmd_cursor(args)
     if args.command == "trigger-holdoff":
@@ -1858,6 +1918,57 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             )
         if getattr(args, "off", False):
             raise ParameterValidationError("display-vectors set OFF is not supported.")
+    if getattr(args, "command", None) == "trigger-glitch":
+        _validate_trigger_glitch_args(args)
+
+
+def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
+    set_values = (
+        getattr(args, "channel", None),
+        getattr(args, "polarity", None),
+        getattr(args, "qualifier", None),
+        getattr(args, "time_seconds", None),
+        getattr(args, "min_time_seconds", None),
+        getattr(args, "max_time_seconds", None),
+        getattr(args, "level_volts", None),
+    )
+    if getattr(args, "glitch_query", False):
+        if any(value is not None for value in set_values):
+            raise ParameterValidationError(
+                "trigger-glitch --query cannot be combined with configure options."
+            )
+        return
+
+    if args.channel is None or args.polarity is None or args.qualifier is None:
+        raise ParameterValidationError(
+            "trigger-glitch configure requires --channel, --polarity, and --qualifier."
+        )
+
+    qualifier = normalize_glitch_qualifier(args.qualifier)
+    if qualifier in {"GREaterthan", "LESSthan"}:
+        if args.time_seconds is None:
+            raise ParameterValidationError(
+                "trigger-glitch greater-than and less-than require --time-seconds."
+            )
+        if args.min_time_seconds is not None or args.max_time_seconds is not None:
+            raise ParameterValidationError(
+                "trigger-glitch greater-than and less-than reject range timing options."
+            )
+        validate_trigger_time(args.time_seconds)
+        return
+
+    if args.time_seconds is not None:
+        raise ParameterValidationError("trigger-glitch range rejects --time-seconds.")
+    if args.min_time_seconds is None or args.max_time_seconds is None:
+        raise ParameterValidationError(
+            "trigger-glitch range requires --min-time-seconds and --max-time-seconds."
+        )
+    min_time = validate_trigger_time(args.min_time_seconds)
+    max_time = validate_trigger_time(args.max_time_seconds)
+    if min_time >= max_time:
+        raise ParameterValidationError(
+            "trigger-glitch --min-time-seconds must be less than --max-time-seconds."
+        )
 
 
 def _json_error(exc: KeysightScopeError) -> dict[str, object]:
@@ -2111,6 +2222,36 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         slope = normalize_edge_slope(args.slope)
         commands = [trigger_mode_edge_command(), edge_trigger_source_command(channel), edge_trigger_level_command(args.level), edge_trigger_slope_command(slope)]
         return commands + [":SYSTem:ERRor?"], [], {"operation": "set", "commands": commands, "source_channel": channel, "level_volts": args.level, "slope": slope}
+    if command == "trigger-glitch":
+        if args.glitch_query:
+            commands = glitch_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        commands = glitch_trigger_configure_commands(
+            channel=args.channel,
+            polarity=args.polarity,
+            qualifier=args.qualifier,
+            capabilities=capabilities,
+            time_seconds=args.time_seconds,
+            min_time_seconds=args.min_time_seconds,
+            max_time_seconds=args.max_time_seconds,
+            level_volts=args.level_volts,
+        )
+        result: dict[str, object] = {
+            "operation": "set",
+            "commands": commands,
+            "channel": args.channel,
+            "source": f"CHANnel{args.channel}",
+            "polarity": args.polarity,
+            "qualifier": args.qualifier,
+            "level_volts": args.level_volts,
+            "state_changing": True,
+        }
+        if args.qualifier in {"greater-than", "less-than"}:
+            result["time_seconds"] = args.time_seconds
+        else:
+            result["min_time_seconds"] = args.min_time_seconds
+            result["max_time_seconds"] = args.max_time_seconds
+        return commands + [":SYSTem:ERRor?"], [], result
     if command == "cursor":
         if args.cursor_query:
             commands = _cursor_query_commands()
@@ -3814,6 +3955,91 @@ def _cmd_edge_trigger(args: argparse.Namespace) -> int:
             print(f"Command: {edge_trigger_source_command(channel)}")
             print(f"Command: {edge_trigger_level_command(level)}")
             print(f"Command: {edge_trigger_slope_command(slope)}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_glitch(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.glitch_query:
+            commands = glitch_trigger_query_commands()
+            print("Planned query: pulse-width glitch trigger state")
+            state = scope.query_glitch_trigger()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or state.raw['mode']}")
+            print(f"Source: {state.source}")
+            if state.channel is not None:
+                print(f"Channel: CH{state.channel}")
+            if state.digital is not None:
+                print(f"Digital: D{state.digital}")
+            print(f"Polarity: {state.polarity or state.raw['polarity']}")
+            print(f"Qualifier: {state.qualifier or state.raw['qualifier']}")
+            if state.level_volts is None:
+                print(f"Level V: {state.raw['level']}")
+            else:
+                print(f"Level V: {state.level_volts:.12g}")
+        else:
+            commands = glitch_trigger_configure_commands(
+                channel=args.channel,
+                polarity=args.polarity,
+                qualifier=args.qualifier,
+                capabilities=scope.capabilities,
+                time_seconds=args.time_seconds,
+                min_time_seconds=args.min_time_seconds,
+                max_time_seconds=args.max_time_seconds,
+                level_volts=args.level_volts,
+            )
+            print(
+                f"Planned change: glitch trigger CH{args.channel}, polarity {args.polarity}, "
+                f"qualifier {args.qualifier}"
+            )
+            scope.configure_glitch_trigger(
+                channel=args.channel,
+                polarity=args.polarity,
+                qualifier=args.qualifier,
+                time_seconds=args.time_seconds,
+                min_time_seconds=args.min_time_seconds,
+                max_time_seconds=args.max_time_seconds,
+                level_volts=args.level_volts,
+            )
+            result: dict[str, object] = {
+                "operation": "set",
+                "commands": commands,
+                "channel": args.channel,
+                "source": f"CHANnel{args.channel}",
+                "polarity": args.polarity,
+                "qualifier": args.qualifier,
+                "level_volts": args.level_volts,
+                "state_changing": True,
+            }
+            if args.qualifier in {"greater-than", "less-than"}:
+                result["time_seconds"] = args.time_seconds
+            else:
+                result["min_time_seconds"] = args.min_time_seconds
+                result["max_time_seconds"] = args.max_time_seconds
+            _json_update_result(**result)
+            for command in commands:
+                print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)

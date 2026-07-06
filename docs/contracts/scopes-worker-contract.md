@@ -134,7 +134,7 @@ Worker `/command` supports the existing Scopes capability surface:
 - `display-label`, `display-clear`, `display-persistence`,
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
-- `edge-trigger`, `trigger-holdoff`, `cursor`, `autoscale`
+- `edge-trigger`, `trigger-glitch`, `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -212,6 +212,57 @@ form:
 ```json
 {"command": "force-trigger", "arguments": {}}
 ```
+
+`trigger-glitch` is accepted only as the canonical pulse-width trigger command:
+
+```json
+{"command": "trigger-glitch", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "trigger-glitch",
+  "arguments": {
+    "channel": 1,
+    "polarity": "positive",
+    "qualifier": "less_than",
+    "time_seconds": 0.000001
+  }
+}
+```
+
+```json
+{
+  "command": "trigger-glitch",
+  "arguments": {
+    "channel": 1,
+    "polarity": "negative",
+    "qualifier": "greater_than",
+    "time_seconds": 0.000005,
+    "level_volts": 0.5
+  }
+}
+```
+
+```json
+{
+  "command": "trigger-glitch",
+  "arguments": {
+    "channel": 1,
+    "polarity": "positive",
+    "qualifier": "range",
+    "min_time_seconds": 0.000001,
+    "max_time_seconds": 0.00001
+  }
+}
+```
+
+Worker JSON may use `greater_than` and `less_than` qualifier values; they are
+converted to the CLI `greater-than` and `less-than` values before parsing.
+Configure mode is analog-channel-only and changes trigger settings. Query mode
+must use `query: true` without configure keys. The worker does not accept
+aliases such as `trigger-pulse`, `pulse-width`, `glitch-trigger`, or
+`trigger-width`.
 
 ### Advanced Channel Commands
 
@@ -456,8 +507,8 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`display-clear`, `display-persistence`, `display-intensity`, and
-`display-vectors` do not create command artifacts. Their terminal
+`trigger-glitch`, `display-clear`, `display-persistence`, `display-intensity`,
+and `display-vectors` do not create command artifacts. Their terminal
 `result.json.result` contains the existing one-shot structured `result` fields
 for that command. For `sample-rate` maximum queries, that includes
 `query_kind: "maximum"` and `maximum_sample_rate_hz`.

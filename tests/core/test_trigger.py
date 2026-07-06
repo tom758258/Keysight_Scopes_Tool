@@ -6,6 +6,7 @@ from keysight_scope_core.fake_backend import FakeBackend
 from keysight_scope_core.scpi import SCPIClient
 from keysight_scope_core.trigger import (
     EdgeTriggerController,
+    GlitchTriggerController,
     OPERATION_CONDITION_RUI_ENAB_MASK,
     OPERATION_CONDITION_RUN_MASK,
     OPERATION_CONDITION_WAIT_TRIG_MASK,
@@ -18,13 +19,21 @@ from keysight_scope_core.trigger import (
     edge_trigger_source_command,
     force_trigger_command,
     edge_trigger_source_query,
+    glitch_trigger_configure_commands,
+    glitch_trigger_query_commands,
     normalize_edge_slope,
+    normalize_glitch_polarity,
+    normalize_glitch_qualifier,
     parse_edge_slope,
     parse_edge_trigger_source,
+    parse_glitch_level,
+    parse_glitch_range,
+    parse_glitch_source,
     parse_operation_condition,
     parse_trigger_float,
     wait_for_trigger_completion,
     trigger_mode_edge_command,
+    trigger_mode_glitch_command,
     validate_trigger_level,
 )
 
@@ -187,6 +196,199 @@ def test_edge_trigger_controller_rejects_invalid_channel_before_scpi():
         controller.configure(source_channel=3, level_volts=0.0, slope="positive")
 
     assert backend.history == []
+
+
+def test_glitch_trigger_less_than_sequence_uses_keysight_pulse_width_syntax():
+    commands = glitch_trigger_configure_commands(
+        channel=1,
+        polarity="positive",
+        qualifier="less-than",
+        time_seconds=1e-6,
+        capabilities=capabilities_for_model("DSOX4024A"),
+    )
+
+    assert commands == [
+        ":TRIGger:MODE GLITch",
+        ":TRIGger:GLITch:SOURce CHANnel1",
+        ":TRIGger:GLITch:POLarity POSitive",
+        ":TRIGger:GLITch:LESSthan 1e-06",
+        ":TRIGger:GLITch:QUALifier LESSthan",
+    ]
+
+
+def test_glitch_trigger_greater_than_sequence_includes_optional_level_before_polarity():
+    commands = glitch_trigger_configure_commands(
+        channel=1,
+        polarity="negative",
+        qualifier="greater-than",
+        time_seconds=5e-6,
+        level_volts=0.5,
+        capabilities=capabilities_for_model("DSOX4024A"),
+    )
+
+    assert commands == [
+        ":TRIGger:MODE GLITch",
+        ":TRIGger:GLITch:SOURce CHANnel1",
+        ":TRIGger:GLITch:LEVel 0.5,CHANnel1",
+        ":TRIGger:GLITch:POLarity NEGative",
+        ":TRIGger:GLITch:GREaterthan 5e-06",
+        ":TRIGger:GLITch:QUALifier GREaterthan",
+    ]
+
+
+def test_glitch_trigger_range_sequence_maps_cli_max_then_min_to_scpi_range():
+    commands = glitch_trigger_configure_commands(
+        channel=1,
+        polarity="positive",
+        qualifier="range",
+        min_time_seconds=1e-6,
+        max_time_seconds=10e-6,
+        capabilities=capabilities_for_model("DSOX4024A"),
+    )
+
+    assert commands == [
+        ":TRIGger:MODE GLITch",
+        ":TRIGger:GLITch:SOURce CHANnel1",
+        ":TRIGger:GLITch:POLarity POSitive",
+        ":TRIGger:GLITch:RANGe 1e-05,1e-06",
+        ":TRIGger:GLITch:QUALifier RANGe",
+    ]
+
+
+def test_glitch_trigger_query_sequence_is_explicit_and_non_acquisition():
+    assert trigger_mode_glitch_command() == ":TRIGger:MODE GLITch"
+    assert glitch_trigger_query_commands() == [
+        ":TRIGger:MODE?",
+        ":TRIGger:GLITch:SOURce?",
+        ":TRIGger:GLITch:POLarity?",
+        ":TRIGger:GLITch:QUALifier?",
+        ":TRIGger:GLITch:GREaterthan?",
+        ":TRIGger:GLITch:LESSthan?",
+        ":TRIGger:GLITch:RANGe?",
+        ":TRIGger:GLITch:LEVel?",
+    ]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"qualifier": "less-than"},
+        {"qualifier": "greater-than"},
+        {"qualifier": "range", "min_time_seconds": 1e-6},
+        {"qualifier": "range", "max_time_seconds": 10e-6},
+        {"qualifier": "range", "time_seconds": 1e-6},
+        {"qualifier": "range", "min_time_seconds": 2e-6, "max_time_seconds": 1e-6},
+        {"qualifier": "less-than", "time_seconds": 1e-6, "min_time_seconds": 5e-7},
+    ],
+)
+def test_glitch_trigger_rejects_invalid_timing_combinations(kwargs):
+    with pytest.raises(ParameterValidationError):
+        glitch_trigger_configure_commands(
+            channel=1,
+            polarity="positive",
+            capabilities=capabilities_for_model("DSOX4024A"),
+            **kwargs,
+        )
+
+
+def test_glitch_trigger_rejects_invalid_channel_before_scpi():
+    backend = FakeBackend()
+    controller = GlitchTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+
+    with pytest.raises(ParameterValidationError):
+        controller.configure(
+            channel=3,
+            polarity="positive",
+            qualifier="less-than",
+            time_seconds=1e-6,
+        )
+
+    assert backend.history == []
+
+
+@pytest.mark.parametrize("value", ["positive", "negative"])
+def test_normalize_glitch_polarity_accepts_public_values(value):
+    assert normalize_glitch_polarity(value) in {"POSitive", "NEGative"}
+
+
+@pytest.mark.parametrize("value", ["greater-than", "less-than", "range"])
+def test_normalize_glitch_qualifier_accepts_public_values(value):
+    assert normalize_glitch_qualifier(value) in {"GREaterthan", "LESSthan", "RANGe"}
+
+
+@pytest.mark.parametrize("value", ["sideways", ""])
+def test_normalize_glitch_polarity_rejects_invalid_values(value):
+    with pytest.raises(ParameterValidationError):
+        normalize_glitch_polarity(value)
+
+
+@pytest.mark.parametrize("value", ["between", ""])
+def test_normalize_glitch_qualifier_rejects_invalid_values(value):
+    with pytest.raises(ParameterValidationError):
+        normalize_glitch_qualifier(value)
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("CHAN1", ("channel", 1, None)),
+        ("CHANnel2", ("channel", 2, None)),
+        ("DIGital7", ("digital", None, 7)),
+        ("EXT", ("external", None, None)),
+        ("NONE", ("none", None, None)),
+    ],
+)
+def test_parse_glitch_source_is_tolerant_of_current_instrument_state(raw, expected):
+    assert parse_glitch_source(raw) == expected
+
+
+def test_parse_glitch_level_treats_none_as_absent():
+    assert parse_glitch_level("NONE") is None
+
+
+def test_parse_glitch_range_maps_scpi_max_min_to_cli_min_max():
+    assert parse_glitch_range("+1.00000000E-05,+1.00000000E-06") == (1e-6, 1e-5)
+
+
+def test_glitch_trigger_controller_configures_and_queries_state():
+    backend = FakeBackend(
+        responses={
+            ":TRIGger:MODE?": "GLIT",
+            ":TRIGger:GLITch:SOURce?": "CHAN1",
+            ":TRIGger:GLITch:POLarity?": "POS",
+            ":TRIGger:GLITch:QUALifier?": "LESS",
+            ":TRIGger:GLITch:GREaterthan?": "+1.00000000E-06",
+            ":TRIGger:GLITch:LESSthan?": "+1.00000000E-06",
+            ":TRIGger:GLITch:RANGe?": "+1.00000000E-05,+1.00000000E-06",
+            ":TRIGger:GLITch:LEVel?": "NONE",
+        }
+    )
+    controller = GlitchTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    controller.configure(
+        channel=1,
+        polarity="positive",
+        qualifier="less-than",
+        time_seconds=1e-6,
+    )
+    state = controller.query()
+
+    assert state.mode == "glitch"
+    assert state.source_kind == "channel"
+    assert state.channel == 1
+    assert state.polarity == "positive"
+    assert state.qualifier == "less-than"
+    assert state.level_volts is None
+    assert state.range_min_seconds == pytest.approx(1e-6)
+    assert state.range_max_seconds == pytest.approx(1e-5)
+    assert backend.history == [
+        ":TRIGger:MODE GLITch",
+        ":TRIGger:GLITch:SOURce CHANnel1",
+        ":TRIGger:GLITch:POLarity POSitive",
+        ":TRIGger:GLITch:LESSthan 1e-06",
+        ":TRIGger:GLITch:QUALifier LESSthan",
+        *glitch_trigger_query_commands(),
+    ]
 
 
 def test_force_trigger_command_returns_expected_scpi():

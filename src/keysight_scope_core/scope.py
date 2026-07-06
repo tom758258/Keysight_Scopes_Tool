@@ -23,7 +23,7 @@ from .scpi import SCPIBackend, SCPIClient
 from .screenshot import ScreenshotCapture, ScreenshotController
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
-from .trigger import EdgeTriggerController, EdgeTriggerState
+from .trigger import EdgeTriggerController, EdgeTriggerState, GlitchTriggerController, GlitchTriggerState
 from .visa_backend import VisaBackend
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformController
 
@@ -308,6 +308,34 @@ class KeysightScope:
 
         return self._edge_trigger_controller().query()
 
+    def configure_glitch_trigger(
+        self,
+        *,
+        channel: int,
+        polarity: str,
+        qualifier: str,
+        time_seconds: float | None = None,
+        min_time_seconds: float | None = None,
+        max_time_seconds: float | None = None,
+        level_volts: float | None = None,
+    ) -> None:
+        """Configure analog pulse-width glitch trigger settings."""
+
+        self._glitch_trigger_controller().configure(
+            channel=channel,
+            polarity=polarity,
+            qualifier=qualifier,
+            time_seconds=time_seconds,
+            min_time_seconds=min_time_seconds,
+            max_time_seconds=max_time_seconds,
+            level_volts=level_volts,
+        )
+
+    def query_glitch_trigger(self) -> GlitchTriggerState:
+        """Query pulse-width glitch trigger settings."""
+
+        return self._glitch_trigger_controller().query()
+
     def capture_waveform_byte(self, channel: int, points: int = 1000) -> WaveformCapture:
         """Capture one analog channel using BYTE waveform format."""
 
@@ -525,6 +553,13 @@ class KeysightScope:
                 "Edge trigger operations require known capabilities; call query_idn() first."
             )
         return EdgeTriggerController(self.scpi, self.capabilities)
+
+    def _glitch_trigger_controller(self) -> GlitchTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Glitch trigger operations require known capabilities; call query_idn() first."
+            )
+        return GlitchTriggerController(self.scpi, self.capabilities)
 
     def _waveform_controller(self) -> WaveformController:
         if self.capabilities is None:

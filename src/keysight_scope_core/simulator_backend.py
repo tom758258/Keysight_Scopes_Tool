@@ -149,6 +149,15 @@ class SimulatorBackend:
     trigger_mode: str = "EDGE"
     trigger_level: float = 0.0
     trigger_slope: str = "POSitive"
+    glitch_source_channel: int | None = 1
+    glitch_source_raw: str = "CHANnel1"
+    glitch_polarity: str = "POSitive"
+    glitch_qualifier: str = "LESSthan"
+    glitch_greater_than: float = 1e-6
+    glitch_less_than: float = 1e-6
+    glitch_range_min: float = 1e-6
+    glitch_range_max: float = 10e-6
+    glitch_level: float | None = 0.0
     trigger_holdoff: float = 100e-9
     marker_mode: str = "OFF"
     marker_source: int = 1
@@ -245,6 +254,36 @@ class SimulatorBackend:
             self.trigger_level = float(command.rsplit(" ", 1)[1])
         elif upper.startswith(":TRIGGER:EDGE:SLOPE "):
             self.trigger_slope = command.rsplit(" ", 1)[1]
+        elif upper.startswith(":TRIGGER:GLITCH:SOURCE CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.glitch_source_channel = channel
+            self.glitch_source_raw = f"CHANnel{channel}"
+        elif upper.startswith(":TRIGGER:GLITCH:LEVEL "):
+            value, channel = _parse_glitch_level_write(command)
+            self._validate_channel(channel)
+            self.glitch_level = value
+        elif upper.startswith(":TRIGGER:GLITCH:POLARITY "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"POSITIVE", "NEGATIVE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.glitch_polarity = value
+        elif upper.startswith(":TRIGGER:GLITCH:QUALIFIER "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"GREATERTHAN", "LESSTHAN", "RANGE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.glitch_qualifier = value
+        elif upper.startswith(":TRIGGER:GLITCH:GREATERTHAN "):
+            self.glitch_greater_than = _parse_positive_scpi_number(command.split(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:GLITCH:LESSTHAN "):
+            self.glitch_less_than = _parse_positive_scpi_number(command.split(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:GLITCH:RANGE "):
+            max_time, min_time = _parse_glitch_range_write(command)
+            if min_time >= max_time:
+                raise SimulatorBackendError(
+                    "Simulator glitch range min time must be less than max time."
+                )
+            self.glitch_range_min = min_time
+            self.glitch_range_max = max_time
         elif upper.startswith(":TRIGGER:HOLDOFF "):
             self.trigger_holdoff = _parse_scpi_number(command.split(" ", 1)[1])
         elif upper.startswith(":TRIGGER:HOLDOFF:RANDOM "):
@@ -342,12 +381,30 @@ class SimulatorBackend:
             return f"{self.timebase_scale:.12g}"
         if upper == ":TIMEBASE:POSITION?":
             return f"{self.timebase_position:.12g}"
+        if upper == ":TRIGGER:MODE?":
+            return _abbreviate_trigger_mode(self.trigger_mode)
         if upper == ":TRIGGER:EDGE:SOURCE?":
             return f"CHANnel{self.trigger_source}"
         if upper == ":TRIGGER:EDGE:LEVEL?":
             return f"{self.trigger_level:.12g}"
         if upper == ":TRIGGER:EDGE:SLOPE?":
             return self.trigger_slope
+        if upper == ":TRIGGER:GLITCH:SOURCE?":
+            if self.glitch_source_channel is None:
+                return self.glitch_source_raw
+            return f"CHAN{self.glitch_source_channel}"
+        if upper == ":TRIGGER:GLITCH:POLARITY?":
+            return "NEG" if self.glitch_polarity.upper().startswith("NEG") else "POS"
+        if upper == ":TRIGGER:GLITCH:QUALIFIER?":
+            return _abbreviate_glitch_qualifier(self.glitch_qualifier)
+        if upper == ":TRIGGER:GLITCH:GREATERTHAN?":
+            return f"{self.glitch_greater_than:.8E}"
+        if upper == ":TRIGGER:GLITCH:LESSTHAN?":
+            return f"{self.glitch_less_than:.8E}"
+        if upper == ":TRIGGER:GLITCH:RANGE?":
+            return f"{self.glitch_range_max:.8E},{self.glitch_range_min:.8E}"
+        if upper == ":TRIGGER:GLITCH:LEVEL?":
+            return "NONE" if self.glitch_level is None else f"{self.glitch_level:.8E}"
         if upper == ":TRIGGER:HOLDOFF?":
             return f"{self.trigger_holdoff:.12g}"
         if upper == ":MARKER:MODE?":
@@ -1271,6 +1328,51 @@ def _coerce_simulated_signal(
     if isinstance(signal, SimulatedSignal):
         return signal
     return SimulatedSignal(**signal)
+
+
+def _parse_glitch_level_write(command: str) -> tuple[float, int]:
+    value = command.split(" ", 1)[1]
+    parts = [part.strip() for part in value.split(",")]
+    if len(parts) != 2 or not parts[1].upper().startswith("CHANNEL"):
+        raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+    return _parse_scpi_number(parts[0]), int(parts[1][len("CHANnel") :])
+
+
+def _parse_glitch_range_write(command: str) -> tuple[float, float]:
+    value = command.split(" ", 1)[1]
+    parts = [part.strip() for part in value.split(",")]
+    if len(parts) != 2:
+        raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+    max_time = _parse_positive_scpi_number(parts[0])
+    min_time = _parse_positive_scpi_number(parts[1])
+    return max_time, min_time
+
+
+def _parse_positive_scpi_number(value: str) -> float:
+    parsed = _parse_scpi_number(value)
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise SimulatorBackendError("SCPI numeric parameter must be positive and finite.")
+    return parsed
+
+
+def _abbreviate_trigger_mode(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("GLIT"):
+        return "GLIT"
+    if upper.startswith("EDGE"):
+        return "EDGE"
+    return upper
+
+
+def _abbreviate_glitch_qualifier(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("GRE"):
+        return "GRE"
+    if upper.startswith("LESS"):
+        return "LESS"
+    if upper.startswith("RANG"):
+        return "RANG"
+    return upper
 
 
 def _parse_scpi_number(value: str) -> float:

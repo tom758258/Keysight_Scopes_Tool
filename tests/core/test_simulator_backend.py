@@ -93,6 +93,57 @@ def test_simulator_state_queries_reflect_channel_timebase_and_trigger_writes():
     assert backend.query(":TRIGger:EDGE:SLOPe?") == "NEGative"
 
 
+def test_simulator_glitch_less_than_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE GLITch")
+    backend.write(":TRIGger:GLITch:SOURce CHANnel1")
+    backend.write(":TRIGger:GLITch:POLarity POSitive")
+    backend.write(":TRIGger:GLITch:LESSthan 1e-6")
+    backend.write(":TRIGger:GLITch:QUALifier LESSthan")
+
+    assert backend.query(":TRIGger:MODE?") == "GLIT"
+    assert backend.query(":TRIGger:GLITch:SOURce?") == "CHAN1"
+    assert backend.query(":TRIGger:GLITch:POLarity?") == "POS"
+    assert backend.query(":TRIGger:GLITch:LESSthan?") == "1.00000000E-06"
+    assert backend.query(":TRIGger:GLITch:QUALifier?") == "LESS"
+
+
+def test_simulator_glitch_greater_than_with_level_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE GLITch")
+    backend.write(":TRIGger:GLITch:SOURce CHANnel1")
+    backend.write(":TRIGger:GLITch:LEVel 0.5,CHANnel1")
+    backend.write(":TRIGger:GLITch:POLarity NEGative")
+    backend.write(":TRIGger:GLITch:GREaterthan 5e-6")
+    backend.write(":TRIGger:GLITch:QUALifier GREaterthan")
+
+    assert backend.query(":TRIGger:GLITch:LEVel?") == "5.00000000E-01"
+    assert backend.query(":TRIGger:GLITch:POLarity?") == "NEG"
+    assert backend.query(":TRIGger:GLITch:GREaterthan?") == "5.00000000E-06"
+    assert backend.query(":TRIGger:GLITch:QUALifier?") == "GRE"
+
+
+def test_simulator_glitch_range_query_returns_canonical_max_min():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE GLITch")
+    backend.write(":TRIGger:GLITch:SOURce CHANnel1")
+    backend.write(":TRIGger:GLITch:POLarity POSitive")
+    backend.write(":TRIGger:GLITch:RANGe 1e-5,1e-6")
+    backend.write(":TRIGger:GLITch:QUALifier RANGe")
+
+    assert backend.query(":TRIGger:GLITch:RANGe?") == "1.00000000E-05,1.00000000E-06"
+    assert backend.query(":TRIGger:GLITch:QUALifier?") == "RANG"
+
+
+def test_simulator_glitch_level_none_query_is_explicit():
+    backend = SimulatorBackend(glitch_level=None)
+
+    assert backend.query(":TRIGger:GLITch:LEVel?") == "NONE"
+
+
 def test_simulator_channel_advanced_settings_round_trip():
     backend = SimulatorBackend()
 

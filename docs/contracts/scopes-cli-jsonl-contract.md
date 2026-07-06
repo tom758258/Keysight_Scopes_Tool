@@ -168,6 +168,13 @@ Control and setup:
   `position_seconds`.
 - `edge-trigger`: `operation`, `commands`, `source_channel`, `level_volts`,
   `slope`.
+- `trigger-glitch`: `operation` and `commands`. Configure results include
+  `channel`, `source`, `polarity`, `qualifier`, optional `time_seconds`,
+  optional `min_time_seconds`/`max_time_seconds`, optional `level_volts`, and
+  `state_changing: true`. Query results include normalized `mode`, `source`,
+  `source_kind`, `channel`, `digital`, `polarity`, `qualifier`,
+  `greater_than_seconds`, `less_than_seconds`, `range_min_seconds`,
+  `range_max_seconds`, `level_volts`, and preserved `raw` readbacks.
 - `trigger-holdoff`: `operation`, `command`, optional `commands`, `seconds`.
 - `cursor`: `operation`, `commands`, `source_channel`, `x1_seconds`,
   `x2_seconds`, optional `y1_volts`, `y2_volts`, `auto_timebase`,
