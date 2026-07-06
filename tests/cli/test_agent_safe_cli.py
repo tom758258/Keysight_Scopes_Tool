@@ -900,6 +900,25 @@ def test_channel_advanced_simulate_json_results(capsys):
     assert units_payload["result"]["units"] == "volt"
     assert units_payload["scpi"]["sent"] == ["*IDN?", ":CHANnel1:UNITs?", ":SYSTem:ERRor?"]
 
+    assert (
+        cli.main(
+            [
+                "channel-range",
+                "--simulate",
+                "--json",
+                "--channel",
+                "1",
+                "--volts-full-scale",
+                "4",
+            ]
+        )
+        == 0
+    )
+    range_payload = _json_stdout(capsys)
+    assert range_payload["result"]["operation"] == "set"
+    assert range_payload["result"]["range_volts"] == 4.0
+    assert range_payload["scpi"]["sent"] == ["*IDN?", ":CHANnel1:RANGe 4", ":SYSTem:ERRor?"]
+
 
 def test_channel_advanced_dry_run_json_reports_planned_scpi_without_opening(
     monkeypatch, capsys
@@ -932,6 +951,28 @@ def test_channel_advanced_dry_run_json_reports_planned_scpi_without_opening(
         ":SYSTem:ERRor?",
     ]
     assert payload["scpi"]["sent"] == []
+
+    assert (
+        cli.main(
+            [
+                "channel-range",
+                "--dry-run",
+                "--json",
+                "--channel",
+                "1",
+                "--volts-full-scale",
+                "4",
+            ]
+        )
+        == 0
+    )
+    range_payload = _json_stdout(capsys)
+    assert range_payload["result"]["range_volts"] == 4.0
+    assert range_payload["scpi"]["planned"] == [
+        ":CHANnel1:RANGe 4",
+        ":SYSTem:ERRor?",
+    ]
+    assert range_payload["scpi"]["sent"] == []
 
 
 def test_channel_impedance_json_rejects_fifty_without_allow_before_open(monkeypatch, capsys):

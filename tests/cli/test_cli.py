@@ -1573,7 +1573,7 @@ def test_channel_impedance_cli_allows_3000x_fifty_with_allow(monkeypatch, capsys
             "Command: :CHANnel1:INVert ON",
         ),
         (
-            ["channel-range", "--channel", "1", "--volts", "4"],
+            ["channel-range", "--channel", "1", "--volts-full-scale", "4"],
             ("set_channel_range", 1, 4.0),
             "Command: :CHANnel1:RANGe 4",
         ),
@@ -1644,6 +1644,15 @@ def test_channel_advanced_cli_queries_values_then_checks_error(
 
     assert scope.calls == ["query_idn", expected_call, "query_system_error"]
     assert expected_text in capsys.readouterr().out
+
+
+def test_channel_range_cli_rejects_volts_alias(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["channel-range", "--channel", "1", "--volts", "4"])
+
+    assert excinfo.value.code == 2
+    err = capsys.readouterr().err
+    assert "one of the arguments --volts-full-scale --query is required" in err
 
 
 def test_timebase_scale_cli_sets_scale_then_checks_error(monkeypatch, capsys):

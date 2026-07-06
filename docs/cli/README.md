@@ -520,7 +520,7 @@ Set or query additional analog channel settings:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-impedance --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-invert --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --on --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-invert --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-range --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --volts 4 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-range --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --volts-full-scale 4 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-range --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-units --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --units volt --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-units --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
@@ -532,7 +532,7 @@ Set or query additional analog channel settings:
 
 These commands first query `*IDN?`, validate the channel number against the
 detected model, send only the requested command or query, and then perform one
-`:SYSTem:ERRor?` post-check. `channel-range --volts` must be positive and
+`:SYSTem:ERRor?` post-check. `channel-range --volts-full-scale` must be positive and
 finite. `channel-probe-skew --seconds` must be finite and within
 `-100e-9..100e-9`. Units are `volt` or `amp`; impedance is `one-meg` or
 `fifty`. Setting `fifty` requires `--allow-50-ohm` before any backend is

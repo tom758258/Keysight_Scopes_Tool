@@ -681,12 +681,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
     channel_range_parser = subparsers.add_parser(
         "channel-range",
+        allow_abbrev=False,
         help="set or query one analog channel full-scale range",
     )
     _add_scope_connection_args(channel_range_parser)
     channel_range_parser.add_argument("--channel", type=_positive_int, required=True, help="analog channel number, validated against the detected scope model")
     range_action = channel_range_parser.add_mutually_exclusive_group(required=True)
-    range_action.add_argument("--volts", dest="range_value", type=_positive_float, help="full-scale range in volts")
+    range_action.add_argument("--volts-full-scale", dest="range_value", type=_positive_float, help="full-scale range in volts")
     range_action.add_argument("--query", dest="range_query", action="store_true", help="query the channel full-scale range")
 
     channel_units_parser = subparsers.add_parser(
