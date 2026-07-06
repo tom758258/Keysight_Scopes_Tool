@@ -93,6 +93,24 @@ def test_simulator_state_queries_reflect_channel_timebase_and_trigger_writes():
     assert backend.query(":TRIGger:EDGE:SLOPe?") == "NEGative"
 
 
+def test_simulator_channel_advanced_settings_round_trip():
+    backend = SimulatorBackend()
+
+    backend.write(":CHANnel1:IMPedance FIFTy")
+    backend.write(":CHANnel1:INVert ON")
+    backend.write(":CHANnel1:RANGe 4")
+    backend.write(":CHANnel1:UNITs AMP")
+    backend.write(":CHANnel1:VERNier ON")
+    backend.write(":CHANnel1:PROBe:SKEW 1e-09")
+
+    assert backend.query(":CHANnel1:IMPedance?") == "FIFTy"
+    assert backend.query(":CHANnel1:INVert?") == "1"
+    assert backend.query(":CHANnel1:RANGe?") == "4"
+    assert backend.query(":CHANnel1:UNITs?") == "AMP"
+    assert backend.query(":CHANnel1:VERNier?") == "1"
+    assert backend.query(":CHANnel1:PROBe:SKEW?") == "1e-09"
+
+
 def test_simulator_label_and_display_annotation_roundtrip_4000x():
     backend = SimulatorBackend(model="DSOX4024A")
 

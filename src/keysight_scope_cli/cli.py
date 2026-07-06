@@ -108,19 +108,36 @@ from keysight_scope_core.channel import (
     channel_coupling_query,
     channel_display_command,
     channel_display_query,
+    channel_impedance_command,
+    channel_impedance_query,
+    channel_invert_command,
+    channel_invert_query,
     channel_label_command,
     channel_label_query,
     channel_offset_command,
     channel_offset_query,
+    channel_probe_skew_command,
+    channel_probe_skew_query,
     channel_probe_ratio_command,
     channel_probe_ratio_query,
+    channel_range_command,
+    channel_range_query,
     channel_scale_command,
     channel_scale_query,
+    channel_units_command,
+    channel_units_query,
+    channel_vernier_command,
+    channel_vernier_query,
     normalize_channel_coupling,
+    normalize_channel_impedance,
+    normalize_channel_units,
     validate_analog_channel,
+    validate_channel_impedance_supported,
     validate_channel_offset,
     validate_channel_label,
+    validate_channel_range,
     validate_channel_scale,
+    validate_probe_skew,
     validate_probe_ratio,
 )
 from keysight_scope_core.display import (
@@ -132,7 +149,7 @@ from keysight_scope_core.display import (
     normalize_annotation_color,
     validate_annotation_slot,
 )
-from keysight_scope_core.errors import KeysightScopeError
+from keysight_scope_core.errors import KeysightScopeError, ParameterValidationError
 from keysight_scope_core.idn import normalize_model_key, parse_idn
 from keysight_scope_core.measurements import (
     MEASUREMENT_ITEM_CHOICES,
@@ -232,6 +249,17 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = _build_parser()
     args = parser.parse_args(argv)
+
+    try:
+        _validate_pre_open_args(args)
+    except KeysightScopeError as exc:
+        if getattr(args, "json_output", False):
+            payload = _json_envelope(args, ok=False, mode=_safe_mode(args))
+            payload["error"] = _json_error(exc)
+            _write_json(payload)
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return 1
 
     if getattr(args, "lifecycle_command", False):
         try:
@@ -604,6 +632,93 @@ def _build_parser() -> argparse.ArgumentParser:
         const="query",
         help="query the channel bandwidth limit state",
     )
+
+    channel_impedance_parser = subparsers.add_parser(
+        "channel-impedance",
+        help="set or query one analog channel input impedance",
+    )
+    _add_scope_connection_args(channel_impedance_parser)
+    channel_impedance_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    impedance_action = channel_impedance_parser.add_mutually_exclusive_group(required=True)
+    impedance_action.add_argument(
+        "--impedance",
+        dest="impedance_value",
+        choices=("one-meg", "fifty"),
+        help="input impedance",
+    )
+    impedance_action.add_argument(
+        "--query",
+        dest="impedance_query",
+        action="store_true",
+        help="query the channel input impedance",
+    )
+    channel_impedance_parser.add_argument(
+        "--allow-50-ohm",
+        action="store_true",
+        help="required before setting 50 ohm input impedance",
+    )
+
+    channel_invert_parser = subparsers.add_parser(
+        "channel-invert",
+        help="enable, disable, or query one analog channel inversion",
+    )
+    _add_scope_connection_args(channel_invert_parser)
+    channel_invert_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        required=True,
+        help="analog channel number, validated against the detected scope model",
+    )
+    invert_action = channel_invert_parser.add_mutually_exclusive_group(required=True)
+    invert_action.add_argument("--on", dest="invert_action", action="store_const", const="on", help="turn channel inversion on")
+    invert_action.add_argument("--off", dest="invert_action", action="store_const", const="off", help="turn channel inversion off")
+    invert_action.add_argument("--query", dest="invert_action", action="store_const", const="query", help="query channel inversion")
+
+    channel_range_parser = subparsers.add_parser(
+        "channel-range",
+        help="set or query one analog channel full-scale range",
+    )
+    _add_scope_connection_args(channel_range_parser)
+    channel_range_parser.add_argument("--channel", type=_positive_int, required=True, help="analog channel number, validated against the detected scope model")
+    range_action = channel_range_parser.add_mutually_exclusive_group(required=True)
+    range_action.add_argument("--volts", dest="range_value", type=_positive_float, help="full-scale range in volts")
+    range_action.add_argument("--query", dest="range_query", action="store_true", help="query the channel full-scale range")
+
+    channel_units_parser = subparsers.add_parser(
+        "channel-units",
+        help="set or query one analog channel units",
+    )
+    _add_scope_connection_args(channel_units_parser)
+    channel_units_parser.add_argument("--channel", type=_positive_int, required=True, help="analog channel number, validated against the detected scope model")
+    units_action = channel_units_parser.add_mutually_exclusive_group(required=True)
+    units_action.add_argument("--units", dest="units_value", choices=("volt", "amp"), help="channel units")
+    units_action.add_argument("--query", dest="units_query", action="store_true", help="query channel units")
+
+    channel_vernier_parser = subparsers.add_parser(
+        "channel-vernier",
+        help="enable, disable, or query one analog channel vernier scaling",
+    )
+    _add_scope_connection_args(channel_vernier_parser)
+    channel_vernier_parser.add_argument("--channel", type=_positive_int, required=True, help="analog channel number, validated against the detected scope model")
+    vernier_action = channel_vernier_parser.add_mutually_exclusive_group(required=True)
+    vernier_action.add_argument("--on", dest="vernier_action", action="store_const", const="on", help="turn channel vernier on")
+    vernier_action.add_argument("--off", dest="vernier_action", action="store_const", const="off", help="turn channel vernier off")
+    vernier_action.add_argument("--query", dest="vernier_action", action="store_const", const="query", help="query channel vernier")
+
+    channel_probe_skew_parser = subparsers.add_parser(
+        "channel-probe-skew",
+        help="set or query one analog channel probe skew",
+    )
+    _add_scope_connection_args(channel_probe_skew_parser)
+    channel_probe_skew_parser.add_argument("--channel", type=_positive_int, required=True, help="analog channel number, validated against the detected scope model")
+    probe_skew_action = channel_probe_skew_parser.add_mutually_exclusive_group(required=True)
+    probe_skew_action.add_argument("--seconds", dest="probe_skew_seconds", type=_probe_skew_float, help="probe skew in seconds")
+    probe_skew_action.add_argument("--query", dest="probe_skew_query", action="store_true", help="query probe skew")
 
     display_label_parser = subparsers.add_parser(
         "display-label",
@@ -1362,6 +1477,18 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_channel_probe(args)
     if args.command == "channel-bandwidth-limit":
         return _cmd_channel_bandwidth_limit(args)
+    if args.command == "channel-impedance":
+        return _cmd_channel_advanced_setting(args)
+    if args.command == "channel-invert":
+        return _cmd_channel_advanced_setting(args)
+    if args.command == "channel-range":
+        return _cmd_channel_advanced_setting(args)
+    if args.command == "channel-units":
+        return _cmd_channel_advanced_setting(args)
+    if args.command == "channel-vernier":
+        return _cmd_channel_advanced_setting(args)
+    if args.command == "channel-probe-skew":
+        return _cmd_channel_advanced_setting(args)
     if args.command == "display-label":
         return _cmd_display_label(args)
     if args.command == "annotation":
@@ -1622,6 +1749,17 @@ def _safe_mode(args: argparse.Namespace) -> str:
         return "dry_run" if getattr(args, "dry_run", False) else "simulate" if getattr(args, "simulate", False) else "live"
 
 
+def _validate_pre_open_args(args: argparse.Namespace) -> None:
+    if getattr(args, "command", None) == "channel-impedance":
+        if (
+            getattr(args, "impedance_value", None) == "fifty"
+            and not getattr(args, "allow_50_ohm", False)
+        ):
+            raise ParameterValidationError(
+                "setting 50 ohm input impedance requires --allow-50-ohm."
+            )
+
+
 def _json_error(exc: KeysightScopeError) -> dict[str, object]:
     message = str(exc)
     if message.startswith("identity_mismatch: "):
@@ -1804,6 +1942,40 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         enabled = None if query else args.bandwidth_action == "on"
         planned = [channel_bandwidth_limit_query(channel)] if query else [channel_bandwidth_limit_command(channel, enabled)]
         return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if query else "set", "command": planned[0], "bandwidth_limit": enabled}
+    if command == "channel-impedance":
+        channel = validate_analog_channel(args.channel, capabilities)
+        impedance = None if args.impedance_query else normalize_channel_impedance(args.impedance_value)
+        if impedance is not None:
+            validate_channel_impedance_supported(impedance, capabilities)
+        planned = [channel_impedance_query(channel)] if args.impedance_query else [channel_impedance_command(channel, impedance)]
+        return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if args.impedance_query else "set", "command": planned[0], "impedance": impedance}
+    if command == "channel-invert":
+        channel = validate_analog_channel(args.channel, capabilities)
+        query = args.invert_action == "query"
+        enabled = None if query else args.invert_action == "on"
+        planned = [channel_invert_query(channel)] if query else [channel_invert_command(channel, enabled)]
+        return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if query else "set", "command": planned[0], "invert": enabled}
+    if command == "channel-range":
+        channel = validate_analog_channel(args.channel, capabilities)
+        range_volts = None if args.range_query else validate_channel_range(args.range_value)
+        planned = [channel_range_query(channel)] if args.range_query else [channel_range_command(channel, range_volts)]
+        return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if args.range_query else "set", "command": planned[0], "range_volts": range_volts}
+    if command == "channel-units":
+        channel = validate_analog_channel(args.channel, capabilities)
+        units = None if args.units_query else normalize_channel_units(args.units_value)
+        planned = [channel_units_query(channel)] if args.units_query else [channel_units_command(channel, units)]
+        return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if args.units_query else "set", "command": planned[0], "units": units}
+    if command == "channel-vernier":
+        channel = validate_analog_channel(args.channel, capabilities)
+        query = args.vernier_action == "query"
+        enabled = None if query else args.vernier_action == "on"
+        planned = [channel_vernier_query(channel)] if query else [channel_vernier_command(channel, enabled)]
+        return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if query else "set", "command": planned[0], "vernier": enabled}
+    if command == "channel-probe-skew":
+        channel = validate_analog_channel(args.channel, capabilities)
+        skew = None if args.probe_skew_query else validate_probe_skew(args.probe_skew_seconds)
+        planned = [channel_probe_skew_query(channel)] if args.probe_skew_query else [channel_probe_skew_command(channel, skew)]
+        return planned + [":SYSTem:ERRor?"], [], {"channel": channel, "operation": "query" if args.probe_skew_query else "set", "command": planned[0], "probe_skew_seconds": skew}
     if command == "display-label":
         query = args.display_label_action == "query"
         enabled = None if query else args.display_label_action == "on"
@@ -2439,6 +2611,7 @@ def _capabilities_json(capabilities: ScopeCapabilities | None) -> dict[str, obje
         "supports_annotation_position": capabilities.supports_annotation_position,
         "annotation_slots": capabilities.annotation_slots,
         "supports_indexed_annotation": capabilities.supports_indexed_annotation,
+        "supports_50_ohm_impedance": capabilities.supports_50_ohm_impedance,
     }
 
 
@@ -3037,6 +3210,130 @@ def _cmd_channel_bandwidth_limit(args: argparse.Namespace) -> int:
         _json_record_system_error(entry)
         print(f"System error: {entry.format()}")
         return 1 if entry.is_error else 0
+
+
+def _cmd_channel_advanced_setting(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        channel = validate_analog_channel(args.channel, scope.capabilities)
+        command = args.command
+
+        if command == "channel-impedance":
+            if args.impedance_query:
+                scpi = channel_impedance_query(channel)
+                print(f"Planned query: CH{channel} impedance")
+                impedance = scope.query_channel_impedance(channel)
+                _json_update_result(channel=channel, operation="query", command=scpi, impedance=impedance)
+                print(f"Command: {scpi}")
+                print(f"Impedance: {_format_channel_impedance(impedance)}")
+            else:
+                impedance = normalize_channel_impedance(args.impedance_value)
+                validate_channel_impedance_supported(impedance, scope.capabilities)
+                scpi = channel_impedance_command(channel, impedance)
+                print(f"Planned change: CH{channel} impedance {_format_channel_impedance(impedance)}")
+                scope.set_channel_impedance(channel, impedance)
+                _json_update_result(channel=channel, operation="set", command=scpi, impedance=impedance)
+                print(f"Command: {scpi}")
+        elif command == "channel-invert":
+            if args.invert_action == "query":
+                scpi = channel_invert_query(channel)
+                print(f"Planned query: CH{channel} invert")
+                enabled = scope.query_channel_invert(channel)
+                _json_update_result(channel=channel, operation="query", command=scpi, invert=enabled)
+                print(f"Command: {scpi}")
+                print(f"Invert: {'ON' if enabled else 'OFF'}")
+            else:
+                enabled = args.invert_action == "on"
+                scpi = channel_invert_command(channel, enabled)
+                print(f"Planned change: CH{channel} invert {'ON' if enabled else 'OFF'}")
+                scope.set_channel_invert(channel, enabled)
+                _json_update_result(channel=channel, operation="set", command=scpi, invert=enabled)
+                print(f"Command: {scpi}")
+        elif command == "channel-range":
+            if args.range_query:
+                scpi = channel_range_query(channel)
+                print(f"Planned query: CH{channel} range")
+                range_volts = scope.query_channel_range(channel)
+                _json_update_result(channel=channel, operation="query", command=scpi, range_volts=range_volts)
+                print(f"Command: {scpi}")
+                print(f"Range V: {range_volts:.12g}")
+            else:
+                range_volts = validate_channel_range(args.range_value)
+                scpi = channel_range_command(channel, range_volts)
+                print(f"Planned change: CH{channel} range {range_volts:.12g} V")
+                scope.set_channel_range(channel, range_volts)
+                _json_update_result(channel=channel, operation="set", command=scpi, range_volts=range_volts)
+                print(f"Command: {scpi}")
+        elif command == "channel-units":
+            if args.units_query:
+                scpi = channel_units_query(channel)
+                print(f"Planned query: CH{channel} units")
+                units = scope.query_channel_units(channel)
+                _json_update_result(channel=channel, operation="query", command=scpi, units=units)
+                print(f"Command: {scpi}")
+                print(f"Units: {units}")
+            else:
+                units = normalize_channel_units(args.units_value)
+                scpi = channel_units_command(channel, units)
+                print(f"Planned change: CH{channel} units {units}")
+                scope.set_channel_units(channel, units)
+                _json_update_result(channel=channel, operation="set", command=scpi, units=units)
+                print(f"Command: {scpi}")
+        elif command == "channel-vernier":
+            if args.vernier_action == "query":
+                scpi = channel_vernier_query(channel)
+                print(f"Planned query: CH{channel} vernier")
+                enabled = scope.query_channel_vernier(channel)
+                _json_update_result(channel=channel, operation="query", command=scpi, vernier=enabled)
+                print(f"Command: {scpi}")
+                print(f"Vernier: {'ON' if enabled else 'OFF'}")
+            else:
+                enabled = args.vernier_action == "on"
+                scpi = channel_vernier_command(channel, enabled)
+                print(f"Planned change: CH{channel} vernier {'ON' if enabled else 'OFF'}")
+                scope.set_channel_vernier(channel, enabled)
+                _json_update_result(channel=channel, operation="set", command=scpi, vernier=enabled)
+                print(f"Command: {scpi}")
+        elif command == "channel-probe-skew":
+            if args.probe_skew_query:
+                scpi = channel_probe_skew_query(channel)
+                print(f"Planned query: CH{channel} probe skew")
+                skew = scope.query_channel_probe_skew(channel)
+                _json_update_result(channel=channel, operation="query", command=scpi, probe_skew_seconds=skew)
+                print(f"Command: {scpi}")
+                print(f"Probe skew s: {skew:.12g}")
+            else:
+                skew = validate_probe_skew(args.probe_skew_seconds)
+                scpi = channel_probe_skew_command(channel, skew)
+                print(f"Planned change: CH{channel} probe skew {skew:.12g} s")
+                scope.set_channel_probe_skew(channel, skew)
+                _json_update_result(channel=channel, operation="set", command=scpi, probe_skew_seconds=skew)
+                print(f"Command: {scpi}")
+        else:
+            raise ParameterValidationError(f"unsupported channel command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _format_channel_impedance(impedance: str) -> str:
+    return "one-meg" if impedance == "one_meg" else "fifty"
 
 
 def _cmd_display_label(args: argparse.Namespace) -> int:
@@ -4970,6 +5267,17 @@ def _probe_ratio_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_probe_ratio(parsed)
+    except KeysightScopeError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _probe_skew_float(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("must be a number") from exc
+    try:
+        return validate_probe_skew(parsed)
     except KeysightScopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 

@@ -42,6 +42,8 @@ names are intended for package consumers and tests:
 - `detect_series`
 - `parse_channel_display`
 - `parse_channel_coupling`
+- `parse_channel_impedance`
+- `parse_channel_units`
 - `parse_display_label`
 - `parse_idn`
 - `parse_system_error`

@@ -201,6 +201,57 @@ def test_scope_channel_parameters_use_capabilities_from_idn():
     ]
 
 
+def test_scope_channel_advanced_settings_use_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":CHANnel1:IMPedance?": "ONEMeg",
+            ":CHANnel1:INVert?": "1",
+            ":CHANnel1:RANGe?": "4.0",
+            ":CHANnel1:UNITs?": "VOLT",
+            ":CHANnel1:VERNier?": "0",
+            ":CHANnel1:PROBe:SKEW?": "1.0E-9",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    scope.set_channel_impedance(1, "one-meg")
+    impedance = scope.query_channel_impedance(1)
+    scope.set_channel_invert(1, True)
+    invert = scope.query_channel_invert(1)
+    scope.set_channel_range(1, 4)
+    channel_range = scope.query_channel_range(1)
+    scope.set_channel_units(1, "volt")
+    units = scope.query_channel_units(1)
+    scope.set_channel_vernier(1, False)
+    vernier = scope.query_channel_vernier(1)
+    scope.set_channel_probe_skew(1, 1e-9)
+    skew = scope.query_channel_probe_skew(1)
+
+    assert impedance == "one_meg"
+    assert invert is True
+    assert channel_range == 4.0
+    assert units == "volt"
+    assert vernier is False
+    assert skew == 1e-9
+    assert backend.history == [
+        "*IDN?",
+        ":CHANnel1:IMPedance ONEMeg",
+        ":CHANnel1:IMPedance?",
+        ":CHANnel1:INVert ON",
+        ":CHANnel1:INVert?",
+        ":CHANnel1:RANGe 4",
+        ":CHANnel1:RANGe?",
+        ":CHANnel1:UNITs VOLT",
+        ":CHANnel1:UNITs?",
+        ":CHANnel1:VERNier OFF",
+        ":CHANnel1:VERNier?",
+        ":CHANnel1:PROBe:SKEW 1e-09",
+        ":CHANnel1:PROBe:SKEW?",
+    ]
+
+
 def test_scope_rejects_channel_above_capability_before_scale_scpi():
     backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20"})
     scope = KeysightScope(backend)

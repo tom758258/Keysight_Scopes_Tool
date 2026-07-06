@@ -16,6 +16,8 @@ Core owns runtime behavior:
 - Capability profiles for supported InfiniiVision models.
 - Channel, display label, display annotation, timebase, trigger, acquisition,
   measurement, waveform, screenshot, and operation helpers.
+- Analog channel advanced setting helpers for impedance, invert, full-scale
+  range, units, vernier, and probe skew.
 - Simulator and fake backend support for hardware-free tests.
 - Read-only analog acquisition sample rate query helpers.
 - Read-only acquisition points and record-length query helpers, separate from
@@ -25,6 +27,8 @@ Core owns runtime behavior:
   the Operation Status Condition Run bit, and expose raw poll values for
   adapter JSON.
 - Model capability profiles for the runtime-supported feature surface.
+  DSO-X 3000X and 4000X profiles enable 50 ohm channel impedance support;
+  DSO-X 2000X profiles keep channel impedance guarded to one-meg only.
 
 Core does not own CLI output schema, command-line parser behavior, console
 script documentation, or WebUI workflow.

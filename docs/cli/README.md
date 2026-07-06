@@ -72,6 +72,10 @@ Current implemented scope:
 - Set or query analog channel coupling, probe ratio, and bandwidth limit with
   `:CHANnel<n>:COUPling`, `:CHANnel<n>:PROBe`, and
   `:CHANnel<n>:BWLimit`.
+- Set or query analog channel impedance, invert, full-scale range, units,
+  vernier, and probe skew with `:CHANnel<n>:IMPedance`,
+  `:CHANnel<n>:INVert`, `:CHANnel<n>:RANGe`, `:CHANnel<n>:UNITs`,
+  `:CHANnel<n>:VERNier`, and `:CHANnel<n>:PROBe:SKEW`.
 - Set or query horizontal timebase scale and position with `:TIMebase:SCALe`
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
@@ -507,6 +511,35 @@ Channel coupling supports `ac` and `dc`. Probe ratio must be a positive finite
 number. Bandwidth limit is a per-channel on/off setting. These commands first
 query `*IDN?` to validate the channel number against the detected model, then
 perform one `:SYSTem:ERRor?` post-check.
+
+Set or query additional analog channel settings:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-impedance --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --impedance one-meg --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-impedance --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --impedance fifty --allow-50-ohm --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-impedance --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-invert --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --on --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-invert --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-range --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --volts 4 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-range --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-units --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --units volt --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-units --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-vernier --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --off --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-vernier --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-probe-skew --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --seconds 1e-9 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli channel-probe-skew --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --query --log-scpi
+```
+
+These commands first query `*IDN?`, validate the channel number against the
+detected model, send only the requested command or query, and then perform one
+`:SYSTem:ERRor?` post-check. `channel-range --volts` must be positive and
+finite. `channel-probe-skew --seconds` must be finite and within
+`-100e-9..100e-9`. Units are `volt` or `amp`; impedance is `one-meg` or
+`fifty`. Setting `fifty` requires `--allow-50-ohm` before any backend is
+opened. In this CLI, 50 ohm channel impedance is supported only on DSO-X 3000X
+and 4000X profiles. DSO-X 2000X channel impedance is one-meg only; even with
+`--allow-50-ohm`, a detected 2000X is rejected after `*IDN?` and before
+`:CHANnel<n>:IMPedance FIFTy`.
 
 Set or query one analog channel label:
 

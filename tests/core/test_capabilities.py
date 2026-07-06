@@ -27,6 +27,18 @@ def test_capabilities_for_supported_models(model, series, channels):
     assert capabilities.supports_screenshot is True
 
 
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        ("DSOX2004A", False),
+        ("DSOX3024A", True),
+        ("DSOX4024A", True),
+    ],
+)
+def test_impedance_50_ohm_support_comes_from_capability_profile(model, expected):
+    assert capabilities_for_model(model).supports_50_ohm_impedance is expected
+
+
 @pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A", "DSOX4024A"])
 def test_runtime_capabilities_enable_word_and_measurements(model):
     capabilities = capabilities_for_model(model)

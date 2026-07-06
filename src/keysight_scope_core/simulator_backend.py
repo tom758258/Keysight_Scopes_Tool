@@ -112,6 +112,12 @@ class SimulatorBackend:
     channel_coupling: dict[int, str] = field(default_factory=dict)
     channel_probe: dict[int, float] = field(default_factory=dict)
     channel_bandwidth_limit: dict[int, bool] = field(default_factory=dict)
+    channel_impedance: dict[int, str] = field(default_factory=dict)
+    channel_invert: dict[int, bool] = field(default_factory=dict)
+    channel_range: dict[int, float] = field(default_factory=dict)
+    channel_units: dict[int, str] = field(default_factory=dict)
+    channel_vernier: dict[int, bool] = field(default_factory=dict)
+    channel_probe_skew: dict[int, float] = field(default_factory=dict)
     channel_label: dict[int, str] = field(default_factory=dict)
     display_label: bool = True
     annotation_state: dict[int, dict[str, Any]] = field(default_factory=dict)
@@ -1084,6 +1090,18 @@ class SimulatorBackend:
             self.channel_probe[channel] = float(value)
         elif ":BWLIMIT " in upper:
             self.channel_bandwidth_limit[channel] = upper.endswith(" ON")
+        elif ":IMPEDANCE " in upper:
+            self.channel_impedance[channel] = "FIFTy" if value.upper().startswith("FIFT") else "ONEMeg"
+        elif ":INVERT " in upper:
+            self.channel_invert[channel] = upper.endswith(" ON")
+        elif ":RANGE " in upper:
+            self.channel_range[channel] = float(value)
+        elif ":UNITS " in upper:
+            self.channel_units[channel] = "AMP" if value.upper().startswith("AMP") else "VOLT"
+        elif ":VERNIER " in upper:
+            self.channel_vernier[channel] = upper.endswith(" ON")
+        elif ":PROBE:SKEW " in upper:
+            self.channel_probe_skew[channel] = float(value)
         elif ":LABEL " in upper:
             self.channel_label[channel] = _parse_scpi_string_arg(command.split(" ", 1)[1])
         else:
@@ -1108,6 +1126,18 @@ class SimulatorBackend:
             return f"{self.channel_probe.get(channel, 10.0):.12g}"
         if ":BWLIMIT?" in upper:
             return "1" if self.channel_bandwidth_limit.get(channel, False) else "0"
+        if ":IMPEDANCE?" in upper:
+            return self.channel_impedance.get(channel, "ONEMeg")
+        if ":INVERT?" in upper:
+            return "1" if self.channel_invert.get(channel, False) else "0"
+        if ":RANGE?" in upper:
+            return f"{self.channel_range.get(channel, self.channel_scale.get(channel, 1.0) * 8.0):.12g}"
+        if ":UNITS?" in upper:
+            return self.channel_units.get(channel, "VOLT")
+        if ":VERNIER?" in upper:
+            return "1" if self.channel_vernier.get(channel, False) else "0"
+        if ":PROBE:SKEW?" in upper:
+            return f"{self.channel_probe_skew.get(channel, 0.0):.12g}"
         if ":LABEL?" in upper:
             return f'"{self.channel_label.get(channel, "")}"'
         return None

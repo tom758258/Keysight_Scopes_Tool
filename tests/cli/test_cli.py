@@ -83,7 +83,8 @@ class _ChannelParameterDummyBackend:
 class _ChannelParameterDummyScope:
     backend = _ChannelParameterDummyBackend()
 
-    def __init__(self):
+    def __init__(self, model="DSOX4024A"):
+        self.model = model
         self.capabilities = None
         self.calls = []
 
@@ -95,8 +96,8 @@ class _ChannelParameterDummyScope:
 
     def query_idn(self):
         self.calls.append("query_idn")
-        self.capabilities = capabilities_for_model("DSOX4024A")
-        return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
+        self.capabilities = capabilities_for_model(self.model)
+        return parse_idn(f"KEYSIGHT TECHNOLOGIES,{self.model},MY123,07.20")
 
     def set_channel_coupling(self, channel, coupling):
         self.calls.append(("set_channel_coupling", channel, coupling))
@@ -119,13 +120,55 @@ class _ChannelParameterDummyScope:
         self.calls.append(("query_channel_bandwidth_limit", channel))
         return True
 
+    def set_channel_impedance(self, channel, impedance):
+        self.calls.append(("set_channel_impedance", channel, impedance))
+
+    def query_channel_impedance(self, channel):
+        self.calls.append(("query_channel_impedance", channel))
+        return "one_meg"
+
+    def set_channel_invert(self, channel, enabled):
+        self.calls.append(("set_channel_invert", channel, enabled))
+
+    def query_channel_invert(self, channel):
+        self.calls.append(("query_channel_invert", channel))
+        return True
+
+    def set_channel_range(self, channel, volts):
+        self.calls.append(("set_channel_range", channel, volts))
+
+    def query_channel_range(self, channel):
+        self.calls.append(("query_channel_range", channel))
+        return 4.0
+
+    def set_channel_units(self, channel, units):
+        self.calls.append(("set_channel_units", channel, units))
+
+    def query_channel_units(self, channel):
+        self.calls.append(("query_channel_units", channel))
+        return "volt"
+
+    def set_channel_vernier(self, channel, enabled):
+        self.calls.append(("set_channel_vernier", channel, enabled))
+
+    def query_channel_vernier(self, channel):
+        self.calls.append(("query_channel_vernier", channel))
+        return False
+
+    def set_channel_probe_skew(self, channel, seconds):
+        self.calls.append(("set_channel_probe_skew", channel, seconds))
+
+    def query_channel_probe_skew(self, channel):
+        self.calls.append(("query_channel_probe_skew", channel))
+        return 1e-9
+
     def query_system_error(self):
         self.calls.append("query_system_error")
         return SystemErrorEntry(code=0, message="No error", raw='+0,"No error"')
 
 
-def _install_channel_parameter_scope(monkeypatch):
-    scope = _ChannelParameterDummyScope()
+def _install_channel_parameter_scope(monkeypatch, model="DSOX4024A"):
+    scope = _ChannelParameterDummyScope(model=model)
     monkeypatch.setattr(
         cli.KeysightScope,
         "open",
@@ -1393,6 +1436,214 @@ def test_channel_bandwidth_limit_cli_queries_limit_then_checks_error(monkeypatch
     assert "Planned query: CH2 bandwidth limit" in out
     assert "Command: :CHANnel2:BWLimit?" in out
     assert "Bandwidth limit: ON" in out
+
+
+def test_channel_impedance_cli_sets_one_meg_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--impedance",
+                "one-meg",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_channel_impedance", 1, "one_meg"), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned change: CH1 impedance one-meg" in out
+    assert "Command: :CHANnel1:IMPedance ONEMeg" in out
+
+
+def test_channel_impedance_cli_queries_impedance_then_checks_error(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "2",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("query_channel_impedance", 2), "query_system_error"]
+    out = capsys.readouterr().out
+    assert "Planned query: CH2 impedance" in out
+    assert "Command: :CHANnel2:IMPedance?" in out
+    assert "Impedance: one-meg" in out
+
+
+def test_channel_impedance_cli_rejects_fifty_without_allow_before_open(monkeypatch, capsys):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("validation failure must not open a scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--impedance",
+                "fifty",
+            ]
+        )
+        == 1
+    )
+
+    captured = capsys.readouterr()
+    assert "requires --allow-50-ohm" in captured.err
+
+
+def test_channel_impedance_cli_rejects_2000x_fifty_after_idn_without_impedance_scpi(
+    monkeypatch, capsys
+):
+    scope = _install_channel_parameter_scope(monkeypatch, model="DSOX2004A")
+
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--impedance",
+                "fifty",
+                "--allow-50-ohm",
+            ]
+        )
+        == 1
+    )
+
+    assert scope.calls == ["query_idn"]
+    captured = capsys.readouterr()
+    assert (
+        "DSO-X 2000X only supports one-meg input impedance; 50 ohm is not supported "
+        "by the 2000X channel impedance spec."
+    ) in captured.err
+
+
+def test_channel_impedance_cli_allows_3000x_fifty_with_allow(monkeypatch, capsys):
+    scope = _install_channel_parameter_scope(monkeypatch, model="DSOX3024A")
+
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--impedance",
+                "fifty",
+                "--allow-50-ohm",
+            ]
+        )
+        == 0
+    )
+
+    assert scope.calls == ["query_idn", ("set_channel_impedance", 1, "fifty"), "query_system_error"]
+    assert "Command: :CHANnel1:IMPedance FIFTy" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("command_args", "expected_call", "expected_text"),
+    [
+        (
+            ["channel-invert", "--channel", "1", "--on"],
+            ("set_channel_invert", 1, True),
+            "Command: :CHANnel1:INVert ON",
+        ),
+        (
+            ["channel-range", "--channel", "1", "--volts", "4"],
+            ("set_channel_range", 1, 4.0),
+            "Command: :CHANnel1:RANGe 4",
+        ),
+        (
+            ["channel-units", "--channel", "1", "--units", "amp"],
+            ("set_channel_units", 1, "amp"),
+            "Command: :CHANnel1:UNITs AMP",
+        ),
+        (
+            ["channel-vernier", "--channel", "1", "--off"],
+            ("set_channel_vernier", 1, False),
+            "Command: :CHANnel1:VERNier OFF",
+        ),
+        (
+            ["channel-probe-skew", "--channel", "1", "--seconds", "1e-9"],
+            ("set_channel_probe_skew", 1, 1e-09),
+            "Command: :CHANnel1:PROBe:SKEW 1e-09",
+        ),
+    ],
+)
+def test_channel_advanced_cli_sets_values_then_checks_error(
+    monkeypatch, capsys, command_args, expected_call, expected_text
+):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert cli.main([command_args[0], "--resource", "USB0::FAKE::INSTR", *command_args[1:]]) == 0
+
+    assert scope.calls == ["query_idn", expected_call, "query_system_error"]
+    assert expected_text in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("command_args", "expected_call", "expected_text"),
+    [
+        (
+            ["channel-invert", "--channel", "2", "--query"],
+            ("query_channel_invert", 2),
+            "Invert: ON",
+        ),
+        (
+            ["channel-range", "--channel", "2", "--query"],
+            ("query_channel_range", 2),
+            "Range V: 4",
+        ),
+        (
+            ["channel-units", "--channel", "2", "--query"],
+            ("query_channel_units", 2),
+            "Units: volt",
+        ),
+        (
+            ["channel-vernier", "--channel", "2", "--query"],
+            ("query_channel_vernier", 2),
+            "Vernier: OFF",
+        ),
+        (
+            ["channel-probe-skew", "--channel", "2", "--query"],
+            ("query_channel_probe_skew", 2),
+            "Probe skew s: 1e-09",
+        ),
+    ],
+)
+def test_channel_advanced_cli_queries_values_then_checks_error(
+    monkeypatch, capsys, command_args, expected_call, expected_text
+):
+    scope = _install_channel_parameter_scope(monkeypatch)
+
+    assert cli.main([command_args[0], "--resource", "USB0::FAKE::INSTR", *command_args[1:]]) == 0
+
+    assert scope.calls == ["query_idn", expected_call, "query_system_error"]
+    assert expected_text in capsys.readouterr().out
 
 
 def test_timebase_scale_cli_sets_scale_then_checks_error(monkeypatch, capsys):

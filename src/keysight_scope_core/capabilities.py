@@ -31,6 +31,7 @@ class ScopeCapabilities:
     supports_annotation_position: bool = False
     annotation_slots: int = 0
     supports_indexed_annotation: bool = False
+    supports_50_ohm_impedance: bool = False
 
 
 _BASE_PROFILES = {
@@ -53,6 +54,7 @@ _BASE_PROFILES = {
         supports_annotation_position=False,
         annotation_slots=1,
         supports_indexed_annotation=False,
+        supports_50_ohm_impedance=False,
     ),
     "3000X": ScopeCapabilities(
         series="3000X",
@@ -73,6 +75,7 @@ _BASE_PROFILES = {
         supports_annotation_position=False,
         annotation_slots=1,
         supports_indexed_annotation=False,
+        supports_50_ohm_impedance=True,
     ),
     "4000X": ScopeCapabilities(
         series="4000X",
@@ -93,6 +96,7 @@ _BASE_PROFILES = {
         supports_annotation_position=True,
         annotation_slots=10,
         supports_indexed_annotation=True,
+        supports_50_ohm_impedance=True,
     ),
 }
 

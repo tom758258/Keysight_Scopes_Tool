@@ -59,6 +59,7 @@ def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
         "supports_annotation_position": True,
         "annotation_slots": 10,
         "supports_indexed_annotation": True,
+        "supports_50_ohm_impedance": True,
     }
 
 
@@ -864,6 +865,129 @@ def test_channel_timebase_trigger_json_results(capsys):
     assert trigger_payload["result"]["source_channel"] == 1
     assert trigger_payload["result"]["level_volts"] == 0.2
     assert trigger_payload["result"]["slope"] == "POSitive"
+
+
+def test_channel_advanced_simulate_json_results(capsys):
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX3024A",
+                "--channel",
+                "1",
+                "--impedance",
+                "fifty",
+                "--allow-50-ohm",
+            ]
+        )
+        == 0
+    )
+    impedance_payload = _json_stdout(capsys)
+    assert impedance_payload["result"]["operation"] == "set"
+    assert impedance_payload["result"]["impedance"] == "fifty"
+    assert impedance_payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":CHANnel1:IMPedance FIFTy",
+        ":SYSTem:ERRor?",
+    ]
+
+    assert cli.main(["channel-units", "--simulate", "--json", "--channel", "1", "--query"]) == 0
+    units_payload = _json_stdout(capsys)
+    assert units_payload["result"]["operation"] == "query"
+    assert units_payload["result"]["units"] == "volt"
+    assert units_payload["scpi"]["sent"] == ["*IDN?", ":CHANnel1:UNITs?", ":SYSTem:ERRor?"]
+
+
+def test_channel_advanced_dry_run_json_reports_planned_scpi_without_opening(
+    monkeypatch, capsys
+):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("dry-run must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert (
+        cli.main(
+            [
+                "channel-probe-skew",
+                "--dry-run",
+                "--json",
+                "--channel",
+                "1",
+                "--seconds",
+                "1e-9",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["result"]["probe_skew_seconds"] == 1e-9
+    assert payload["scpi"]["planned"] == [
+        ":CHANnel1:PROBe:SKEW 1e-09",
+        ":SYSTem:ERRor?",
+    ]
+    assert payload["scpi"]["sent"] == []
+
+
+def test_channel_impedance_json_rejects_fifty_without_allow_before_open(monkeypatch, capsys):
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("validation failure must not open a VISA scope")
+
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--json",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--channel",
+                "1",
+                "--impedance",
+                "fifty",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert "requires --allow-50-ohm" in payload["error"]["message"]
+    assert payload["scpi"]["sent"] == []
+
+
+def test_channel_impedance_simulate_rejects_2000x_fifty_after_idn(capsys):
+    assert (
+        cli.main(
+            [
+                "channel-impedance",
+                "--simulate",
+                "--json",
+                "--model",
+                "DSOX2004A",
+                "--channel",
+                "1",
+                "--impedance",
+                "fifty",
+                "--allow-50-ohm",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert (
+        "DSO-X 2000X only supports one-meg input impedance; 50 ohm is not supported "
+        "by the 2000X channel impedance spec."
+    ) in payload["error"]["message"]
+    assert payload["scpi"]["sent"] == ["*IDN?"]
 
 
 def test_cursor_auto_timebase_dry_run_json_plans_queries(capsys):

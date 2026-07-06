@@ -152,6 +152,66 @@ class KeysightScope:
 
         return self._channel_controller().query_bandwidth_limit(channel)
 
+    def set_channel_impedance(self, channel: int, impedance: str) -> None:
+        """Set one analog channel input impedance."""
+
+        self._channel_controller().set_impedance(channel, impedance)
+
+    def query_channel_impedance(self, channel: int) -> str:
+        """Query one analog channel input impedance."""
+
+        return self._channel_controller().query_impedance(channel)
+
+    def set_channel_invert(self, channel: int, enabled: bool) -> None:
+        """Turn one analog channel inversion on or off."""
+
+        self._channel_controller().set_invert(channel, enabled)
+
+    def query_channel_invert(self, channel: int) -> bool:
+        """Query whether one analog channel inversion is enabled."""
+
+        return self._channel_controller().query_invert(channel)
+
+    def set_channel_range(self, channel: int, volts: float) -> None:
+        """Set one analog channel full-scale range in volts."""
+
+        self._channel_controller().set_range(channel, volts)
+
+    def query_channel_range(self, channel: int) -> float:
+        """Query one analog channel full-scale range in volts."""
+
+        return self._channel_controller().query_range(channel)
+
+    def set_channel_units(self, channel: int, units: str) -> None:
+        """Set one analog channel units."""
+
+        self._channel_controller().set_units(channel, units)
+
+    def query_channel_units(self, channel: int) -> str:
+        """Query one analog channel units."""
+
+        return self._channel_controller().query_units(channel)
+
+    def set_channel_vernier(self, channel: int, enabled: bool) -> None:
+        """Turn one analog channel vernier scaling on or off."""
+
+        self._channel_controller().set_vernier(channel, enabled)
+
+    def query_channel_vernier(self, channel: int) -> bool:
+        """Query whether one analog channel vernier scaling is enabled."""
+
+        return self._channel_controller().query_vernier(channel)
+
+    def set_channel_probe_skew(self, channel: int, seconds: float) -> None:
+        """Set one analog channel probe skew in seconds."""
+
+        self._channel_controller().set_probe_skew(channel, seconds)
+
+    def query_channel_probe_skew(self, channel: int) -> float:
+        """Query one analog channel probe skew in seconds."""
+
+        return self._channel_controller().query_probe_skew(channel)
+
     def set_channel_label(self, channel: int, text: str) -> None:
         """Set one analog channel label."""
 
