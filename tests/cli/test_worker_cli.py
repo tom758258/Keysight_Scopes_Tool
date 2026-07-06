@@ -22,6 +22,20 @@ from keysight_scope_core.acquisition import (
     sample_rate_query,
 )
 from keysight_scope_core.capabilities import capabilities_for_model
+from keysight_scope_core.channel import (
+    channel_impedance_command,
+    channel_impedance_query,
+    channel_invert_command,
+    channel_invert_query,
+    channel_probe_skew_command,
+    channel_probe_skew_query,
+    channel_range_command,
+    channel_range_query,
+    channel_units_command,
+    channel_units_query,
+    channel_vernier_command,
+    channel_vernier_query,
+)
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.idn import parse_idn
 from keysight_scope_core.trigger import (
@@ -237,6 +251,16 @@ def test_worker_request_rejects_non_object_arguments():
         ("force-trigger", {}),
         ("channel-label", {"channel": 1, "text": "Input A"}),
         ("channel-label", {"channel": 1, "query": True}),
+        ("channel-impedance", {"channel": 1, "query": True}),
+        (
+            "channel-impedance",
+            {"channel": 1, "impedance": "fifty", "allow_50_ohm": True},
+        ),
+        ("channel-invert", {"channel": 1, "off": True}),
+        ("channel-range", {"channel": 1, "volts_full_scale": 4}),
+        ("channel-units", {"channel": 1, "units": "amp"}),
+        ("channel-vernier", {"channel": 1, "on": True}),
+        ("channel-probe-skew", {"channel": 1, "seconds": 1e-9}),
         ("display-label", {"off": True}),
         ("display-label", {"query": True}),
         ("annotation", {"slot": 1, "query": True}),
@@ -520,6 +544,28 @@ def test_worker_http_rejects_invalid_capture_wait_trigger_before_artifacts(tmp_p
     assert not list(tmp_path.rglob("request.json"))
 
 
+def test_worker_http_rejects_fifty_ohm_without_allow_before_artifacts(tmp_path):
+    runtime = _runtime(tmp_path, model="DSOX3024A")
+
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": "channel-impedance",
+                "arguments": {"channel": 1, "impedance": "fifty"},
+                "job_id": "bad-impedance",
+            },
+        )
+
+    assert status == 400
+    assert payload["status"] == "error"
+    assert payload["command"] == "channel-impedance"
+    assert payload["job_id"] == "bad-impedance"
+    assert "--allow-50-ohm" in payload["message"]
+    assert runtime.jobs == {}
+    assert not list(tmp_path.rglob("request.json"))
+
+
 @pytest.mark.parametrize(
     ("command", "arguments", "model", "expected_message"),
     (
@@ -655,6 +701,21 @@ def test_worker_parses_force_trigger_without_opening_backend():
     assert parsed.json_output is True
 
 
+def test_worker_parses_fifty_ohm_with_allow_without_opening_backend():
+    parsed = worker.parse_domain_command(
+        "channel-impedance",
+        {"channel": 1, "impedance": "fifty", "allow_50_ohm": True},
+        _runtime(model="DSOX3024A"),
+    )
+
+    assert parsed.command == "channel-impedance"
+    assert parsed.channel == 1
+    assert parsed.impedance_value == "fifty"
+    assert parsed.allow_50_ohm is True
+    assert parsed.simulate is True
+    assert parsed.json_output is True
+
+
 @pytest.mark.parametrize(
     ("command", "arguments", "model", "expected_scpi"),
     (
@@ -730,6 +791,78 @@ def test_worker_parses_force_trigger_without_opening_backend():
                 ":SYSTem:ERRor?",
             ],
         ),
+        (
+            "channel-impedance",
+            {"channel": 1, "query": True},
+            "DSOX4024A",
+            [channel_impedance_query(1), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-impedance",
+            {"channel": 1, "impedance": "fifty", "allow_50_ohm": True},
+            "DSOX3024A",
+            [channel_impedance_command(1, "fifty"), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-invert",
+            {"channel": 1, "on": True},
+            "DSOX4024A",
+            [channel_invert_command(1, True), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-invert",
+            {"channel": 1, "query": True},
+            "DSOX4024A",
+            [channel_invert_query(1), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-range",
+            {"channel": 1, "volts_full_scale": 4},
+            "DSOX4024A",
+            [channel_range_command(1, 4), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-range",
+            {"channel": 1, "query": True},
+            "DSOX4024A",
+            [channel_range_query(1), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-units",
+            {"channel": 1, "units": "amp"},
+            "DSOX4024A",
+            [channel_units_command(1, "amp"), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-units",
+            {"channel": 1, "query": True},
+            "DSOX4024A",
+            [channel_units_query(1), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-vernier",
+            {"channel": 1, "off": True},
+            "DSOX4024A",
+            [channel_vernier_command(1, False), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-vernier",
+            {"channel": 1, "query": True},
+            "DSOX4024A",
+            [channel_vernier_query(1), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-probe-skew",
+            {"channel": 1, "seconds": 1e-9},
+            "DSOX4024A",
+            [channel_probe_skew_command(1, 1e-9), ":SYSTem:ERRor?"],
+        ),
+        (
+            "channel-probe-skew",
+            {"channel": 1, "query": True},
+            "DSOX4024A",
+            [channel_probe_skew_query(1), ":SYSTem:ERRor?"],
+        ),
     ),
 )
 def test_worker_label_and_annotation_dry_run_plans_scpi_without_opening_backend(
@@ -785,6 +918,38 @@ def test_worker_parse_rejects_query_commands_without_query_flag(command):
 def test_worker_parse_rejects_sample_rate_maximum_without_query_flag():
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command("sample-rate", {"maximum": True}, _runtime())
+
+
+@pytest.mark.parametrize(
+    ("command", "alias"),
+    (
+        ("channel-range", "volts"),
+        ("channel-range", "range_volts"),
+        ("channel-invert", "invert"),
+        ("channel-vernier", "vernier"),
+    ),
+)
+def test_worker_parse_rejects_channel_advanced_aliases(command, alias):
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command(
+            command,
+            {"channel": 1, alias: 4},
+            _runtime(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments"),
+    (
+        ("channel-invert", {"channel": 1, "on": True, "off": True}),
+        ("channel-vernier", {"channel": 1, "on": True, "query": True}),
+    ),
+)
+def test_worker_parse_rejects_invalid_channel_boolean_mutual_exclusions(
+    command, arguments
+):
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command(command, arguments, _runtime())
 
 
 @pytest.mark.parametrize(
@@ -1227,6 +1392,90 @@ def test_worker_executes_trigger_and_acquisition_queries_in_simulator(
     if arguments.get("maximum"):
         assert result["result"]["query_kind"] == "maximum"
     assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments", "scpi_command", "field", "expected_value"),
+    (
+        (
+            "channel-impedance",
+            {"channel": 1, "impedance": "one-meg"},
+            channel_impedance_command(1, "one_meg"),
+            "impedance",
+            "one_meg",
+        ),
+        (
+            "channel-invert",
+            {"channel": 1, "on": True},
+            channel_invert_command(1, True),
+            "invert",
+            True,
+        ),
+        (
+            "channel-range",
+            {"channel": 1, "volts_full_scale": 4},
+            channel_range_command(1, 4),
+            "range_volts",
+            4.0,
+        ),
+        (
+            "channel-units",
+            {"channel": 1, "units": "amp"},
+            channel_units_command(1, "amp"),
+            "units",
+            "amp",
+        ),
+        (
+            "channel-vernier",
+            {"channel": 1, "off": True},
+            channel_vernier_command(1, False),
+            "vernier",
+            False,
+        ),
+        (
+            "channel-probe-skew",
+            {"channel": 1, "seconds": 1e-9},
+            channel_probe_skew_command(1, 1e-9),
+            "probe_skew_seconds",
+            1e-9,
+        ),
+    ),
+)
+def test_worker_executes_channel_advanced_settings_in_simulator(
+    tmp_path, command, arguments, scpi_command, field, expected_value
+):
+    runtime = _runtime(tmp_path)
+
+    job, result = _execute_worker_job(runtime, command, arguments, tmp_path / command)
+
+    assert result["state"] == "succeeded"
+    assert result["ok"] is True
+    assert result["exit_code"] == 0
+    assert result["files"] == []
+    assert result["result"]["operation"] == "set"
+    assert result["result"]["command"] == scpi_command
+    assert result["result"][field] == expected_value
+    assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
+
+
+def test_worker_2000x_rejects_fifty_ohm_with_allow_before_impedance_scpi(tmp_path):
+    runtime = _runtime(tmp_path, model="DSOX2004A")
+
+    job, result = _execute_worker_job(
+        runtime,
+        "channel-impedance",
+        {"channel": 1, "impedance": "fifty", "allow_50_ohm": True},
+        tmp_path / "channel_impedance_2000x",
+    )
+
+    assert result["state"] == "failed"
+    assert result["ok"] is False
+    assert result["exit_code"] == 3
+    assert (
+        "DSO-X 2000X only supports one-meg input impedance"
+        in result["error"]["message"]
+    )
+    assert job.result is None
 
 
 def test_worker_executes_annotation_set_in_simulator(tmp_path):

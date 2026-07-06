@@ -541,6 +541,10 @@ and 4000X profiles. DSO-X 2000X channel impedance is one-meg only; even with
 `--allow-50-ohm`, a detected 2000X is rejected after `*IDN?` and before
 `:CHANnel<n>:IMPedance FIFTy`.
 
+Worker `/command` accepts these advanced channel commands using the same option
+names as JSON keys without leading dashes. For example, `channel-range` uses
+`volts_full_scale`, not `volts`.
+
 Set or query one analog channel label:
 
 ```powershell

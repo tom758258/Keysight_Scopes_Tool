@@ -128,7 +128,9 @@ Worker `/command` supports the existing Scopes capability surface:
 - `capture`, `capture-batch`, `screenshot`, `smoke`
 - `measure`, `measure-stats`, `measure-sweep`, `measure-log`
 - `channel-display`, `channel-label`, `channel-scale`, `channel-offset`,
-  `channel-coupling`, `channel-probe`, `channel-bandwidth-limit`
+  `channel-coupling`, `channel-probe`, `channel-bandwidth-limit`,
+  `channel-impedance`, `channel-invert`, `channel-range`, `channel-units`,
+  `channel-vernier`, `channel-probe-skew`
 - `display-label`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-holdoff`, `cursor`, `autoscale`
@@ -209,6 +211,65 @@ form:
 ```json
 {"command": "force-trigger", "arguments": {}}
 ```
+
+### Advanced Channel Commands
+
+The worker supports the same one-shot advanced analog channel commands as the
+CLI:
+
+- `channel-impedance`
+- `channel-invert`
+- `channel-range`
+- `channel-units`
+- `channel-vernier`
+- `channel-probe-skew`
+
+Arguments use CLI option names without leading dashes:
+
+```json
+{"command": "channel-impedance", "arguments": {"channel": 1, "query": true}}
+```
+
+```json
+{
+  "command": "channel-impedance",
+  "arguments": {"channel": 1, "impedance": "fifty", "allow_50_ohm": true}
+}
+```
+
+```json
+{"command": "channel-invert", "arguments": {"channel": 1, "on": true}}
+```
+
+```json
+{"command": "channel-range", "arguments": {"channel": 1, "volts_full_scale": 4}}
+```
+
+```json
+{"command": "channel-units", "arguments": {"channel": 1, "units": "amp"}}
+```
+
+```json
+{"command": "channel-vernier", "arguments": {"channel": 1, "off": true}}
+```
+
+```json
+{"command": "channel-probe-skew", "arguments": {"channel": 1, "seconds": 1e-9}}
+```
+
+`channel-range` uses `volts_full_scale`, matching CLI
+`--volts-full-scale`. Worker-only aliases such as `volts` and `range_volts`
+are not supported. `channel-offset` still uses its existing `volts` argument.
+
+Setting `channel-impedance` to `fifty` requires `allow_50_ohm: true`.
+Requests without that opt-in are rejected before enqueue, artifact creation,
+VISA open, or SCPI. The model capability guard remains in force after opt-in:
+DSO-X 2000X profiles reject `fifty` before `:CHANnel<n>:IMPedance FIFTy` can
+be sent.
+
+Worker support for these commands has hardware-free validation only. Live
+worker validation, LAN validation, WebUI integration, and DSO-X 2000X/3000X
+hardware validation have not been run.
 
 ### Label And Annotation Commands
 

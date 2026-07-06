@@ -50,6 +50,12 @@ DOMAIN_COMMANDS = {
     "channel-coupling",
     "channel-probe",
     "channel-bandwidth-limit",
+    "channel-impedance",
+    "channel-invert",
+    "channel-range",
+    "channel-units",
+    "channel-vernier",
+    "channel-probe-skew",
     "display-label",
     "annotation",
     "timebase-scale",
@@ -311,6 +317,7 @@ def parse_domain_command(
     except SystemExit as exc:
         raise KeysightScopeError(f"invalid arguments for {command}") from exc
     scope_cli._resolve_cli_mode(parsed)
+    scope_cli._validate_pre_open_args(parsed)
     if job_dir is not None:
         _apply_worker_job_paths(parsed, job_dir)
         if runtime.mode == "live":

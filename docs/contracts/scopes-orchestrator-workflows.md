@@ -41,6 +41,10 @@ keysight-scopes send-command --port 8765 --command sample-rate --arguments-json 
 keysight-scopes send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command record-length --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command force-trigger --arguments-json "{}" --json
+keysight-scopes send-command --port 8765 --command channel-impedance --arguments-json "{\"channel\":1,\"impedance\":\"one-meg\"}" --json
+keysight-scopes send-command --port 8765 --command channel-impedance --arguments-json "{\"channel\":1,\"impedance\":\"fifty\",\"allow_50_ohm\":true}" --json
+keysight-scopes send-command --port 8765 --command channel-range --arguments-json "{\"channel\":1,\"volts_full_scale\":4}" --json
+keysight-scopes send-command --port 8765 --command channel-vernier --arguments-json "{\"channel\":1,\"off\":true}" --json
 ```
 
 The accepted response only means the Common envelope was accepted and the
