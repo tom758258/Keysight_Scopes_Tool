@@ -130,7 +130,7 @@ def test_trigger_glitch_range_dry_run_json_maps_max_min(capsys):
     ]
 
 
-def test_trigger_glitch_query_simulate_json_handles_none_level(capsys):
+def test_trigger_glitch_query_simulate_json_reports_default_level(capsys):
     assert cli.main(["trigger-glitch", "--query", "--simulate", "--json"]) == 0
 
     payload = _json_stdout(capsys)
