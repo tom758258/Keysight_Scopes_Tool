@@ -40,7 +40,7 @@ from keysight_scope_core.display import (
             {
                 "operation": "display-persistence",
                 "command": display_persistence_command(0.5),
-                "mode": "seconds",
+                "mode": None,
                 "seconds": 0.5,
             },
         ),
@@ -150,7 +150,7 @@ def test_display_common_json_dry_run_validation_errors_are_single_json(
         (
             ["display-persistence", "--simulate", "--json", "--seconds", "1.25"],
             display_persistence_command(1.25),
-            {"operation": "display-persistence", "mode": "seconds", "seconds": 1.25},
+            {"operation": "display-persistence", "mode": None, "seconds": 1.25},
         ),
         (
             ["display-intensity", "--simulate", "--json", "--query"],

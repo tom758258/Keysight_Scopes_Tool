@@ -139,22 +139,32 @@ def test_simulator_common_display_roundtrip():
     backend.measurement_statistics_items = ["VPP"]
     backend.write(":DISPlay:CLEar")
     backend.write(":DISPlay:PERSistence 0.5")
-    backend.write(":DISPlay:INTensity 75")
+    backend.write(":DISPlay:INTensity:WAVeform 75")
     backend.write(":DISPlay:VECTors ON")
 
     assert backend.measurement_statistics_items == []
     assert backend.query(":DISPlay:PERSistence?") == "0.5"
-    assert backend.query(":DISPlay:INTensity?") == "75"
+    assert backend.query(":DISPlay:INTensity:WAVeform?") == "75"
     assert backend.query(":DISPlay:VECTors?") == "ON"
     assert backend.history == [
         ":DISPlay:CLEar",
         ":DISPlay:PERSistence 0.5",
-        ":DISPlay:INTensity 75",
+        ":DISPlay:INTensity:WAVeform 75",
         ":DISPlay:VECTors ON",
         ":DISPlay:PERSistence?",
-        ":DISPlay:INTensity?",
+        ":DISPlay:INTensity:WAVeform?",
         ":DISPlay:VECTors?",
     ]
+
+
+def test_simulator_rejects_old_display_intensity_path():
+    backend = SimulatorBackend()
+
+    with pytest.raises(SimulatorBackendError, match="Unsupported simulator write"):
+        backend.write(":DISPlay:INTensity 75")
+
+    with pytest.raises(SimulatorBackendError, match="Unsupported simulator query"):
+        backend.query(":DISPlay:INTensity?")
 
 
 def test_simulator_unindexed_annotation_roundtrip_3000x():

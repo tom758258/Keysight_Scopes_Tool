@@ -83,8 +83,8 @@ Current implemented scope:
 - Enable, disable, or query display labels with `:DISPlay:LABel`; clear
   waveform display data with `:DISPlay:CLEar`; set/query display persistence,
   waveform intensity, and vector display with `:DISPlay:PERSistence`,
-  `:DISPlay:INTensity`, and `:DISPlay:VECTors`; set, clear, or query display
-  annotations with `:DISPlay:ANNotation`. 4000X annotation commands use
+  `:DISPlay:INTensity:WAVeform`, and `:DISPlay:VECTors`; set, clear, or query
+  display annotations with `:DISPlay:ANNotation`. 4000X annotation commands use
   indexed slots `1..10` and support `X1Position`/`Y1Position`.
 - Query, hide, or configure manual cursors; set/query trigger holdoff; run
   explicit autoscale; save/recall setup slots or `.scp` files; and configure

@@ -57,8 +57,8 @@ def test_display_common_commands_use_keysight_display_syntax():
     assert display_persistence_command("inf") == ":DISPlay:PERSistence INFinite"
     assert display_persistence_command(0.5) == ":DISPlay:PERSistence 0.5"
     assert display_persistence_query() == ":DISPlay:PERSistence?"
-    assert display_intensity_command(75) == ":DISPlay:INTensity 75"
-    assert display_intensity_query() == ":DISPlay:INTensity?"
+    assert display_intensity_command(75) == ":DISPlay:INTensity:WAVeform 75"
+    assert display_intensity_query() == ":DISPlay:INTensity:WAVeform?"
     assert display_vectors_command(True) == ":DISPlay:VECTors ON"
     assert display_vectors_query() == ":DISPlay:VECTors?"
 
@@ -70,7 +70,7 @@ def test_display_common_commands_use_keysight_display_syntax():
         ("MINimum", ("minimum", None)),
         ("INF", ("infinite", None)),
         ("INFinite", ("infinite", None)),
-        ("1.250E+0", ("seconds", 1.25)),
+        ("1.250E+0", (None, 1.25)),
     ],
 )
 def test_parse_display_persistence(raw, expected):
@@ -80,8 +80,8 @@ def test_parse_display_persistence(raw, expected):
 @pytest.mark.parametrize("value", ["min", "minimum", "inf", "infinite", 0.1, 60.0])
 def test_validate_display_persistence_accepts_supported_values(value):
     mode, seconds = validate_display_persistence(value)
-    assert mode in {"minimum", "infinite", "seconds"}
-    if mode == "seconds":
+    assert mode in {"minimum", "infinite", None}
+    if mode is None:
         assert 0.1 <= seconds <= 60.0
 
 
@@ -280,7 +280,7 @@ def test_display_controller_sets_and_queries_common_display_commands():
     backend = FakeBackend(
         responses={
             ":DISPlay:PERSistence?": "1.000E+0",
-            ":DISPlay:INTensity?": "75",
+            ":DISPlay:INTensity:WAVeform?": "75",
             ":DISPlay:VECTors?": "ON",
         }
     )
@@ -294,7 +294,7 @@ def test_display_controller_sets_and_queries_common_display_commands():
     controller.set_vectors_on()
     vectors, raw_vectors = controller.query_vectors()
 
-    assert persistence.mode == "seconds"
+    assert persistence.mode is None
     assert persistence.seconds == 1.0
     assert persistence.raw_value == "1.000E+0"
     assert intensity == 75
@@ -305,8 +305,8 @@ def test_display_controller_sets_and_queries_common_display_commands():
         ":DISPlay:CLEar",
         ":DISPlay:PERSistence MINimum",
         ":DISPlay:PERSistence?",
-        ":DISPlay:INTensity 75",
-        ":DISPlay:INTensity?",
+        ":DISPlay:INTensity:WAVeform 75",
+        ":DISPlay:INTensity:WAVeform?",
         ":DISPlay:VECTors ON",
         ":DISPlay:VECTors?",
     ]

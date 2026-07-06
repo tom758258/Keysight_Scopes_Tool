@@ -1476,7 +1476,7 @@ def test_worker_executes_trigger_and_acquisition_queries_in_simulator(
             "display-persistence",
             {"seconds": 0.5},
             display_persistence_command(0.5),
-            {"operation": "display-persistence", "mode": "seconds", "seconds": 0.5},
+            {"operation": "display-persistence", "mode": None, "seconds": 0.5},
         ),
         (
             "display-intensity",

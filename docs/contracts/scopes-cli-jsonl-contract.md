@@ -144,9 +144,12 @@ Control and setup:
   `:DISPlay:CLEar`.
 - `display-persistence`: `operation: "display-persistence"`, target-only
   `command`, `mode`, and `seconds`; query results also include `raw_value`.
-  `mode` is `minimum`, `infinite`, or `seconds`.
+  `mode` is `minimum`, `infinite`, or `null`; `seconds` is a number or `null`.
+  Numeric finite persistence uses `mode: null` and `seconds: <number>`.
 - `display-intensity`: `operation: "display-intensity"`, target-only
   `command`, and integer `value`; query results also include `raw_value`.
+  The shared 2000X/3000X/4000X waveform intensity SCPI path is
+  `:DISPlay:INTensity:WAVeform`.
 - `display-vectors`: `operation: "display-vectors"`, target-only `command`,
   and boolean `value`; query results also include `raw_value`. Setting OFF is
   unsupported in the v1 common display surface.

@@ -317,8 +317,11 @@ Arguments use CLI option names without leading dashes:
 
 `display-clear` accepts no argument keys. `display-persistence` accepts only
 `query`, `mode`, and `seconds`; `mode` is `minimum` or `infinite`, and
-`seconds` must be from `0.1` through `60.0`. `display-intensity` accepts only
-`query` and `value`, with integer `value` from `0` through `100`.
+`seconds` must be from `0.1` through `60.0`. Persistence result JSON uses
+`mode: "minimum"` or `mode: "infinite"` for enum states and `mode: null` with
+numeric `seconds` for finite seconds. `display-intensity` accepts only `query`
+and `value`, with integer `value` from `0` through `100`, and uses the shared
+`:DISPlay:INTensity:WAVeform` SCPI path.
 `display-vectors` accepts only `query` and `on`; setting OFF is unsupported in
 this common v1 surface.
 

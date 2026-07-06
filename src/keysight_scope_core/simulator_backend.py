@@ -218,7 +218,7 @@ class SimulatorBackend:
             self.measurement_statistics_items.clear()
         elif upper.startswith(":DISPLAY:PERSISTENCE "):
             self.display_persistence = command.split(" ", 1)[1]
-        elif upper.startswith(":DISPLAY:INTENSITY "):
+        elif upper.startswith(":DISPLAY:INTENSITY:WAVEFORM "):
             value = int(float(command.split(" ", 1)[1]))
             if value < 0 or value > 100:
                 raise SimulatorBackendError("Simulator display intensity must be in range 0-100.")
@@ -317,7 +317,7 @@ class SimulatorBackend:
             return "1" if self.display_label else "0"
         if upper == ":DISPLAY:PERSISTENCE?":
             return self.display_persistence
-        if upper == ":DISPLAY:INTENSITY?":
+        if upper == ":DISPLAY:INTENSITY:WAVEFORM?":
             return str(self.display_intensity)
         if upper == ":DISPLAY:VECTORS?":
             return "ON" if self.display_vectors else "OFF"

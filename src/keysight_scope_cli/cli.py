@@ -3605,10 +3605,10 @@ def _cmd_display_common(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
-def _format_display_persistence(mode: str, seconds: float | None) -> str:
-    if mode == "seconds":
-        return f"{seconds:.12g} s" if seconds is not None else "seconds"
-    return mode
+def _format_display_persistence(mode: str | None, seconds: float | None) -> str:
+    if seconds is not None:
+        return f"{seconds:.12g} s"
+    return mode or "unknown"
 
 
 def _cmd_annotation(args: argparse.Namespace) -> int:

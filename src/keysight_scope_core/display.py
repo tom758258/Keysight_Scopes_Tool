@@ -27,7 +27,7 @@ class AnnotationState:
 class DisplayPersistence:
     """Current display persistence state."""
 
-    mode: str
+    mode: str | None
     seconds: float | None
     raw_value: str
 
@@ -156,7 +156,7 @@ def display_persistence_query() -> str:
     return ":DISPlay:PERSistence?"
 
 
-def validate_display_persistence(value: str | float) -> tuple[str, float | None]:
+def validate_display_persistence(value: str | float) -> tuple[str | None, float | None]:
     if isinstance(value, str):
         normalized = value.strip().lower()
         aliases = {
@@ -177,10 +177,10 @@ def validate_display_persistence(value: str | float) -> tuple[str, float | None]
         numeric = float(value)
     if not math.isfinite(numeric) or numeric < 0.1 or numeric > 60.0:
         raise ParameterValidationError("display persistence seconds must be in range 0.1-60.0.")
-    return "seconds", numeric
+    return None, numeric
 
 
-def parse_display_persistence(raw: str) -> tuple[str, float | None]:
+def parse_display_persistence(raw: str) -> tuple[str | None, float | None]:
     normalized = raw.strip().upper()
     if normalized in {"MIN", "MINIMUM"}:
         return "minimum", None
@@ -192,15 +192,15 @@ def parse_display_persistence(raw: str) -> tuple[str, float | None]:
         raise ChannelResponseError(f"Could not parse display persistence response: {raw!r}") from exc
     if not math.isfinite(seconds):
         raise ChannelResponseError(f"Could not parse display persistence response: {raw!r}")
-    return "seconds", seconds
+    return None, seconds
 
 
 def display_intensity_command(value: int) -> str:
-    return f":DISPlay:INTensity {validate_display_intensity(value)}"
+    return f":DISPlay:INTensity:WAVeform {validate_display_intensity(value)}"
 
 
 def display_intensity_query() -> str:
-    return ":DISPlay:INTensity?"
+    return ":DISPlay:INTensity:WAVeform?"
 
 
 def validate_display_intensity(value: int) -> int:
