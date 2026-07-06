@@ -13,7 +13,7 @@ from keysight_scope_core.idn import parse_idn
 from keysight_scope_core.measurements import MeasurementResult
 from keysight_scope_core.screenshot import ScreenshotCapture
 from keysight_scope_core.status import SystemErrorEntry
-from keysight_scope_core.visa_backend import VisaResourceListing
+from keysight_scope_core.visa_backend import VisaLiveVerification, VisaResourceListing
 from keysight_scope_core.waveform import (
     MultiChannelWaveformCapture,
     WaveformCapture,
@@ -237,6 +237,38 @@ def test_list_resources_cli_prints_backend_and_resources(monkeypatch, capsys):
     assert "USB0::0x2A8D::FAKE::INSTR" in out
 
 
+def test_list_resources_cli_is_passive_and_lists_all_resource_types(monkeypatch, capsys):
+    def fake_list_visa_resources(visa_library=None):
+        assert visa_library is None
+        return VisaResourceListing(
+            resources=(
+                "ASRL1::INSTR",
+                "USB0::0x2A8D::FAKE::INSTR",
+                "TCPIP0::192.0.2.1::inst0::INSTR",
+            ),
+            backend="Test VISA backend",
+        )
+
+    def fail_open(resource, visa_library=None):
+        del resource, visa_library
+        raise AssertionError("plain list-resources must not open resources")
+
+    def fail_verify(*args, **kwargs):
+        del args, kwargs
+        raise AssertionError("plain list-resources must not verify ASRL resources")
+
+    monkeypatch.setattr(cli, "list_visa_resources", fake_list_visa_resources)
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli, "verify_asrl_resource_live", fail_verify)
+
+    assert cli.main(["list-resources"]) == 0
+
+    out = capsys.readouterr().out
+    assert "ASRL1::INSTR" in out
+    assert "USB0::0x2A8D::FAKE::INSTR" in out
+    assert "TCPIP0::192.0.2.1::inst0::INSTR" in out
+
+
 def test_list_resources_cli_prints_empty_resources(monkeypatch, capsys):
     monkeypatch.setattr(
         cli,
@@ -334,6 +366,210 @@ def test_list_resources_live_only_prints_none_when_no_resources_respond(monkeypa
     assert "Live resources:" in out
     assert "<none>" in out
     assert "STALE::RESOURCE" not in out
+
+
+def test_list_resources_live_only_continues_after_stale_asrl(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,SN1,FW1")
+
+    def fake_list_visa_resources(visa_library=None):
+        assert visa_library is None
+        return VisaResourceListing(
+            resources=("ASRL1::INSTR", "USB0::LIVE::INSTR"),
+            backend="Test VISA backend",
+        )
+
+    def fake_verify(resource, **kwargs):
+        assert resource == "ASRL1::INSTR"
+        assert kwargs == {
+            "visa_library": None,
+            "serial_read_termination": None,
+            "serial_write_termination": None,
+        }
+        return VisaLiveVerification(resource, False, None, "timed out")
+
+    opened = []
+
+    def fake_open(resource, visa_library=None):
+        opened.append((resource, visa_library))
+        return DummyScope()
+
+    monkeypatch.setattr(cli, "list_visa_resources", fake_list_visa_resources)
+    monkeypatch.setattr(cli, "verify_asrl_resource_live", fake_verify)
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fake_open))
+
+    assert cli.main(["list-resources", "--live-only"]) == 0
+
+    out = capsys.readouterr().out
+    assert "USB0::LIVE::INSTR" in out
+    assert "ASRL1::INSTR" not in out
+    assert opened == [("USB0::LIVE::INSTR", None)]
+
+
+def test_list_resources_live_only_json_reports_asrl_verification_failures(
+    monkeypatch, capsys
+):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4034A,SN2,FW2")
+
+    monkeypatch.setattr(
+        cli,
+        "list_visa_resources",
+        lambda visa_library=None: VisaResourceListing(
+            resources=("ASRL1::INSTR", "TCPIP0::LIVE::INSTR"),
+            backend="backend",
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "verify_asrl_resource_live",
+        lambda resource, **kwargs: VisaLiveVerification(
+            resource, False, None, "timed out"
+        ),
+    )
+    monkeypatch.setattr(
+        cli.KeysightScope,
+        "open",
+        staticmethod(lambda resource, visa_library=None: DummyScope()),
+    )
+
+    assert cli.main(["list-resources", "--live-only", "--json"]) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    result = payload["result"]
+    assert result["live_resources"] == [
+        {
+            "resource": "TCPIP0::LIVE::INSTR",
+            "idn": {
+                "raw": "KEYSIGHT TECHNOLOGIES,DSOX4034A,SN2,FW2",
+                "vendor": "KEYSIGHT TECHNOLOGIES",
+                "model": "DSOX4034A",
+                "serial": "SN2",
+                "firmware": "FW2",
+                "series": "4000X",
+            },
+        }
+    ]
+    assert result["verification_failures"] == [
+        {
+            "resource": "ASRL1::INSTR",
+            "live": False,
+            "raw_idn": None,
+            "detail": "timed out",
+        }
+    ]
+
+
+def test_list_resources_serial_termination_options_are_asrl_only(monkeypatch, capsys):
+    class DummyBackend:
+        backend = "backend"
+        timeout = None
+
+    class DummyScope:
+        backend = DummyBackend()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            del exc_type, exc, traceback
+
+        def query_idn(self):
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,SN1,FW1")
+
+    verify_calls = []
+
+    def fake_verify(resource, **kwargs):
+        verify_calls.append((resource, kwargs))
+        return VisaLiveVerification(
+            resource,
+            True,
+            "KEYSIGHT TECHNOLOGIES,DSOX2002A,SN0,FW0",
+            None,
+        )
+
+    open_calls = []
+
+    def fake_open(resource, visa_library=None):
+        open_calls.append((resource, visa_library))
+        return DummyScope()
+
+    monkeypatch.setattr(
+        cli,
+        "list_visa_resources",
+        lambda visa_library=None: VisaResourceListing(
+            resources=("ASRL1::INSTR", "USB0::LIVE::INSTR"),
+            backend="backend",
+        ),
+    )
+    monkeypatch.setattr(cli, "verify_asrl_resource_live", fake_verify)
+    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fake_open))
+
+    assert (
+        cli.main(
+            [
+                "list-resources",
+                "--live-only",
+                "--serial-read-termination",
+                "CRLF",
+                "--serial-write-termination",
+                "NONE",
+            ]
+        )
+        == 0
+    )
+
+    assert verify_calls == [
+        (
+            "ASRL1::INSTR",
+            {
+                "visa_library": None,
+                "serial_read_termination": "CRLF",
+                "serial_write_termination": "NONE",
+            },
+        )
+    ]
+    assert open_calls == [("USB0::LIVE::INSTR", None)]
+    out = capsys.readouterr().out
+    assert "ASRL1::INSTR" in out
+    assert "USB0::LIVE::INSTR" in out
+
+
+def test_serial_termination_options_are_rejected_by_other_commands(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["identify", "--serial-read-termination", "CRLF"])
+
+    assert excinfo.value.code == 2
+    assert (
+        "unrecognized arguments: --serial-read-termination CRLF"
+        in capsys.readouterr().err
+    )
 
 
 def test_verify_cli_queries_scope(monkeypatch, capsys):

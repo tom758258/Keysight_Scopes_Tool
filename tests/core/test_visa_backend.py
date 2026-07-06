@@ -4,7 +4,14 @@ from types import SimpleNamespace
 import pytest
 
 from keysight_scope_core.errors import VisaBackendError
-from keysight_scope_core.visa_backend import VisaBackend, list_visa_resources
+from keysight_scope_core.visa_backend import (
+    ASRL_VERIFY_TIMEOUT_MS,
+    VisaBackend,
+    is_asrl_resource,
+    list_visa_resources,
+    normalize_serial_termination,
+    verify_asrl_resource_live,
+)
 
 
 class _FakeResource:
@@ -40,13 +47,15 @@ class _FakeResourceManager:
         self.opened_resource = opened_resource or _FakeResource()
         self.visalib = "fake visa library"
         self.opened_names = []
+        self.opened_kwargs = []
         self.closed = False
 
     def list_resources(self):
         return self.resources
 
-    def open_resource(self, resource_name):
+    def open_resource(self, resource_name, **kwargs):
         self.opened_names.append(resource_name)
+        self.opened_kwargs.append(kwargs)
         return self.opened_resource
 
     def close(self):
@@ -219,3 +228,91 @@ def test_visa_backend_wraps_session_operation_failures(
         operation(backend)
 
     assert expected_message in str(excinfo.value)
+
+
+@pytest.mark.parametrize(
+    "resource",
+    ["ASRL1::INSTR", "asrl2::instr", "  AsRl3::INSTR"],
+)
+def test_is_asrl_resource_detects_case_insensitively(resource):
+    assert is_asrl_resource(resource) is True
+
+
+@pytest.mark.parametrize(
+    "resource",
+    ["USB0::FAKE::INSTR", "TCPIP0::192.0.2.1::INSTR", "GPIB0::1::INSTR"],
+)
+def test_is_asrl_resource_rejects_non_asrl(resource):
+    assert is_asrl_resource(resource) is False
+
+
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [
+        ("CRLF", "\r\n"),
+        ("LF", "\n"),
+        ("CR", "\r"),
+        ("NONE", None),
+        ("crlf", "\r\n"),
+    ],
+)
+def test_normalize_serial_termination_maps_tokens(token, expected):
+    assert normalize_serial_termination(token) == expected
+
+
+def test_asrl_live_verification_uses_bounded_timeouts_and_serial_settings(monkeypatch):
+    resource = _FakeResource()
+    manager = _FakeResourceManager(opened_resource=resource)
+    calls = _install_fake_pyvisa(monkeypatch, lambda visa_library: manager)
+
+    verification = verify_asrl_resource_live(
+        "ASRL1::INSTR",
+        visa_library="@sim",
+        serial_read_termination="CRLF",
+        serial_write_termination="NONE",
+    )
+
+    assert verification.live is True
+    assert verification.resource == "ASRL1::INSTR"
+    assert verification.raw_idn == "response"
+    assert verification.detail is None
+    assert calls == [("@sim",)]
+    assert manager.opened_names == ["ASRL1::INSTR"]
+    assert manager.opened_kwargs == [{"open_timeout": ASRL_VERIFY_TIMEOUT_MS}]
+    assert resource.timeout == ASRL_VERIFY_TIMEOUT_MS
+    assert resource.read_termination == "\r\n"
+    assert resource.write_termination is None
+    assert resource.history == [("query", "*IDN?")]
+    assert resource.closed is True
+    assert manager.closed is True
+
+
+def test_asrl_live_verification_omits_unspecified_serial_settings(monkeypatch):
+    resource = _FakeResource()
+    manager = _FakeResourceManager(opened_resource=resource)
+    _install_fake_pyvisa(monkeypatch, lambda: manager)
+
+    verification = verify_asrl_resource_live("ASRL1::INSTR")
+
+    assert verification.live is True
+    assert not hasattr(resource, "read_termination")
+    assert not hasattr(resource, "write_termination")
+
+
+def test_asrl_live_verification_returns_stale_detail_and_closes(monkeypatch):
+    class FailingResource(_FakeResource):
+        def query(self, command):
+            self.history.append(("query", command))
+            raise RuntimeError("timed out")
+
+    resource = FailingResource()
+    manager = _FakeResourceManager(opened_resource=resource)
+    _install_fake_pyvisa(monkeypatch, lambda: manager)
+
+    verification = verify_asrl_resource_live("ASRL1::INSTR")
+
+    assert verification.live is False
+    assert verification.raw_idn is None
+    assert "ASRL verification failed: timed out" in str(verification.detail)
+    assert resource.closed is True
+    assert manager.closed is True

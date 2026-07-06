@@ -226,7 +226,8 @@ List VISA resource strings reported by the selected backend:
 ```
 
 This is passive discovery only: a resource string can appear here even when the
-instrument is not currently reachable.
+instrument is not currently reachable. Plain `list-resources` does not open
+the listed resources or send SCPI.
 
 List only resources that can be opened and queried with `*IDN?`:
 
@@ -237,6 +238,23 @@ List only resources that can be opened and queried with `*IDN?`:
 This opens each listed resource and sends `*IDN?`. Resources that cannot be
 opened or do not respond to `*IDN?` are omitted. Add `--log-scpi` to show the
 verification query for each live check.
+
+ASRL/RS-232 live checks use a bounded best-effort discovery path with a 1000 ms
+open/query timeout so a stale serial port does not prevent later USB or TCPIP
+resources from being checked. This compatibility check is only for live
+discovery and does not mean the Scope runtime supports full RS-232 acquisition
+or control workflows.
+
+For ASRL live discovery only, serial termination can be set when needed for a
+specific adapter or instrument:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli list-resources --live-only --serial-read-termination CRLF --serial-write-termination NONE
+```
+
+Supported values are `CRLF`, `LF`, `CR`, and `NONE`. Omitted options leave the
+PyVISA session attributes unchanged; explicit `NONE` sets the corresponding
+termination attribute to `None`.
 
 Set the operator-selected live resource once in the current PowerShell session:
 

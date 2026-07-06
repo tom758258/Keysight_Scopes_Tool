@@ -187,7 +187,11 @@ from keysight_scope_core.trigger import (
     trigger_mode_edge_command,
     validate_trigger_level,
 )
-from keysight_scope_core.visa_backend import list_visa_resources
+from keysight_scope_core.visa_backend import (
+    is_asrl_resource,
+    list_visa_resources,
+    verify_asrl_resource_live,
+)
 from keysight_scope_core.waveform import (
     MultiChannelWaveformCapture,
     SUPPORTED_WAVEFORM_POINTS,
@@ -335,6 +339,16 @@ def _build_parser() -> argparse.ArgumentParser:
         "--log-scpi",
         action="store_true",
         help="write SCPI command and response logs to stderr when --live-only is used",
+    )
+    list_resources_parser.add_argument(
+        "--serial-read-termination",
+        choices=("CRLF", "LF", "CR", "NONE"),
+        help="ASRL live discovery read termination compatibility setting",
+    )
+    list_resources_parser.add_argument(
+        "--serial-write-termination",
+        choices=("CRLF", "LF", "CR", "NONE"),
+        help="ASRL live discovery write termination compatibility setting",
     )
     list_resources_parser.add_argument(
         "--json",
@@ -2604,7 +2618,12 @@ def _cmd_list_resources(args: argparse.Namespace) -> int:
         _JSON_RECORD["backend"] = listing.backend
     if args.live_only:
         _configure_scpi_logging(args)
-        return _print_live_resources(listing.resources, visa_library=args.visa_library)
+        return _print_live_resources(
+            listing.resources,
+            visa_library=args.visa_library,
+            serial_read_termination=args.serial_read_termination,
+            serial_write_termination=args.serial_write_termination,
+        )
 
     print("Resources:")
     if not listing.resources:
@@ -2616,16 +2635,41 @@ def _cmd_list_resources(args: argparse.Namespace) -> int:
     return 0
 
 
-def _print_live_resources(resources: tuple[str, ...], visa_library: str | None) -> int:
+def _print_live_resources(
+    resources: tuple[str, ...],
+    visa_library: str | None,
+    *,
+    serial_read_termination: str | None = None,
+    serial_write_termination: str | None = None,
+) -> int:
     print("Live resources:")
     live_count = 0
     live_resources = []
+    verification_failures = []
     for resource in resources:
-        try:
-            with KeysightScope.open(resource, visa_library=visa_library) as scope:
-                idn = scope.query_idn()
-        except KeysightScopeError:
-            continue
+        if is_asrl_resource(resource):
+            verification = verify_asrl_resource_live(
+                resource,
+                visa_library=visa_library,
+                serial_read_termination=serial_read_termination,
+                serial_write_termination=serial_write_termination,
+            )
+            if not verification.live or verification.raw_idn is None:
+                verification_failures.append(_visa_verification_json(verification))
+                continue
+            try:
+                idn = parse_idn(verification.raw_idn)
+            except KeysightScopeError as exc:
+                verification_failures.append(
+                    _visa_verification_json(verification, detail=str(exc))
+                )
+                continue
+        else:
+            try:
+                with KeysightScope.open(resource, visa_library=visa_library) as scope:
+                    idn = scope.query_idn()
+            except KeysightScopeError:
+                continue
 
         live_count += 1
         live_resources.append({"resource": resource, "idn": _idn_object_json(idn)})
@@ -2634,8 +2678,24 @@ def _print_live_resources(resources: tuple[str, ...], visa_library: str | None) 
 
     if live_count == 0:
         print("  <none>")
-    _json_update_result(live_resources=live_resources)
+    result_update = {"live_resources": live_resources}
+    if verification_failures:
+        result_update["verification_failures"] = verification_failures
+    _json_update_result(**result_update)
     return 0
+
+
+def _visa_verification_json(
+    verification,
+    *,
+    detail: str | None = None,
+) -> dict[str, object]:
+    return {
+        "resource": verification.resource,
+        "live": verification.live,
+        "raw_idn": verification.raw_idn,
+        "detail": detail if detail is not None else verification.detail,
+    }
 
 
 def _cmd_verify(args: argparse.Namespace) -> int:

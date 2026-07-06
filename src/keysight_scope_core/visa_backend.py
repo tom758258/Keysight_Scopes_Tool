@@ -6,6 +6,16 @@ from dataclasses import dataclass
 from typing import Any, Sequence
 
 from .errors import VisaBackendError
+from .log import get_logger
+
+
+ASRL_VERIFY_TIMEOUT_MS = 1000
+_SERIAL_TERMINATION_VALUES = {
+    "CRLF": "\r\n",
+    "LF": "\n",
+    "CR": "\r",
+    "NONE": None,
+}
 
 
 @dataclass(frozen=True)
@@ -14,6 +24,16 @@ class VisaResourceListing:
 
     resources: tuple[str, ...]
     backend: str
+
+
+@dataclass(frozen=True)
+class VisaLiveVerification:
+    """Best-effort live verification result for one VISA resource."""
+
+    resource: str
+    live: bool
+    raw_idn: str | None
+    detail: str | None
 
 
 def list_visa_resources(visa_library: str | None = None) -> VisaResourceListing:
@@ -28,6 +48,71 @@ def list_visa_resources(visa_library: str | None = None) -> VisaResourceListing:
         raise VisaBackendError(f"Failed to list VISA resources: {exc}") from exc
     finally:
         _close_quietly(resource_manager)
+
+
+def is_asrl_resource(resource: str) -> bool:
+    """Return whether a VISA resource string names an ASRL transport."""
+
+    return resource.strip().upper().startswith("ASRL")
+
+
+def normalize_serial_termination(value: str) -> str | None:
+    """Map CLI serial termination tokens to PyVISA attribute values."""
+
+    try:
+        return _SERIAL_TERMINATION_VALUES[value.upper()]
+    except KeyError as exc:
+        raise ValueError(f"unsupported serial termination: {value}") from exc
+
+
+def verify_asrl_resource_live(
+    resource: str,
+    *,
+    visa_library: str | None = None,
+    serial_read_termination: str | None = None,
+    serial_write_termination: str | None = None,
+) -> VisaLiveVerification:
+    """Bounded best-effort ASRL `*IDN?` verification for discovery only."""
+
+    resource_manager = None
+    session = None
+    try:
+        resource_manager = _create_resource_manager(visa_library)
+        session = resource_manager.open_resource(
+            resource,
+            open_timeout=ASRL_VERIFY_TIMEOUT_MS,
+        )
+        session.timeout = ASRL_VERIFY_TIMEOUT_MS
+        if serial_read_termination is not None:
+            session.read_termination = normalize_serial_termination(
+                serial_read_termination
+            )
+        if serial_write_termination is not None:
+            session.write_termination = normalize_serial_termination(
+                serial_write_termination
+            )
+        logger = get_logger("scpi")
+        logger.debug("SCPI >> %s", "*IDN?")
+        raw_idn = str(session.query("*IDN?")).strip()
+        logger.debug("SCPI << %s", raw_idn)
+        return VisaLiveVerification(
+            resource=resource,
+            live=True,
+            raw_idn=raw_idn,
+            detail=None,
+        )
+    except Exception as exc:  # pragma: no cover - exact VISA failures are backend-specific
+        return VisaLiveVerification(
+            resource=resource,
+            live=False,
+            raw_idn=None,
+            detail=f"ASRL verification failed: {exc}",
+        )
+    finally:
+        if session is not None:
+            _close_quietly(session)
+        if resource_manager is not None:
+            _close_quietly(resource_manager)
 
 
 class VisaBackend:
