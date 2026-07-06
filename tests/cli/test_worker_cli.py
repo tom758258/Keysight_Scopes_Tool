@@ -36,6 +36,15 @@ from keysight_scope_core.channel import (
     channel_vernier_command,
     channel_vernier_query,
 )
+from keysight_scope_core.display import (
+    display_clear_command,
+    display_intensity_command,
+    display_intensity_query,
+    display_persistence_command,
+    display_persistence_query,
+    display_vectors_command,
+    display_vectors_query,
+)
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.idn import parse_idn
 from keysight_scope_core.trigger import (
@@ -263,6 +272,14 @@ def test_worker_request_rejects_non_object_arguments():
         ("channel-probe-skew", {"channel": 1, "seconds": 1e-9}),
         ("display-label", {"off": True}),
         ("display-label", {"query": True}),
+        ("display-clear", {}),
+        ("display-persistence", {"query": True}),
+        ("display-persistence", {"mode": "minimum"}),
+        ("display-persistence", {"seconds": 0.5}),
+        ("display-intensity", {"query": True}),
+        ("display-intensity", {"value": 75}),
+        ("display-vectors", {"query": True}),
+        ("display-vectors", {"on": True}),
         ("annotation", {"slot": 1, "query": True}),
     ),
 )
@@ -615,6 +632,28 @@ def test_worker_http_rejects_invalid_label_and_annotation_before_artifacts(
     assert not list(tmp_path.rglob("request.json"))
 
 
+def test_worker_http_rejects_invalid_display_common_before_artifacts(tmp_path):
+    runtime = _runtime(tmp_path)
+
+    with _worker_server(runtime):
+        status, payload = _post_command(
+            runtime,
+            {
+                "command": "display-vectors",
+                "arguments": {"on": False},
+                "job_id": "bad-display",
+            },
+        )
+
+    assert status == 400
+    assert payload["status"] == "error"
+    assert payload["command"] == "display-vectors"
+    assert payload["job_id"] == "bad-display"
+    assert "must be exactly true" in payload["message"]
+    assert runtime.jobs == {}
+    assert not list(tmp_path.rglob("request.json"))
+
+
 def test_worker_parses_domain_arguments_without_opening_backend():
     parsed = worker.parse_domain_command(
         "channel-scale",
@@ -918,6 +957,30 @@ def test_worker_parse_rejects_query_commands_without_query_flag(command):
 def test_worker_parse_rejects_sample_rate_maximum_without_query_flag():
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command("sample-rate", {"maximum": True}, _runtime())
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments"),
+    (
+        ("display-clear", {"query": True}),
+        ("display-persistence", {"unknown": True}),
+        ("display-persistence", {"query": False}),
+        ("display-persistence", {"query": None}),
+        ("display-persistence", {}),
+        ("display-persistence", {"query": True, "seconds": 1}),
+        ("display-persistence", {"seconds": 60.1}),
+        ("display-intensity", {"query": False}),
+        ("display-intensity", {}),
+        ("display-intensity", {"value": 101}),
+        ("display-vectors", {"query": False}),
+        ("display-vectors", {"on": None}),
+        ("display-vectors", {"off": True}),
+        ("display-vectors", {}),
+    ),
+)
+def test_worker_parse_rejects_invalid_display_common_arguments(command, arguments):
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command(command, arguments, _runtime())
 
 
 @pytest.mark.parametrize(
@@ -1391,6 +1454,70 @@ def test_worker_executes_trigger_and_acquisition_queries_in_simulator(
     assert result["result"][field] == expected_value
     if arguments.get("maximum"):
         assert result["result"]["query_kind"] == "maximum"
+    assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
+
+
+@pytest.mark.parametrize(
+    ("command", "arguments", "scpi_command", "expected_fields"),
+    (
+        (
+            "display-clear",
+            {},
+            display_clear_command(),
+            {"operation": "display-clear", "command": display_clear_command()},
+        ),
+        (
+            "display-persistence",
+            {"query": True},
+            display_persistence_query(),
+            {"operation": "display-persistence", "mode": "minimum", "seconds": None},
+        ),
+        (
+            "display-persistence",
+            {"seconds": 0.5},
+            display_persistence_command(0.5),
+            {"operation": "display-persistence", "mode": "seconds", "seconds": 0.5},
+        ),
+        (
+            "display-intensity",
+            {"query": True},
+            display_intensity_query(),
+            {"operation": "display-intensity", "value": 50},
+        ),
+        (
+            "display-intensity",
+            {"value": 75},
+            display_intensity_command(75),
+            {"operation": "display-intensity", "value": 75},
+        ),
+        (
+            "display-vectors",
+            {"query": True},
+            display_vectors_query(),
+            {"operation": "display-vectors", "value": True},
+        ),
+        (
+            "display-vectors",
+            {"on": True},
+            display_vectors_command(True),
+            {"operation": "display-vectors", "value": True},
+        ),
+    ),
+)
+def test_worker_executes_display_common_in_simulator(
+    tmp_path, command, arguments, scpi_command, expected_fields
+):
+    runtime = _runtime(tmp_path)
+
+    job, result = _execute_worker_job(runtime, command, arguments, tmp_path / command)
+
+    assert result["state"] == "succeeded"
+    assert result["ok"] is True
+    assert result["exit_code"] == 0
+    assert result["files"] == []
+    assert result["result"]["command"] == scpi_command
+    for key, value in expected_fields.items():
+        assert result["result"][key] == value
     assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
 
 

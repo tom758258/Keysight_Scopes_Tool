@@ -80,9 +80,12 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
-- Enable, disable, or query display labels with `:DISPlay:LABel`; set, clear,
-  or query display annotations with `:DISPlay:ANNotation`. 4000X annotation
-  commands use indexed slots `1..10` and support `X1Position`/`Y1Position`.
+- Enable, disable, or query display labels with `:DISPlay:LABel`; clear
+  waveform display data with `:DISPlay:CLEar`; set/query display persistence,
+  waveform intensity, and vector display with `:DISPlay:PERSistence`,
+  `:DISPlay:INTensity`, and `:DISPlay:VECTors`; set, clear, or query display
+  annotations with `:DISPlay:ANNotation`. 4000X annotation commands use
+  indexed slots `1..10` and support `X1Position`/`Y1Position`.
 - Query, hide, or configure manual cursors; set/query trigger holdoff; run
   explicit autoscale; save/recall setup slots or `.scp` files; and configure
   FFT math functions.
@@ -564,6 +567,29 @@ Enable, disable, or query front-panel label display:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-label --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --on --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-label --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
 ```
+
+Run common display one-shot commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-clear --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-persistence --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --mode minimum --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-persistence --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --seconds 1.0 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-persistence --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-intensity --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --value 75 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-intensity --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-vectors --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --on --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli display-vectors --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+```
+
+These commands first query `*IDN?`, then send the target display command or
+query, then perform one `:SYSTem:ERRor?` post-check. `display-clear` clears
+waveform display data and resets associated measurements. Display persistence
+accepts `minimum`, `infinite`, or finite seconds from `0.1` through `60.0`.
+Waveform intensity accepts integer values from `0` through `100`.
+`display-vectors` supports query and setting ON only; setting OFF is not part
+of this common v1 surface. `display-persistence-clear` is intentionally not
+implemented in this common pack; it may be considered later as a separately
+guarded 2000X-only command with its own validation plan.
 
 Set, clear, or query display annotations:
 

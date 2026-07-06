@@ -143,11 +143,20 @@ from keysight_scope_core.channel import (
 from keysight_scope_core.display import (
     annotation_commands,
     annotation_query_commands,
+    display_clear_command,
+    display_intensity_command,
+    display_intensity_query,
     display_label_command,
     display_label_query,
+    display_persistence_command,
+    display_persistence_query,
+    display_vectors_command,
+    display_vectors_query,
     normalize_annotation_background,
     normalize_annotation_color,
     validate_annotation_slot,
+    validate_display_intensity,
+    validate_display_persistence,
 )
 from keysight_scope_core.errors import KeysightScopeError, ParameterValidationError
 from keysight_scope_core.idn import normalize_model_key, parse_idn
@@ -748,6 +757,52 @@ def _build_parser() -> argparse.ArgumentParser:
         const="query",
         help="query display label state",
     )
+
+    display_clear_parser = subparsers.add_parser(
+        "display-clear",
+        help="clear waveform display data and associated measurements",
+    )
+    _add_scope_connection_args(display_clear_parser)
+
+    display_persistence_parser = subparsers.add_parser(
+        "display-persistence",
+        help="set or query display persistence",
+    )
+    _add_scope_connection_args(display_persistence_parser)
+    display_persistence_parser.add_argument(
+        "--query", action="store_true", help="query display persistence"
+    )
+    display_persistence_parser.add_argument(
+        "--mode", help="minimum or infinite persistence"
+    )
+    display_persistence_parser.add_argument(
+        "--seconds", type=float, help="finite persistence in seconds, 0.1-60.0"
+    )
+
+    display_intensity_parser = subparsers.add_parser(
+        "display-intensity",
+        help="set or query waveform display intensity",
+    )
+    _add_scope_connection_args(display_intensity_parser)
+    display_intensity_parser.add_argument(
+        "--query", action="store_true", help="query waveform intensity"
+    )
+    display_intensity_parser.add_argument(
+        "--value", type=int, help="waveform intensity, 0-100"
+    )
+
+    display_vectors_parser = subparsers.add_parser(
+        "display-vectors",
+        help="turn vectors on or query vector display state",
+    )
+    _add_scope_connection_args(display_vectors_parser)
+    display_vectors_parser.add_argument(
+        "--query", action="store_true", help="query display vectors"
+    )
+    display_vectors_parser.add_argument(
+        "--on", action="store_true", help="turn display vectors on"
+    )
+    display_vectors_parser.add_argument("--off", action="store_true", help=argparse.SUPPRESS)
 
     annotation_parser = subparsers.add_parser(
         "annotation",
@@ -1492,6 +1547,13 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_channel_advanced_setting(args)
     if args.command == "display-label":
         return _cmd_display_label(args)
+    if args.command in {
+        "display-clear",
+        "display-persistence",
+        "display-intensity",
+        "display-vectors",
+    }:
+        return _cmd_display_common(args)
     if args.command == "annotation":
         return _cmd_annotation(args)
     if args.command == "timebase-scale":
@@ -1759,6 +1821,43 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             raise ParameterValidationError(
                 "setting 50 ohm input impedance requires --allow-50-ohm."
             )
+    if getattr(args, "command", None) == "display-persistence":
+        actions = [
+            bool(getattr(args, "query", False)),
+            getattr(args, "mode", None) is not None,
+            getattr(args, "seconds", None) is not None,
+        ]
+        if sum(actions) != 1:
+            raise ParameterValidationError(
+                "display-persistence requires exactly one of --query, --mode, or --seconds."
+            )
+        if getattr(args, "mode", None) is not None:
+            validate_display_persistence(args.mode)
+        if getattr(args, "seconds", None) is not None:
+            validate_display_persistence(args.seconds)
+    if getattr(args, "command", None) == "display-intensity":
+        actions = [
+            bool(getattr(args, "query", False)),
+            getattr(args, "value", None) is not None,
+        ]
+        if sum(actions) != 1:
+            raise ParameterValidationError(
+                "display-intensity requires exactly one of --query or --value."
+            )
+        if getattr(args, "value", None) is not None:
+            validate_display_intensity(args.value)
+    if getattr(args, "command", None) == "display-vectors":
+        actions = [
+            bool(getattr(args, "query", False)),
+            bool(getattr(args, "on", False)),
+            bool(getattr(args, "off", False)),
+        ]
+        if sum(actions) != 1:
+            raise ParameterValidationError(
+                "display-vectors requires exactly one of --query or --on."
+            )
+        if getattr(args, "off", False):
+            raise ParameterValidationError("display-vectors set OFF is not supported.")
 
 
 def _json_error(exc: KeysightScopeError) -> dict[str, object]:
@@ -1982,6 +2081,14 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         enabled = None if query else args.display_label_action == "on"
         planned = [display_label_query()] if query else [display_label_command(enabled)]
         return planned + [":SYSTem:ERRor?"], [], {"operation": "query" if query else "set", "command": planned[0], "display_label": enabled}
+    if command in {
+        "display-clear",
+        "display-persistence",
+        "display-intensity",
+        "display-vectors",
+    }:
+        target, result = _display_common_plan(args)
+        return ["*IDN?", target, ":SYSTem:ERRor?"], [], result
     if command == "annotation":
         operation, commands, result = _annotation_plan(args, capabilities)
         result["operation"] = operation
@@ -2357,6 +2464,45 @@ def _annotation_plan(
             "y": args.y,
         },
     )
+
+
+def _display_common_plan(args: argparse.Namespace) -> tuple[str, dict[str, object]]:
+    command = args.command
+    if command == "display-clear":
+        target = display_clear_command()
+        return target, {"operation": command, "command": target}
+    if command == "display-persistence":
+        if args.query:
+            target = display_persistence_query()
+            return target, {
+                "operation": command,
+                "command": target,
+                "mode": None,
+                "seconds": None,
+            }
+        value = args.mode if args.mode is not None else args.seconds
+        mode, seconds = validate_display_persistence(value)
+        target = display_persistence_command(value)
+        return target, {
+            "operation": command,
+            "command": target,
+            "mode": mode,
+            "seconds": seconds,
+        }
+    if command == "display-intensity":
+        if args.query:
+            target = display_intensity_query()
+            return target, {"operation": command, "command": target, "value": None}
+        value = validate_display_intensity(args.value)
+        target = display_intensity_command(value)
+        return target, {"operation": command, "command": target, "value": value}
+    if command == "display-vectors":
+        if args.query:
+            target = display_vectors_query()
+            return target, {"operation": command, "command": target, "value": None}
+        target = display_vectors_command(True)
+        return target, {"operation": command, "command": target, "value": True}
+    raise ParameterValidationError(f"unsupported display command: {command}")
 
 
 def _acquisition_check_planned_scpi(
@@ -3373,6 +3519,96 @@ def _cmd_display_label(args: argparse.Namespace) -> int:
         _json_record_system_error(entry)
         print(f"System error: {entry.format()}")
         return 1 if entry.is_error else 0
+
+
+def _cmd_display_common(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        target, result = _display_common_plan(args)
+        if args.command == "display-clear":
+            print("Planned change: clear display")
+            scope.clear_display()
+            _json_update_result(**result)
+            print(f"Command: {target}")
+            print("Display cleared")
+        elif args.command == "display-persistence":
+            if args.query:
+                print("Planned query: display persistence")
+                state = scope.query_display_persistence()
+                _json_update_result(
+                    operation=args.command,
+                    command=target,
+                    mode=state.mode,
+                    seconds=state.seconds,
+                    raw_value=state.raw_value,
+                )
+                print(f"Command: {target}")
+                print(f"Persistence: {_format_display_persistence(state.mode, state.seconds)}")
+            else:
+                print("Planned change: display persistence")
+                value = args.mode if args.mode is not None else args.seconds
+                scope.set_display_persistence(value)
+                _json_update_result(**result)
+                print(f"Command: {target}")
+        elif args.command == "display-intensity":
+            if args.query:
+                print("Planned query: display intensity")
+                value, raw = scope.query_display_intensity()
+                _json_update_result(
+                    operation=args.command,
+                    command=target,
+                    value=value,
+                    raw_value=raw,
+                )
+                print(f"Command: {target}")
+                print(f"Intensity: {value}")
+            else:
+                print(f"Planned change: display intensity {args.value}")
+                scope.set_display_intensity(args.value)
+                _json_update_result(**result)
+                print(f"Command: {target}")
+        elif args.command == "display-vectors":
+            if args.query:
+                print("Planned query: display vectors")
+                value, raw = scope.query_display_vectors()
+                _json_update_result(
+                    operation=args.command,
+                    command=target,
+                    value=value,
+                    raw_value=raw,
+                )
+                print(f"Command: {target}")
+                print(f"Vectors: {'ON' if value else 'OFF'}")
+            else:
+                print("Planned change: display vectors ON")
+                scope.set_display_vectors_on()
+                _json_update_result(**result)
+                print(f"Command: {target}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _format_display_persistence(mode: str, seconds: float | None) -> str:
+    if mode == "seconds":
+        return f"{seconds:.12g} s" if seconds is not None else "seconds"
+    return mode
 
 
 def _cmd_annotation(args: argparse.Namespace) -> int:

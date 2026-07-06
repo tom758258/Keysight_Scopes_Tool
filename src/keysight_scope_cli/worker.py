@@ -57,6 +57,10 @@ DOMAIN_COMMANDS = {
     "channel-vernier",
     "channel-probe-skew",
     "display-label",
+    "display-clear",
+    "display-persistence",
+    "display-intensity",
+    "display-vectors",
     "annotation",
     "timebase-scale",
     "timebase-position",
@@ -305,6 +309,7 @@ def parse_domain_command(
     runtime: WorkerRuntime,
     job_dir: Path | None = None,
 ) -> argparse.Namespace:
+    _validate_display_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
     if runtime.mode == "simulate":
         argv += ["--simulate", "--model", runtime.model]
@@ -327,6 +332,26 @@ def parse_domain_command(
     )
     scope_cli._dry_run_payload(dry_args)
     return parsed
+
+
+def _validate_display_worker_arguments(command: str, arguments: dict[str, Any]) -> None:
+    allowed_by_command = {
+        "display-clear": set(),
+        "display-persistence": {"query", "mode", "seconds"},
+        "display-intensity": {"query", "value"},
+        "display-vectors": {"query", "on"},
+    }
+    if command not in allowed_by_command:
+        return
+    allowed = allowed_by_command[command]
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
+    if command == "display-clear" and arguments:
+        raise KeysightScopeError("display-clear does not accept arguments")
+    for key in ("query", "on"):
+        if key in arguments and arguments[key] is not True:
+            raise KeysightScopeError(f"{command} argument {key} must be exactly true")
 
 
 def arguments_to_argv(arguments: dict[str, Any]) -> list[str]:

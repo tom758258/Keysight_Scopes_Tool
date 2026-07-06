@@ -15,7 +15,7 @@ from .advanced import (
 )
 from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import ChannelController
-from .display import AnnotationState, DisplayController
+from .display import AnnotationState, DisplayController, DisplayPersistence
 from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
 from .measurements import MeasurementController, MeasurementResult, MeasurementStatisticsResult
@@ -231,6 +231,29 @@ class KeysightScope:
         """Query whether display labels are enabled."""
 
         return self._display_controller().query_label()
+
+    def clear_display(self) -> None:
+        """Clear waveform display data and associated measurements."""
+
+        self._display_controller().clear_display()
+
+    def set_display_persistence(self, value: str | float) -> None:
+        self._display_controller().set_persistence(value)
+
+    def query_display_persistence(self) -> DisplayPersistence:
+        return self._display_controller().query_persistence()
+
+    def set_display_intensity(self, value: int) -> None:
+        self._display_controller().set_intensity(value)
+
+    def query_display_intensity(self) -> tuple[int, str]:
+        return self._display_controller().query_intensity()
+
+    def set_display_vectors_on(self) -> None:
+        self._display_controller().set_vectors_on()
+
+    def query_display_vectors(self) -> tuple[bool, str]:
+        return self._display_controller().query_vectors()
 
     def set_annotation_enabled(self, enabled: bool, *, slot: int = 1) -> None:
         self._display_controller().set_annotation_enabled(enabled, slot=slot)

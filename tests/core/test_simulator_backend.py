@@ -133,6 +133,30 @@ def test_simulator_label_and_display_annotation_roundtrip_4000x():
     assert backend.query(":DISPlay:ANNotation2:Y1Position?") == "20"
 
 
+def test_simulator_common_display_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.measurement_statistics_items = ["VPP"]
+    backend.write(":DISPlay:CLEar")
+    backend.write(":DISPlay:PERSistence 0.5")
+    backend.write(":DISPlay:INTensity 75")
+    backend.write(":DISPlay:VECTors ON")
+
+    assert backend.measurement_statistics_items == []
+    assert backend.query(":DISPlay:PERSistence?") == "0.5"
+    assert backend.query(":DISPlay:INTensity?") == "75"
+    assert backend.query(":DISPlay:VECTors?") == "ON"
+    assert backend.history == [
+        ":DISPlay:CLEar",
+        ":DISPlay:PERSistence 0.5",
+        ":DISPlay:INTensity 75",
+        ":DISPlay:VECTors ON",
+        ":DISPlay:PERSistence?",
+        ":DISPlay:INTensity?",
+        ":DISPlay:VECTors?",
+    ]
+
+
 def test_simulator_unindexed_annotation_roundtrip_3000x():
     backend = SimulatorBackend(model="DSOX3024A")
 

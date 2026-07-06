@@ -120,6 +120,9 @@ class SimulatorBackend:
     channel_probe_skew: dict[int, float] = field(default_factory=dict)
     channel_label: dict[int, str] = field(default_factory=dict)
     display_label: bool = True
+    display_persistence: str = "MINimum"
+    display_intensity: int = 50
+    display_vectors: bool = True
     annotation_state: dict[int, dict[str, Any]] = field(default_factory=dict)
     waveform_source: int = 1
     waveform_format: str = "BYTE"
@@ -211,6 +214,17 @@ class SimulatorBackend:
             self.hardcopy_inksaver = upper.endswith(" ON")
         elif upper.startswith(":DISPLAY:LABEL "):
             self.display_label = upper.endswith(" ON")
+        elif upper == ":DISPLAY:CLEAR":
+            self.measurement_statistics_items.clear()
+        elif upper.startswith(":DISPLAY:PERSISTENCE "):
+            self.display_persistence = command.split(" ", 1)[1]
+        elif upper.startswith(":DISPLAY:INTENSITY "):
+            value = int(float(command.split(" ", 1)[1]))
+            if value < 0 or value > 100:
+                raise SimulatorBackendError("Simulator display intensity must be in range 0-100.")
+            self.display_intensity = value
+        elif upper == ":DISPLAY:VECTORS ON":
+            self.display_vectors = True
         elif self._apply_annotation_write(command):
             pass
         elif upper.startswith(":ACQUIRE:TYPE "):
@@ -301,6 +315,12 @@ class SimulatorBackend:
             return "1" if self.hardcopy_inksaver else "0"
         if upper == ":DISPLAY:LABEL?":
             return "1" if self.display_label else "0"
+        if upper == ":DISPLAY:PERSISTENCE?":
+            return self.display_persistence
+        if upper == ":DISPLAY:INTENSITY?":
+            return str(self.display_intensity)
+        if upper == ":DISPLAY:VECTORS?":
+            return "ON" if self.display_vectors else "OFF"
         annotation_response = self._query_annotation(command)
         if annotation_response is not None:
             return annotation_response

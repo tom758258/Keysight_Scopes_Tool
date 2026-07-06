@@ -8,7 +8,7 @@ from .channel import (
     parse_channel_impedance,
     parse_channel_units,
 )
-from .display import AnnotationState, DisplayController, parse_display_label
+from .display import AnnotationState, DisplayController, DisplayPersistence, parse_display_label
 from .idn import IDN, detect_series, parse_idn
 from .measurements import MeasurementController, MeasurementResult
 from .operations import (
@@ -55,6 +55,7 @@ __all__ = [
     "ChannelController",
     "DisplayController",
     "AnnotationState",
+    "DisplayPersistence",
     "EdgeTriggerController",
     "EdgeTriggerState",
     "TriggerWaitConfig",

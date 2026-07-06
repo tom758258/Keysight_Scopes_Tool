@@ -140,6 +140,16 @@ Control and setup:
   `display`, `text`, `volts_per_division`, `volts`, `coupling`,
   `probe_ratio`, or `bandwidth_limit`.
 - `display-label`: `operation`, `command`, and `display_label`.
+- `display-clear`: `operation: "display-clear"` and target-only `command`
+  `:DISPlay:CLEar`.
+- `display-persistence`: `operation: "display-persistence"`, target-only
+  `command`, `mode`, and `seconds`; query results also include `raw_value`.
+  `mode` is `minimum`, `infinite`, or `seconds`.
+- `display-intensity`: `operation: "display-intensity"`, target-only
+  `command`, and integer `value`; query results also include `raw_value`.
+- `display-vectors`: `operation: "display-vectors"`, target-only `command`,
+  and boolean `value`; query results also include `raw_value`. Setting OFF is
+  unsupported in the v1 common display surface.
 - `annotation`: `operation`, `commands`, `slot`, `enabled`, `text`, `color`,
   `background`, `x`, and `y`. Query results always include `x` and `y`; they
   are `null` for models without annotation position support. Annotation query

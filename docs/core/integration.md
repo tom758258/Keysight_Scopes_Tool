@@ -12,6 +12,7 @@ names are intended for package consumers and tests:
 - `ChannelController`
 - `DisplayController`
 - `AnnotationState`
+- `DisplayPersistence`
 - `EdgeTriggerController`
 - `EdgeTriggerState`
 - `IDN`

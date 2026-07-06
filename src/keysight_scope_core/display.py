@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 
 from .capabilities import ScopeCapabilities
 from .errors import ChannelResponseError, ParameterValidationError
@@ -22,6 +23,15 @@ class AnnotationState:
     y: int | None
 
 
+@dataclass(frozen=True)
+class DisplayPersistence:
+    """Current display persistence state."""
+
+    mode: str
+    seconds: float | None
+    raw_value: str
+
+
 class DisplayController:
     """Controls for display labels and annotations."""
 
@@ -34,6 +44,31 @@ class DisplayController:
 
     def query_label(self) -> bool:
         return parse_display_label(self.scpi.query(display_label_query()))
+
+    def clear_display(self) -> None:
+        self.scpi.write(display_clear_command())
+
+    def set_persistence(self, value: str | float) -> None:
+        self.scpi.write(display_persistence_command(value))
+
+    def query_persistence(self) -> DisplayPersistence:
+        raw = self.scpi.query(display_persistence_query())
+        mode, seconds = parse_display_persistence(raw)
+        return DisplayPersistence(mode=mode, seconds=seconds, raw_value=raw.strip())
+
+    def set_intensity(self, value: int) -> None:
+        self.scpi.write(display_intensity_command(value))
+
+    def query_intensity(self) -> tuple[int, str]:
+        raw = self.scpi.query(display_intensity_query())
+        return parse_display_intensity(raw), raw.strip()
+
+    def set_vectors_on(self) -> None:
+        self.scpi.write(display_vectors_command(True))
+
+    def query_vectors(self) -> tuple[bool, str]:
+        raw = self.scpi.query(display_vectors_query())
+        return parse_display_vectors(raw), raw.strip()
 
     def set_annotation_enabled(self, enabled: bool, *, slot: int = 1) -> None:
         slot = validate_annotation_slot(slot, self.capabilities)
@@ -100,6 +135,98 @@ def display_label_command(enabled: bool) -> str:
 
 def display_label_query() -> str:
     return ":DISPlay:LABel?"
+
+
+def display_clear_command() -> str:
+    return ":DISPlay:CLEar"
+
+
+def display_persistence_command(value: str | float) -> str:
+    mode, seconds = validate_display_persistence(value)
+    if mode == "minimum":
+        token = "MINimum"
+    elif mode == "infinite":
+        token = "INFinite"
+    else:
+        token = f"{seconds:.12g}"
+    return f":DISPlay:PERSistence {token}"
+
+
+def display_persistence_query() -> str:
+    return ":DISPlay:PERSistence?"
+
+
+def validate_display_persistence(value: str | float) -> tuple[str, float | None]:
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        aliases = {
+            "min": "minimum",
+            "minimum": "minimum",
+            "inf": "infinite",
+            "infinite": "infinite",
+        }
+        if normalized in aliases:
+            return aliases[normalized], None
+        try:
+            numeric = float(value)
+        except ValueError as exc:
+            raise ParameterValidationError(
+                "display persistence must be minimum, infinite, or seconds in range 0.1-60.0."
+            ) from exc
+    else:
+        numeric = float(value)
+    if not math.isfinite(numeric) or numeric < 0.1 or numeric > 60.0:
+        raise ParameterValidationError("display persistence seconds must be in range 0.1-60.0.")
+    return "seconds", numeric
+
+
+def parse_display_persistence(raw: str) -> tuple[str, float | None]:
+    normalized = raw.strip().upper()
+    if normalized in {"MIN", "MINIMUM"}:
+        return "minimum", None
+    if normalized in {"INF", "INFINITE"}:
+        return "infinite", None
+    try:
+        seconds = float(normalized)
+    except ValueError as exc:
+        raise ChannelResponseError(f"Could not parse display persistence response: {raw!r}") from exc
+    if not math.isfinite(seconds):
+        raise ChannelResponseError(f"Could not parse display persistence response: {raw!r}")
+    return "seconds", seconds
+
+
+def display_intensity_command(value: int) -> str:
+    return f":DISPlay:INTensity {validate_display_intensity(value)}"
+
+
+def display_intensity_query() -> str:
+    return ":DISPlay:INTensity?"
+
+
+def validate_display_intensity(value: int) -> int:
+    return _validate_int_range(value, "display intensity", 0, 100)
+
+
+def parse_display_intensity(raw: str) -> int:
+    try:
+        value = int(float(raw.strip()))
+    except ValueError as exc:
+        raise ChannelResponseError(f"Could not parse display intensity response: {raw!r}") from exc
+    return validate_display_intensity(value)
+
+
+def display_vectors_command(enabled: bool) -> str:
+    if not enabled:
+        raise ParameterValidationError("display-vectors set OFF is not supported.")
+    return ":DISPlay:VECTors ON"
+
+
+def display_vectors_query() -> str:
+    return ":DISPlay:VECTors?"
+
+
+def parse_display_vectors(raw: str) -> bool:
+    return parse_display_label(raw)
 
 
 def parse_display_label(raw: str) -> bool:

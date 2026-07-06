@@ -131,7 +131,8 @@ Worker `/command` supports the existing Scopes capability surface:
   `channel-coupling`, `channel-probe`, `channel-bandwidth-limit`,
   `channel-impedance`, `channel-invert`, `channel-range`, `channel-units`,
   `channel-vernier`, `channel-probe-skew`
-- `display-label`, `annotation`
+- `display-label`, `display-clear`, `display-persistence`,
+  `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
@@ -271,6 +272,61 @@ Worker support for these commands has hardware-free validation only. Live
 worker validation, LAN validation, WebUI integration, and DSO-X 2000X/3000X
 hardware validation have not been run.
 
+### Common Display Commands
+
+The worker supports four shared display one-shot commands:
+
+- `display-clear`
+- `display-persistence`
+- `display-intensity`
+- `display-vectors`
+
+Arguments use CLI option names without leading dashes:
+
+```json
+{"command": "display-clear", "arguments": {}}
+```
+
+```json
+{"command": "display-persistence", "arguments": {"query": true}}
+```
+
+```json
+{"command": "display-persistence", "arguments": {"mode": "minimum"}}
+```
+
+```json
+{"command": "display-persistence", "arguments": {"seconds": 1.0}}
+```
+
+```json
+{"command": "display-intensity", "arguments": {"query": true}}
+```
+
+```json
+{"command": "display-intensity", "arguments": {"value": 75}}
+```
+
+```json
+{"command": "display-vectors", "arguments": {"query": true}}
+```
+
+```json
+{"command": "display-vectors", "arguments": {"on": true}}
+```
+
+`display-clear` accepts no argument keys. `display-persistence` accepts only
+`query`, `mode`, and `seconds`; `mode` is `minimum` or `infinite`, and
+`seconds` must be from `0.1` through `60.0`. `display-intensity` accepts only
+`query` and `value`, with integer `value` from `0` through `100`.
+`display-vectors` accepts only `query` and `on`; setting OFF is unsupported in
+this common v1 surface.
+
+For these commands, unknown keys are rejected before enqueue, artifact
+creation, VISA open, or SCPI. Boolean `query` and `on` keys must be exactly
+`true`; false or null values are rejected instead of being ignored.
+`display-persistence-clear` is not a v1 common worker command.
+
 ### Label And Annotation Commands
 
 The worker supports the same one-shot label and annotation commands as the CLI:
@@ -396,11 +452,12 @@ recorded as absolute paths. Default worker outputs are:
 - `capture-batch`, `measure-log`, `smoke`, and `acquisition-check`: the job
   directory is the default `output_dir`.
 
-`sample-rate`, `acquisition-points`, `record-length`, and `force-trigger` do
-not create command artifacts. Their terminal `result.json.result` contains the
-existing one-shot structured `result` fields for that command. For
-`sample-rate` maximum queries, that includes `query_kind: "maximum"` and
-`maximum_sample_rate_hz`.
+`sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
+`display-clear`, `display-persistence`, `display-intensity`, and
+`display-vectors` do not create command artifacts. Their terminal
+`result.json.result` contains the existing one-shot structured `result` fields
+for that command. For `sample-rate` maximum queries, that includes
+`query_kind: "maximum"` and `maximum_sample_rate_hz`.
 
 Directory-output commands may use the worker job directory even though
 `request.json` already exists there. Other pre-existing command artifact paths
