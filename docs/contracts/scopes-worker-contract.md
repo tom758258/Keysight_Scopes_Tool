@@ -134,8 +134,8 @@ Worker `/command` supports the existing Scopes capability surface:
 - `display-label`, `display-clear`, `display-persistence`,
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
-- `edge-trigger`, `trigger-pulse-width`, `trigger-runt`, `trigger-holdoff`,
-  `cursor`, `autoscale`
+- `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
+  `trigger-transition`, `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -307,6 +307,53 @@ Configure mode is analog-channel-only and changes trigger settings. Query mode
 must use `query: true` without configure keys. `qualifier: "none"` rejects
 `time_seconds`; timed qualifiers require it. The worker does not accept aliases
 such as `runt-trigger` or `trigger-runt-width`.
+
+`trigger-transition` is accepted only as the canonical Transition trigger
+command. It uses the underlying Keysight `:TRIGger:TRANsition...` SCPI family
+plus shared `:TRIGger:LEVel:LOW/HIGH` thresholds:
+
+```json
+{"command": "trigger-transition", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "trigger-transition",
+  "arguments": {
+    "channel": 1,
+    "slope": "positive",
+    "qualifier": "greater_than",
+    "time_seconds": 0.000005,
+    "low_level_volts": -0.5,
+    "high_level_volts": 0.5
+  }
+}
+```
+
+```json
+{
+  "command": "trigger-transition",
+  "arguments": {
+    "channel": 1,
+    "slope": "negative",
+    "qualifier": "less_than",
+    "time_seconds": 0.000002,
+    "low_level_volts": -0.25,
+    "high_level_volts": 0.75
+  }
+}
+```
+
+Worker JSON may use `greater_than` and `less_than` qualifier values; they are
+converted to the CLI `greater-than` and `less-than` values before parsing.
+Configure mode is analog-channel-only and changes trigger settings. Query mode
+must use `query: true` without configure keys. Configure mode requires
+`channel`, `slope`, `qualifier`, `time_seconds`, `low_level_volts`, and
+`high_level_volts`; slope is `positive` or `negative`, qualifier is
+`greater-than` or `less-than`, `time_seconds` must be positive finite, and low
+level must be less than high level. The worker does not accept digital/MSO or
+external source configuration, and it does not accept aliases such as
+`transition-trigger`, `trigger-rise-fall`, or `trigger-rise-time`.
 
 ### Advanced Channel Commands
 
@@ -551,11 +598,11 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`trigger-pulse-width`, `trigger-runt`, `display-clear`, `display-persistence`,
-`display-intensity`, and `display-vectors` do not create command artifacts.
-Their terminal `result.json.result` contains the existing one-shot structured
-`result` fields for that command. For `sample-rate` maximum queries, that
-includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.
+`trigger-pulse-width`, `trigger-runt`, `trigger-transition`, `display-clear`,
+`display-persistence`, `display-intensity`, and `display-vectors` do not create
+command artifacts. Their terminal `result.json.result` contains the existing
+one-shot structured `result` fields for that command. For `sample-rate` maximum
+queries, that includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.
 
 Directory-output commands may use the worker job directory even though
 `request.json` already exists there. Other pre-existing command artifact paths

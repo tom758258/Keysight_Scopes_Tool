@@ -102,6 +102,30 @@ _RUNT_QUALIFIER_READBACKS = {
     "NONE": "none",
 }
 
+_TRANSITION_SLOPE_COMMANDS = {
+    "positive": "POSitive",
+    "negative": "NEGative",
+}
+
+_TRANSITION_SLOPE_READBACKS = {
+    "POS": "positive",
+    "POSITIVE": "positive",
+    "NEG": "negative",
+    "NEGATIVE": "negative",
+}
+
+_TRANSITION_QUALIFIER_COMMANDS = {
+    "greater-than": "GREaterthan",
+    "less-than": "LESSthan",
+}
+
+_TRANSITION_QUALIFIER_READBACKS = {
+    "GRE": "greater-than",
+    "GREATERTHAN": "greater-than",
+    "LESS": "less-than",
+    "LESSTHAN": "less-than",
+}
+
 OPERATION_CONDITION_RUN_MASK = 1 << 3
 OPERATION_CONDITION_RUI_ENAB_MASK = 1 << 4
 OPERATION_CONDITION_WAIT_TRIG_MASK = 1 << 5
@@ -174,6 +198,36 @@ class RuntTriggerState:
             "source_kind": self.source_kind,
             "channel": self.channel,
             "polarity": self.polarity,
+            "qualifier": self.qualifier,
+            "time_seconds": self.time_seconds,
+            "low_level_volts": self.low_level_volts,
+            "high_level_volts": self.high_level_volts,
+            "raw": dict(self.raw),
+        }
+
+
+@dataclass(frozen=True)
+class TransitionTriggerState:
+    """Readback state for transition trigger settings."""
+
+    mode: str | None
+    source: str
+    source_kind: str | None
+    channel: int | None
+    slope: str | None
+    qualifier: str | None
+    time_seconds: float | None
+    low_level_volts: float | None
+    high_level_volts: float | None
+    raw: dict[str, str]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "source": self.source,
+            "source_kind": self.source_kind,
+            "channel": self.channel,
+            "slope": self.slope,
             "qualifier": self.qualifier,
             "time_seconds": self.time_seconds,
             "low_level_volts": self.low_level_volts,
@@ -389,6 +443,69 @@ class RuntTriggerController:
         )
 
 
+class TransitionTriggerController:
+    """Controls for analog transition trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        channel: int,
+        slope: str,
+        qualifier: str,
+        low_level_volts: float,
+        high_level_volts: float,
+        time_seconds: float,
+    ) -> None:
+        """Configure analog-channel transition trigger settings."""
+
+        commands = transition_trigger_configure_commands(
+            channel=channel,
+            slope=slope,
+            qualifier=qualifier,
+            low_level_volts=low_level_volts,
+            high_level_volts=high_level_volts,
+            capabilities=self.capabilities,
+            time_seconds=time_seconds,
+        )
+        for command in commands:
+            self.scpi.write(command)
+
+    def query(self) -> TransitionTriggerState:
+        """Query transition trigger state without changing acquisition state."""
+
+        raw = {
+            "mode": self.scpi.query(trigger_mode_query()),
+            "source": self.scpi.query(transition_trigger_source_query()),
+            "slope": self.scpi.query(transition_trigger_slope_query()),
+            "qualifier": self.scpi.query(transition_trigger_qualifier_query()),
+            "time": self.scpi.query(transition_trigger_time_query()),
+        }
+        source_kind, channel = parse_transition_source(raw["source"])
+        low_level = None
+        high_level = None
+        if channel is not None:
+            raw["low_level"] = self.scpi.query(trigger_low_level_query(channel))
+            raw["high_level"] = self.scpi.query(trigger_high_level_query(channel))
+            low_level = parse_trigger_float(raw["low_level"], "transition low level")
+            high_level = parse_trigger_float(raw["high_level"], "transition high level")
+        return TransitionTriggerState(
+            mode=parse_trigger_mode(raw["mode"]),
+            source=raw["source"].strip(),
+            source_kind=source_kind,
+            channel=channel,
+            slope=parse_transition_slope_readback(raw["slope"]),
+            qualifier=parse_transition_qualifier_readback(raw["qualifier"]),
+            time_seconds=parse_optional_trigger_float(raw["time"], "transition time"),
+            low_level_volts=low_level,
+            high_level_volts=high_level,
+            raw=raw,
+        )
+
+
 def validate_trigger_level(level_volts: float) -> float:
     """Validate a trigger level before sending it to the instrument."""
 
@@ -461,6 +578,30 @@ def normalize_runt_qualifier(qualifier: str) -> str:
         ) from exc
 
 
+def normalize_transition_slope(slope: str) -> str:
+    """Normalize a user-facing transition slope into a SCPI argument."""
+
+    normalized = slope.strip().lower()
+    try:
+        return _TRANSITION_SLOPE_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "transition trigger slope must be one of: positive, negative."
+        ) from exc
+
+
+def normalize_transition_qualifier(qualifier: str) -> str:
+    """Normalize a user-facing transition qualifier into a SCPI argument."""
+
+    normalized = qualifier.strip().lower()
+    try:
+        return _TRANSITION_QUALIFIER_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "transition trigger qualifier must be one of: greater-than, less-than."
+        ) from exc
+
+
 def trigger_mode_edge_command() -> str:
     """Build the SCPI command that selects edge trigger mode."""
 
@@ -477,6 +618,12 @@ def trigger_mode_runt_command() -> str:
     """Build the SCPI command that selects runt trigger mode."""
 
     return ":TRIGger:MODE RUNT"
+
+
+def trigger_mode_transition_command() -> str:
+    """Build the SCPI command that selects transition trigger mode."""
+
+    return ":TRIGger:MODE TRANsition"
 
 
 def trigger_mode_query() -> str:
@@ -708,28 +855,52 @@ def runt_trigger_source_query() -> str:
     return ":TRIGger:RUNT:SOURce?"
 
 
+def trigger_low_level_command(level_volts: float, channel: int) -> str:
+    """Build the SCPI command for analog trigger low threshold."""
+
+    return f":TRIGger:LEVel:LOW {_format_scpi_float(level_volts)},CHANnel{channel}"
+
+
+def trigger_low_level_query(channel: int) -> str:
+    """Build the SCPI query for analog trigger low threshold."""
+
+    return f":TRIGger:LEVel:LOW? CHANnel{channel}"
+
+
+def trigger_high_level_command(level_volts: float, channel: int) -> str:
+    """Build the SCPI command for analog trigger high threshold."""
+
+    return f":TRIGger:LEVel:HIGH {_format_scpi_float(level_volts)},CHANnel{channel}"
+
+
+def trigger_high_level_query(channel: int) -> str:
+    """Build the SCPI query for analog trigger high threshold."""
+
+    return f":TRIGger:LEVel:HIGH? CHANnel{channel}"
+
+
 def runt_trigger_low_level_command(level_volts: float, channel: int) -> str:
     """Build the SCPI command for analog runt low level."""
 
-    return f":TRIGger:LEVel:LOW {_format_scpi_float(level_volts)},CHANnel{channel}"
+    return trigger_low_level_command(level_volts, channel)
 
 
 def runt_trigger_low_level_query(channel: int) -> str:
     """Build the SCPI query for analog runt low level."""
 
-    return f":TRIGger:LEVel:LOW? CHANnel{channel}"
+    return trigger_low_level_query(channel)
 
 
 def runt_trigger_high_level_command(level_volts: float, channel: int) -> str:
     """Build the SCPI command for analog runt high level."""
 
-    return f":TRIGger:LEVel:HIGH {_format_scpi_float(level_volts)},CHANnel{channel}"
+    return trigger_high_level_command(level_volts, channel)
 
 
 def runt_trigger_high_level_query(channel: int) -> str:
     """Build the SCPI query for analog runt high level."""
 
-    return f":TRIGger:LEVel:HIGH? CHANnel{channel}"
+    return trigger_high_level_query(channel)
 
 
 def runt_trigger_polarity_command(polarity_command: str) -> str:
@@ -823,6 +994,100 @@ def runt_trigger_configure_commands(
     return commands
 
 
+def transition_trigger_source_command(channel: int) -> str:
+    """Build the SCPI command for analog TRANsition source."""
+
+    return f":TRIGger:TRANsition:SOURce CHANnel{channel}"
+
+
+def transition_trigger_source_query() -> str:
+    """Build the SCPI query for TRANsition source."""
+
+    return ":TRIGger:TRANsition:SOURce?"
+
+
+def transition_trigger_slope_command(slope_command: str) -> str:
+    """Build the SCPI command for transition trigger slope."""
+
+    return f":TRIGger:TRANsition:SLOPe {slope_command}"
+
+
+def transition_trigger_slope_query() -> str:
+    """Build the SCPI query for transition trigger slope."""
+
+    return ":TRIGger:TRANsition:SLOPe?"
+
+
+def transition_trigger_time_command(time_seconds: float) -> str:
+    """Build the SCPI command for transition timing."""
+
+    return f":TRIGger:TRANsition:TIME {_format_scpi_float(time_seconds)}"
+
+
+def transition_trigger_time_query() -> str:
+    """Build the SCPI query for transition timing."""
+
+    return ":TRIGger:TRANsition:TIME?"
+
+
+def transition_trigger_qualifier_command(qualifier_command: str) -> str:
+    """Build the SCPI command for transition trigger qualifier."""
+
+    return f":TRIGger:TRANsition:QUALifier {qualifier_command}"
+
+
+def transition_trigger_qualifier_query() -> str:
+    """Build the SCPI query for transition trigger qualifier."""
+
+    return ":TRIGger:TRANsition:QUALifier?"
+
+
+def transition_trigger_query_commands() -> list[str]:
+    """Return the unconditional transition trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        transition_trigger_source_query(),
+        transition_trigger_slope_query(),
+        transition_trigger_qualifier_query(),
+        transition_trigger_time_query(),
+    ]
+
+
+def transition_trigger_configure_commands(
+    *,
+    channel: int,
+    slope: str,
+    qualifier: str,
+    low_level_volts: float,
+    high_level_volts: float,
+    capabilities: ScopeCapabilities,
+    time_seconds: float,
+) -> list[str]:
+    """Return the analog transition trigger configure SCPI sequence."""
+
+    channel = validate_analog_channel(channel, capabilities)
+    slope_command = normalize_transition_slope(slope)
+    qualifier_command = normalize_transition_qualifier(qualifier)
+    low_level = validate_trigger_level(low_level_volts)
+    high_level = validate_trigger_level(high_level_volts)
+    trigger_time = validate_trigger_time(time_seconds)
+    if low_level >= high_level:
+        raise ParameterValidationError(
+            "transition trigger low_level_volts must be less than high_level_volts."
+        )
+
+    return [
+        trigger_mode_transition_command(),
+        transition_trigger_source_command(channel),
+        trigger_low_level_command(low_level, channel),
+        trigger_high_level_command(high_level, channel),
+        transition_trigger_slope_command(slope_command),
+        transition_trigger_time_command(trigger_time),
+        transition_trigger_qualifier_command(qualifier_command),
+    ]
+
+
 def parse_edge_trigger_source(raw: str) -> int:
     """Parse an edge trigger source readback into an analog channel number."""
 
@@ -851,6 +1116,8 @@ def parse_trigger_mode(raw: str) -> str | None:
         return "glitch"
     if normalized in {"RUNT"}:
         return "runt"
+    if normalized in {"TRAN", "TRANSITION"}:
+        return "transition"
     if normalized in {"EDGE"}:
         return "edge"
     return None
@@ -914,6 +1181,31 @@ def parse_runt_qualifier_readback(raw: str) -> str | None:
     """Parse a runt qualifier readback when recognized."""
 
     return _RUNT_QUALIFIER_READBACKS.get(raw.strip().upper())
+
+
+def parse_transition_source(raw: str) -> tuple[str | None, int | None]:
+    """Parse a transition source readback, preserving unsafe non-analog sources."""
+
+    normalized = raw.strip().upper()
+    if normalized.startswith("CHANNEL"):
+        suffix = normalized.removeprefix("CHANNEL")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix)
+    if normalized.startswith("CHAN"):
+        suffix = normalized.removeprefix("CHAN")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix)
+    return None, None
+
+
+def parse_transition_slope_readback(raw: str) -> str | None:
+    """Parse a transition slope readback when recognized."""
+
+    return _TRANSITION_SLOPE_READBACKS.get(raw.strip().upper())
+
+
+def parse_transition_qualifier_readback(raw: str) -> str | None:
+    """Parse a transition qualifier readback when recognized."""
+
+    return _TRANSITION_QUALIFIER_READBACKS.get(raw.strip().upper())
 
 
 def parse_edge_slope(raw: str) -> str:

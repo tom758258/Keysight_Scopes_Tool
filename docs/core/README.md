@@ -35,6 +35,11 @@ Core owns runtime behavior:
   shared `:TRIGger:LEVel:LOW/HIGH` command families. This slice configures and
   queries runt trigger state only; it does not run, stop, single, force
   trigger, wait for trigger, or capture waveform data.
+- Analog-channel transition trigger helpers for the Keysight
+  `:TRIGger:TRANsition...` and shared `:TRIGger:LEVel:LOW/HIGH` command
+  families. This v1 slice configures and queries transition trigger state only;
+  it does not run, stop, single, force trigger, wait for trigger, or capture
+  waveform data.
 - Model capability profiles for the runtime-supported feature surface.
   DSO-X 3000X and 4000X profiles enable 50 ohm channel impedance support;
   DSO-X 2000X profiles keep channel impedance guarded to one-meg only.

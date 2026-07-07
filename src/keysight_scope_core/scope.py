@@ -30,6 +30,8 @@ from .trigger import (
     GlitchTriggerState,
     RuntTriggerController,
     RuntTriggerState,
+    TransitionTriggerController,
+    TransitionTriggerState,
 )
 from .visa_backend import VisaBackend
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformController
@@ -369,6 +371,32 @@ class KeysightScope:
 
         return self._runt_trigger_controller().query()
 
+    def configure_transition_trigger(
+        self,
+        *,
+        channel: int,
+        slope: str,
+        qualifier: str,
+        low_level_volts: float,
+        high_level_volts: float,
+        time_seconds: float,
+    ) -> None:
+        """Configure analog transition trigger settings."""
+
+        self._transition_trigger_controller().configure(
+            channel=channel,
+            slope=slope,
+            qualifier=qualifier,
+            low_level_volts=low_level_volts,
+            high_level_volts=high_level_volts,
+            time_seconds=time_seconds,
+        )
+
+    def query_transition_trigger(self) -> TransitionTriggerState:
+        """Query transition trigger settings."""
+
+        return self._transition_trigger_controller().query()
+
     def capture_waveform_byte(self, channel: int, points: int = 1000) -> WaveformCapture:
         """Capture one analog channel using BYTE waveform format."""
 
@@ -600,6 +628,13 @@ class KeysightScope:
                 "Runt trigger operations require known capabilities; call query_idn() first."
             )
         return RuntTriggerController(self.scpi, self.capabilities)
+
+    def _transition_trigger_controller(self) -> TransitionTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Transition trigger operations require known capabilities; call query_idn() first."
+            )
+        return TransitionTriggerController(self.scpi, self.capabilities)
 
     def _waveform_controller(self) -> WaveformController:
         if self.capabilities is None:

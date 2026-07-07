@@ -55,6 +55,8 @@ from .trigger import (
     GlitchTriggerState,
     RuntTriggerController,
     RuntTriggerState,
+    TransitionTriggerController,
+    TransitionTriggerState,
     TriggerWaitConfig,
     TriggerWaitResult,
 )
@@ -71,6 +73,8 @@ __all__ = [
     "GlitchTriggerState",
     "RuntTriggerController",
     "RuntTriggerState",
+    "TransitionTriggerController",
+    "TransitionTriggerState",
     "TriggerWaitConfig",
     "TriggerWaitResult",
     "IDN",

@@ -393,6 +393,57 @@ def test_scope_runt_trigger_uses_capabilities_from_idn():
     ]
 
 
+def test_scope_transition_trigger_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":TRIGger:MODE?": "TRAN",
+            ":TRIGger:TRANsition:SOURce?": "CHAN1",
+            ":TRIGger:TRANsition:SLOPe?": "NEG",
+            ":TRIGger:TRANsition:QUALifier?": "LESS",
+            ":TRIGger:TRANsition:TIME?": "2.0E-6",
+            ":TRIGger:LEVel:LOW? CHANnel1": "-2.5E-1",
+            ":TRIGger:LEVel:HIGH? CHANnel1": "7.5E-1",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    scope.configure_transition_trigger(
+        channel=1,
+        slope="negative",
+        qualifier="less-than",
+        time_seconds=2e-6,
+        low_level_volts=-0.25,
+        high_level_volts=0.75,
+    )
+    state = scope.query_transition_trigger()
+
+    assert state.mode == "transition"
+    assert state.channel == 1
+    assert state.slope == "negative"
+    assert state.qualifier == "less-than"
+    assert state.low_level_volts == -0.25
+    assert state.high_level_volts == 0.75
+    assert backend.history == [
+        "*IDN?",
+        ":TRIGger:MODE TRANsition",
+        ":TRIGger:TRANsition:SOURce CHANnel1",
+        ":TRIGger:LEVel:LOW -0.25,CHANnel1",
+        ":TRIGger:LEVel:HIGH 0.75,CHANnel1",
+        ":TRIGger:TRANsition:SLOPe NEGative",
+        ":TRIGger:TRANsition:TIME 2e-06",
+        ":TRIGger:TRANsition:QUALifier LESSthan",
+        ":TRIGger:MODE?",
+        ":TRIGger:TRANsition:SOURce?",
+        ":TRIGger:TRANsition:SLOPe?",
+        ":TRIGger:TRANsition:QUALifier?",
+        ":TRIGger:TRANsition:TIME?",
+        ":TRIGger:LEVel:LOW? CHANnel1",
+        ":TRIGger:LEVel:HIGH? CHANnel1",
+    ]
+
+
 def test_scope_waveform_requires_known_capabilities():
     scope = KeysightScope(FakeBackend())
 

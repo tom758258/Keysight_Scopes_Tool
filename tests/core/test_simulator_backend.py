@@ -194,6 +194,44 @@ def test_simulator_runt_less_than_roundtrip():
     assert backend.query(":TRIGger:RUNT:QUALifier?") == "LESS"
 
 
+def test_simulator_transition_greater_than_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE TRANsition")
+    backend.write(":TRIGger:TRANsition:SOURce CHANnel1")
+    backend.write(":TRIGger:LEVel:LOW -0.5,CHANnel1")
+    backend.write(":TRIGger:LEVel:HIGH 0.5,CHANnel1")
+    backend.write(":TRIGger:TRANsition:SLOPe POSitive")
+    backend.write(":TRIGger:TRANsition:TIME 5e-6")
+    backend.write(":TRIGger:TRANsition:QUALifier GREaterthan")
+
+    assert backend.query(":TRIGger:MODE?") == "TRAN"
+    assert backend.query(":TRIGger:TRANsition:SOURce?") == "CHAN1"
+    assert backend.query(":TRIGger:LEVel:LOW? CHANnel1") == "-5.00000000E-01"
+    assert backend.query(":TRIGger:LEVel:HIGH? CHANnel1") == "5.00000000E-01"
+    assert backend.query(":TRIGger:TRANsition:SLOPe?") == "POS"
+    assert backend.query(":TRIGger:TRANsition:TIME?") == "5.00000000E-06"
+    assert backend.query(":TRIGger:TRANsition:QUALifier?") == "GRE"
+
+
+def test_simulator_transition_less_than_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE TRANsition")
+    backend.write(":TRIGger:TRANsition:SOURce CHANnel1")
+    backend.write(":TRIGger:LEVel:LOW -0.25,CHANnel1")
+    backend.write(":TRIGger:LEVel:HIGH 0.75,CHANnel1")
+    backend.write(":TRIGger:TRANsition:SLOPe NEGative")
+    backend.write(":TRIGger:TRANsition:TIME 2e-6")
+    backend.write(":TRIGger:TRANsition:QUALifier LESSthan")
+
+    assert backend.query(":TRIGger:TRANsition:SLOPe?") == "NEG"
+    assert backend.query(":TRIGger:TRANsition:TIME?") == "2.00000000E-06"
+    assert backend.query(":TRIGger:TRANsition:QUALifier?") == "LESS"
+    assert backend.query(":TRIGger:LEVel:LOW? CHANnel1") == "-2.50000000E-01"
+    assert backend.query(":TRIGger:LEVel:HIGH? CHANnel1") == "7.50000000E-01"
+
+
 def test_simulator_channel_advanced_settings_round_trip():
     backend = SimulatorBackend()
 

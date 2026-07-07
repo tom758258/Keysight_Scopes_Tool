@@ -67,6 +67,7 @@ DOMAIN_COMMANDS = {
     "edge-trigger",
     "trigger-pulse-width",
     "trigger-runt",
+    "trigger-transition",
     "trigger-holdoff",
     "cursor",
     "autoscale",
@@ -314,6 +315,7 @@ def parse_domain_command(
     _validate_display_worker_arguments(command, arguments)
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
     if runtime.mode == "simulate":
         argv += ["--simulate", "--model", runtime.model]
@@ -406,6 +408,34 @@ def _normalize_trigger_runt_worker_arguments(
         raise KeysightScopeError(f"unknown argument for trigger-runt: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
         raise KeysightScopeError("trigger-runt argument query must be exactly true")
+    normalized = dict(arguments)
+    qualifier = normalized.get("qualifier")
+    if qualifier == "greater_than":
+        normalized["qualifier"] = "greater-than"
+    elif qualifier == "less_than":
+        normalized["qualifier"] = "less-than"
+    return normalized
+
+
+def _normalize_trigger_transition_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-transition":
+        return arguments
+    allowed = {
+        "query",
+        "channel",
+        "slope",
+        "qualifier",
+        "time_seconds",
+        "low_level_volts",
+        "high_level_volts",
+    }
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for trigger-transition: {sorted(unknown)[0]}")
+    if "query" in arguments and arguments["query"] is not True:
+        raise KeysightScopeError("trigger-transition argument query must be exactly true")
     normalized = dict(arguments)
     qualifier = normalized.get("qualifier")
     if qualifier == "greater_than":

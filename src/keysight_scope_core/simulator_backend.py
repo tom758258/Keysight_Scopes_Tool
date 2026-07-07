@@ -165,6 +165,13 @@ class SimulatorBackend:
     runt_time: float = 1e-6
     runt_low_level: float = -0.5
     runt_high_level: float = 0.5
+    transition_source_channel: int | None = 1
+    transition_source_raw: str = "CHANnel1"
+    transition_slope: str = "POSitive"
+    transition_qualifier: str = "GREaterthan"
+    transition_time: float = 1e-6
+    transition_low_level: float = -0.5
+    transition_high_level: float = 0.5
     trigger_holdoff: float = 100e-9
     marker_mode: str = "OFF"
     marker_source: int = 1
@@ -299,10 +306,12 @@ class SimulatorBackend:
             value, channel = _parse_glitch_level_write(command)
             self._validate_channel(channel)
             self.runt_low_level = value
+            self.transition_low_level = value
         elif upper.startswith(":TRIGGER:LEVEL:HIGH "):
             value, channel = _parse_glitch_level_write(command)
             self._validate_channel(channel)
             self.runt_high_level = value
+            self.transition_high_level = value
         elif upper.startswith(":TRIGGER:RUNT:POLARITY "):
             value = command.rsplit(" ", 1)[1]
             if value.upper() not in {"POSITIVE", "NEGATIVE", "EITHER"}:
@@ -315,6 +324,22 @@ class SimulatorBackend:
             if value.upper() not in {"GREATERTHAN", "LESSTHAN", "NONE"}:
                 raise SimulatorBackendError(f"Unsupported simulator write: {command}")
             self.runt_qualifier = value
+        elif upper.startswith(":TRIGGER:TRANSITION:SOURCE CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.transition_source_channel = channel
+            self.transition_source_raw = f"CHANnel{channel}"
+        elif upper.startswith(":TRIGGER:TRANSITION:SLOPE "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"POSITIVE", "NEGATIVE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.transition_slope = value
+        elif upper.startswith(":TRIGGER:TRANSITION:TIME "):
+            self.transition_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:TRANSITION:QUALIFIER "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"GREATERTHAN", "LESSTHAN"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.transition_qualifier = value
         elif upper.startswith(":TRIGGER:HOLDOFF "):
             self.trigger_holdoff = _parse_scpi_number(command.split(" ", 1)[1])
         elif upper.startswith(":TRIGGER:HOLDOFF:RANDOM "):
@@ -446,9 +471,23 @@ class SimulatorBackend:
             return _abbreviate_runt_qualifier(self.runt_qualifier)
         if upper == ":TRIGGER:RUNT:TIME?":
             return f"{self.runt_time:.8E}"
+        if upper == ":TRIGGER:TRANSITION:SOURCE?":
+            if self.transition_source_channel is None:
+                return self.transition_source_raw
+            return f"CHAN{self.transition_source_channel}"
+        if upper == ":TRIGGER:TRANSITION:SLOPE?":
+            return _abbreviate_transition_slope(self.transition_slope)
+        if upper == ":TRIGGER:TRANSITION:QUALIFIER?":
+            return _abbreviate_transition_qualifier(self.transition_qualifier)
+        if upper == ":TRIGGER:TRANSITION:TIME?":
+            return f"{self.transition_time:.8E}"
         if upper.startswith(":TRIGGER:LEVEL:LOW?"):
+            if self.trigger_mode.strip().upper().startswith("TRAN"):
+                return f"{self.transition_low_level:.8E}"
             return f"{self.runt_low_level:.8E}"
         if upper.startswith(":TRIGGER:LEVEL:HIGH?"):
+            if self.trigger_mode.strip().upper().startswith("TRAN"):
+                return f"{self.transition_high_level:.8E}"
             return f"{self.runt_high_level:.8E}"
         if upper == ":TRIGGER:HOLDOFF?":
             return f"{self.trigger_holdoff:.12g}"
@@ -1406,8 +1445,28 @@ def _abbreviate_trigger_mode(value: str) -> str:
         return "GLIT"
     if upper.startswith("RUNT"):
         return "RUNT"
+    if upper.startswith("TRAN"):
+        return "TRAN"
     if upper.startswith("EDGE"):
         return "EDGE"
+    return upper
+
+
+def _abbreviate_transition_slope(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("POS"):
+        return "POS"
+    if upper.startswith("NEG"):
+        return "NEG"
+    return upper
+
+
+def _abbreviate_transition_qualifier(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("GRE"):
+        return "GRE"
+    if upper.startswith("LESS"):
+        return "LESS"
     return upper
 
 

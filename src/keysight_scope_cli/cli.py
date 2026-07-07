@@ -212,13 +212,19 @@ from keysight_scope_core.trigger import (
     normalize_edge_slope,
     normalize_glitch_qualifier,
     normalize_runt_qualifier,
+    normalize_transition_qualifier,
+    normalize_transition_slope,
     operation_condition_query,
     runt_trigger_configure_commands,
     runt_trigger_high_level_query,
     runt_trigger_low_level_query,
     runt_trigger_query_commands,
     single_command,
+    transition_trigger_configure_commands,
+    transition_trigger_query_commands,
     trigger_mode_edge_command,
+    trigger_high_level_query,
+    trigger_low_level_query,
     validate_trigger_level,
     validate_trigger_time,
 )
@@ -1004,6 +1010,54 @@ def _build_parser() -> argparse.ArgumentParser:
         help="upper runt threshold in volts",
     )
 
+    transition_trigger_parser = subparsers.add_parser(
+        "trigger-transition",
+        help="configure or query analog transition trigger settings",
+    )
+    _add_scope_connection_args(transition_trigger_parser)
+    transition_trigger_parser.add_argument(
+        "--query",
+        dest="transition_query",
+        action="store_true",
+        help="query transition trigger state",
+    )
+    transition_trigger_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the transition trigger source",
+    )
+    transition_trigger_parser.add_argument(
+        "--slope",
+        choices=("positive", "negative"),
+        default=None,
+        help="transition trigger slope",
+    )
+    transition_trigger_parser.add_argument(
+        "--qualifier",
+        choices=("greater-than", "less-than"),
+        default=None,
+        help="transition trigger qualifier",
+    )
+    transition_trigger_parser.add_argument(
+        "--time-seconds",
+        type=_positive_float,
+        default=None,
+        help="transition time threshold in seconds",
+    )
+    transition_trigger_parser.add_argument(
+        "--low-level-volts",
+        type=_trigger_level_float,
+        default=None,
+        help="lower transition threshold in volts",
+    )
+    transition_trigger_parser.add_argument(
+        "--high-level-volts",
+        type=_trigger_level_float,
+        default=None,
+        help="upper transition threshold in volts",
+    )
+
     cursor_parser = subparsers.add_parser(
         "cursor",
         help="query, hide, or configure manual marker cursors",
@@ -1677,6 +1731,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_glitch(args)
     if args.command == "trigger-runt":
         return _cmd_trigger_runt(args)
+    if args.command == "trigger-transition":
+        return _cmd_trigger_transition(args)
     if args.command == "cursor":
         return _cmd_cursor(args)
     if args.command == "trigger-holdoff":
@@ -1977,6 +2033,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_glitch_args(args)
     if getattr(args, "command", None) == "trigger-runt":
         _validate_trigger_runt_args(args)
+    if getattr(args, "command", None) == "trigger-transition":
+        _validate_trigger_transition_args(args)
 
 
 def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
@@ -2074,6 +2132,46 @@ def _validate_trigger_runt_args(args: argparse.Namespace) -> None:
 
     if args.time_seconds is not None:
         raise ParameterValidationError("trigger-runt qualifier none rejects --time-seconds.")
+
+
+def _validate_trigger_transition_args(args: argparse.Namespace) -> None:
+    set_values = (
+        getattr(args, "channel", None),
+        getattr(args, "slope", None),
+        getattr(args, "qualifier", None),
+        getattr(args, "time_seconds", None),
+        getattr(args, "low_level_volts", None),
+        getattr(args, "high_level_volts", None),
+    )
+    if getattr(args, "transition_query", False):
+        if any(value is not None for value in set_values):
+            raise ParameterValidationError(
+                "trigger-transition --query cannot be combined with configure options."
+            )
+        return
+
+    if (
+        args.channel is None
+        or args.slope is None
+        or args.qualifier is None
+        or args.time_seconds is None
+        or args.low_level_volts is None
+        or args.high_level_volts is None
+    ):
+        raise ParameterValidationError(
+            "trigger-transition configure requires --channel, --slope, --qualifier, "
+            "--time-seconds, --low-level-volts, and --high-level-volts."
+        )
+
+    normalize_transition_slope(args.slope)
+    normalize_transition_qualifier(args.qualifier)
+    validate_trigger_time(args.time_seconds)
+    low_level = validate_trigger_level(args.low_level_volts)
+    high_level = validate_trigger_level(args.high_level_volts)
+    if low_level >= high_level:
+        raise ParameterValidationError(
+            "trigger-transition --low-level-volts must be less than --high-level-volts."
+        )
 
 
 def _json_error(exc: KeysightScopeError) -> dict[str, object]:
@@ -2376,6 +2474,32 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "channel": args.channel,
             "source": f"CHANnel{args.channel}",
             "polarity": args.polarity,
+            "qualifier": args.qualifier,
+            "time_seconds": args.time_seconds,
+            "low_level_volts": args.low_level_volts,
+            "high_level_volts": args.high_level_volts,
+            "state_changing": True,
+        }
+        return commands + [":SYSTem:ERRor?"], [], result
+    if command == "trigger-transition":
+        if args.transition_query:
+            commands = transition_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        commands = transition_trigger_configure_commands(
+            channel=args.channel,
+            slope=args.slope,
+            qualifier=args.qualifier,
+            capabilities=capabilities,
+            time_seconds=args.time_seconds,
+            low_level_volts=args.low_level_volts,
+            high_level_volts=args.high_level_volts,
+        )
+        result: dict[str, object] = {
+            "operation": "set",
+            "commands": commands,
+            "channel": args.channel,
+            "source": f"CHANnel{args.channel}",
+            "slope": args.slope,
             "qualifier": args.qualifier,
             "time_seconds": args.time_seconds,
             "low_level_volts": args.low_level_volts,
@@ -4252,6 +4376,94 @@ def _cmd_trigger_runt(args: argparse.Namespace) -> int:
                 channel=args.channel,
                 source=f"CHANnel{args.channel}",
                 polarity=args.polarity,
+                qualifier=args.qualifier,
+                time_seconds=args.time_seconds,
+                low_level_volts=args.low_level_volts,
+                high_level_volts=args.high_level_volts,
+                state_changing=True,
+            )
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_transition(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.transition_query:
+            commands = transition_trigger_query_commands()
+            print("Planned query: transition trigger state")
+            state = scope.query_transition_trigger()
+            if state.channel is not None:
+                commands.extend(
+                    [
+                        trigger_low_level_query(state.channel),
+                        trigger_high_level_query(state.channel),
+                    ]
+                )
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or state.raw['mode']}")
+            print(f"Source: {state.source}")
+            if state.channel is not None:
+                print(f"Channel: CH{state.channel}")
+            print(f"Slope: {state.slope or state.raw['slope']}")
+            print(f"Qualifier: {state.qualifier or state.raw['qualifier']}")
+            if state.time_seconds is None:
+                print(f"Time s: {state.raw['time']}")
+            else:
+                print(f"Time s: {state.time_seconds:.12g}")
+            if state.low_level_volts is not None:
+                print(f"Low level V: {state.low_level_volts:.12g}")
+            if state.high_level_volts is not None:
+                print(f"High level V: {state.high_level_volts:.12g}")
+        else:
+            commands = transition_trigger_configure_commands(
+                channel=args.channel,
+                slope=args.slope,
+                qualifier=args.qualifier,
+                capabilities=scope.capabilities,
+                time_seconds=args.time_seconds,
+                low_level_volts=args.low_level_volts,
+                high_level_volts=args.high_level_volts,
+            )
+            print(
+                f"Planned change: transition trigger CH{args.channel}, slope {args.slope}, "
+                f"qualifier {args.qualifier}"
+            )
+            scope.configure_transition_trigger(
+                channel=args.channel,
+                slope=args.slope,
+                qualifier=args.qualifier,
+                time_seconds=args.time_seconds,
+                low_level_volts=args.low_level_volts,
+                high_level_volts=args.high_level_volts,
+            )
+            _json_update_result(
+                operation="set",
+                commands=commands,
+                channel=args.channel,
+                source=f"CHANnel{args.channel}",
+                slope=args.slope,
                 qualifier=args.qualifier,
                 time_seconds=args.time_seconds,
                 low_level_volts=args.low_level_volts,

@@ -85,6 +85,9 @@ Current implemented scope:
 - Configure or query analog-channel runt trigger settings with
   `:TRIGger:MODE RUNT`, `:TRIGger:RUNT:*`, and shared
   `:TRIGger:LEVel:LOW/HIGH` threshold commands.
+- Configure or query analog-channel transition trigger settings with
+  `:TRIGger:MODE TRANsition`, `:TRIGger:TRANsition:*`, and shared
+  `:TRIGger:LEVel:LOW/HIGH` threshold commands.
 - Enable, disable, or query display labels with `:DISPlay:LABel`; clear
   waveform display data with `:DISPlay:CLEar`; set/query display persistence,
   waveform intensity, and vector display with `:DISPlay:PERSistence`,
@@ -683,7 +686,7 @@ external, or `NONE` source readback.
 
 This slice is analog-channel-only for configure mode. It does not run, stop,
 single, force trigger, wait for a trigger, capture waveform data, or implement
-pattern, transition, delay, TV, USB, serial bus, digital/MSO, or zone triggers.
+pattern, delay, TV, USB, serial bus, digital/MSO, zone, or other trigger types.
 Hardware-free tests cover this command; broader live validation remains opt-in
 and model/transport-specific.
 
@@ -729,6 +732,45 @@ Worker usage:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-runt --arguments-json "{\"query\":true}" --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-runt --arguments-json "{\"channel\":1,\"polarity\":\"either\",\"qualifier\":\"none\",\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-runt --arguments-json "{\"channel\":1,\"polarity\":\"positive\",\"qualifier\":\"greater_than\",\"time_seconds\":0.000005,\"low_level_volts\":-0.25,\"high_level_volts\":0.75}" --json
+```
+
+Configure or query analog transition trigger settings with the canonical
+`trigger-transition` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-transition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --slope positive --qualifier greater-than --time-seconds 5e-6 --low-level-volts -0.5 --high-level-volts 0.5 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-transition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --slope negative --qualifier less-than --time-seconds 2e-6 --low-level-volts -0.25 --high-level-volts 0.75 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-transition --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+```
+
+`trigger-transition` configures and queries the Keysight Transition trigger
+using `:TRIGger:MODE TRANsition`, `:TRIGger:TRANsition:*`, and shared
+`:TRIGger:LEVel:LOW/HIGH` threshold commands. Configure mode is
+state-changing: it selects Transition trigger mode, sets an analog source
+channel, sets low and high analog thresholds, then sets slope, time, and
+qualifier. The slope is `positive` or `negative`; the qualifier is
+`greater-than` or `less-than`; `--time-seconds`, `--low-level-volts`, and
+`--high-level-volts` are required, and low must be less than high.
+
+Query mode reads mode, source, slope, qualifier, and transition time first,
+then reads LOW/HIGH levels only when the source readback safely parses as an
+analog `CHAN<n>` or `CHANnel<n>` source. Non-analog or unrecognized source
+readbacks are preserved in JSON with `channel`, `low_level_volts`, and
+`high_level_volts` set to `null`.
+
+This v1 slice is analog-channel-only for configure mode. It does not configure
+digital/MSO or external transition sources, add aliases, run, stop, single,
+force trigger, wait for a trigger, capture waveform data, or implement generic
+trigger-tree behavior. Hardware-free tests cover the CLI, Core, simulator, and
+worker paths. Live CLI validation, worker live validation, LAN validation,
+WebUI validation, DSO-X 2000X/3000X/4024A/4034A live validation, digital/MSO
+source validation, and broader trigger-tree validation have not been run.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-transition --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-transition --arguments-json "{\"channel\":1,\"slope\":\"positive\",\"qualifier\":\"greater_than\",\"time_seconds\":0.000005,\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
 ```
 
 Query read-only measurements:
