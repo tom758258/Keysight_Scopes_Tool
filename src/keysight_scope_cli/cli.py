@@ -898,33 +898,33 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     glitch_trigger_parser = subparsers.add_parser(
-        "trigger-glitch",
-        help="configure or query analog pulse-width glitch trigger settings",
+        "trigger-pulse-width",
+        help="configure or query analog pulse-width trigger settings",
     )
     _add_scope_connection_args(glitch_trigger_parser)
     glitch_trigger_parser.add_argument(
         "--query",
         dest="glitch_query",
         action="store_true",
-        help="query pulse-width glitch trigger state",
+        help="query pulse-width trigger state",
     )
     glitch_trigger_parser.add_argument(
         "--channel",
         type=_positive_int,
         default=None,
-        help="analog channel used as the glitch trigger source",
+        help="analog channel used as the pulse-width trigger source",
     )
     glitch_trigger_parser.add_argument(
         "--polarity",
         choices=("positive", "negative"),
         default=None,
-        help="glitch trigger pulse polarity",
+        help="pulse-width trigger pulse polarity",
     )
     glitch_trigger_parser.add_argument(
         "--qualifier",
         choices=("greater-than", "less-than", "range"),
         default=None,
-        help="glitch trigger pulse-width qualifier",
+        help="pulse-width trigger qualifier",
     )
     glitch_trigger_parser.add_argument(
         "--time-seconds",
@@ -948,7 +948,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--level-volts",
         type=_trigger_level_float,
         default=None,
-        help="optional glitch trigger level in volts",
+        help="optional pulse-width trigger level in volts",
     )
 
     cursor_parser = subparsers.add_parser(
@@ -1620,7 +1620,7 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_timebase_position(args)
     if args.command == "edge-trigger":
         return _cmd_edge_trigger(args)
-    if args.command == "trigger-glitch":
+    if args.command == "trigger-pulse-width":
         return _cmd_trigger_glitch(args)
     if args.command == "cursor":
         return _cmd_cursor(args)
@@ -1918,7 +1918,7 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             )
         if getattr(args, "off", False):
             raise ParameterValidationError("display-vectors set OFF is not supported.")
-    if getattr(args, "command", None) == "trigger-glitch":
+    if getattr(args, "command", None) == "trigger-pulse-width":
         _validate_trigger_glitch_args(args)
 
 
@@ -1935,39 +1935,39 @@ def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
     if getattr(args, "glitch_query", False):
         if any(value is not None for value in set_values):
             raise ParameterValidationError(
-                "trigger-glitch --query cannot be combined with configure options."
+                "trigger-pulse-width --query cannot be combined with configure options."
             )
         return
 
     if args.channel is None or args.polarity is None or args.qualifier is None:
         raise ParameterValidationError(
-            "trigger-glitch configure requires --channel, --polarity, and --qualifier."
+            "trigger-pulse-width configure requires --channel, --polarity, and --qualifier."
         )
 
     qualifier = normalize_glitch_qualifier(args.qualifier)
     if qualifier in {"GREaterthan", "LESSthan"}:
         if args.time_seconds is None:
             raise ParameterValidationError(
-                "trigger-glitch greater-than and less-than require --time-seconds."
+                "trigger-pulse-width greater-than and less-than require --time-seconds."
             )
         if args.min_time_seconds is not None or args.max_time_seconds is not None:
             raise ParameterValidationError(
-                "trigger-glitch greater-than and less-than reject range timing options."
+                "trigger-pulse-width greater-than and less-than reject range timing options."
             )
         validate_trigger_time(args.time_seconds)
         return
 
     if args.time_seconds is not None:
-        raise ParameterValidationError("trigger-glitch range rejects --time-seconds.")
+        raise ParameterValidationError("trigger-pulse-width range rejects --time-seconds.")
     if args.min_time_seconds is None or args.max_time_seconds is None:
         raise ParameterValidationError(
-            "trigger-glitch range requires --min-time-seconds and --max-time-seconds."
+            "trigger-pulse-width range requires --min-time-seconds and --max-time-seconds."
         )
     min_time = validate_trigger_time(args.min_time_seconds)
     max_time = validate_trigger_time(args.max_time_seconds)
     if min_time >= max_time:
         raise ParameterValidationError(
-            "trigger-glitch --min-time-seconds must be less than --max-time-seconds."
+            "trigger-pulse-width --min-time-seconds must be less than --max-time-seconds."
         )
 
 
@@ -2222,7 +2222,7 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         slope = normalize_edge_slope(args.slope)
         commands = [trigger_mode_edge_command(), edge_trigger_source_command(channel), edge_trigger_level_command(args.level), edge_trigger_slope_command(slope)]
         return commands + [":SYSTem:ERRor?"], [], {"operation": "set", "commands": commands, "source_channel": channel, "level_volts": args.level, "slope": slope}
-    if command == "trigger-glitch":
+    if command == "trigger-pulse-width":
         if args.glitch_query:
             commands = glitch_trigger_query_commands()
             return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
@@ -3981,7 +3981,7 @@ def _cmd_trigger_glitch(args: argparse.Namespace) -> int:
 
         if args.glitch_query:
             commands = glitch_trigger_query_commands()
-            print("Planned query: pulse-width glitch trigger state")
+            print("Planned query: pulse-width trigger state")
             state = scope.query_glitch_trigger()
             _json_update_result(operation="query", commands=commands, **state.to_json())
             for command in commands:
@@ -4010,7 +4010,7 @@ def _cmd_trigger_glitch(args: argparse.Namespace) -> int:
                 level_volts=args.level_volts,
             )
             print(
-                f"Planned change: glitch trigger CH{args.channel}, polarity {args.polarity}, "
+                f"Planned change: pulse-width trigger CH{args.channel}, polarity {args.polarity}, "
                 f"qualifier {args.qualifier}"
             )
             scope.configure_glitch_trigger(

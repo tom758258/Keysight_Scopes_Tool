@@ -12,8 +12,8 @@ def _json_stdout(capsys):
     return json.loads(captured.out)
 
 
-def test_trigger_glitch_query_dry_run_json(capsys):
-    assert cli.main(["trigger-glitch", "--query", "--dry-run", "--json"]) == 0
+def test_trigger_pulse_width_query_dry_run_json(capsys):
+    assert cli.main(["trigger-pulse-width", "--query", "--dry-run", "--json"]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["ok"] is True
@@ -33,11 +33,11 @@ def test_trigger_glitch_query_dry_run_json(capsys):
     assert payload["scpi"]["planned"] == payload["result"]["commands"] + [":SYSTem:ERRor?"]
 
 
-def test_trigger_glitch_less_than_dry_run_json(capsys):
+def test_trigger_pulse_width_less_than_dry_run_json(capsys):
     assert (
         cli.main(
             [
-                "trigger-glitch",
+                "trigger-pulse-width",
                 "--channel",
                 "1",
                 "--polarity",
@@ -65,11 +65,11 @@ def test_trigger_glitch_less_than_dry_run_json(capsys):
     ]
 
 
-def test_trigger_glitch_greater_than_with_level_dry_run_json(capsys):
+def test_trigger_pulse_width_greater_than_with_level_dry_run_json(capsys):
     assert (
         cli.main(
             [
-                "trigger-glitch",
+                "trigger-pulse-width",
                 "--channel",
                 "1",
                 "--polarity",
@@ -98,11 +98,11 @@ def test_trigger_glitch_greater_than_with_level_dry_run_json(capsys):
     ]
 
 
-def test_trigger_glitch_range_dry_run_json_maps_max_min(capsys):
+def test_trigger_pulse_width_range_dry_run_json_maps_max_min(capsys):
     assert (
         cli.main(
             [
-                "trigger-glitch",
+                "trigger-pulse-width",
                 "--channel",
                 "1",
                 "--polarity",
@@ -130,8 +130,8 @@ def test_trigger_glitch_range_dry_run_json_maps_max_min(capsys):
     ]
 
 
-def test_trigger_glitch_query_simulate_json_reports_default_level(capsys):
-    assert cli.main(["trigger-glitch", "--query", "--simulate", "--json"]) == 0
+def test_trigger_pulse_width_query_simulate_json_reports_default_level(capsys):
+    assert cli.main(["trigger-pulse-width", "--query", "--simulate", "--json"]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["ok"] is True
@@ -152,13 +152,13 @@ def test_trigger_glitch_query_simulate_json_reports_default_level(capsys):
     ]
 
 
-def test_trigger_glitch_query_simulate_json_handles_digital_source_and_none_level(
+def test_trigger_pulse_width_query_simulate_json_handles_digital_source_and_none_level(
     monkeypatch, capsys
 ):
     backend = SimulatorBackend(glitch_source_channel=None, glitch_source_raw="DIGital7", glitch_level=None)
     monkeypatch.setattr(cli, "SimulatorBackend", lambda **kwargs: backend)
 
-    assert cli.main(["trigger-glitch", "--query", "--simulate", "--json"]) == 0
+    assert cli.main(["trigger-pulse-width", "--query", "--simulate", "--json"]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["result"]["source_kind"] == "digital"
@@ -171,9 +171,9 @@ def test_trigger_glitch_query_simulate_json_handles_digital_source_and_none_leve
 @pytest.mark.parametrize(
     "argv",
     [
-        ["trigger-glitch", "--query", "--channel", "1", "--dry-run", "--json"],
+        ["trigger-pulse-width", "--query", "--channel", "1", "--dry-run", "--json"],
         [
-            "trigger-glitch",
+            "trigger-pulse-width",
             "--channel",
             "1",
             "--polarity",
@@ -184,7 +184,7 @@ def test_trigger_glitch_query_simulate_json_handles_digital_source_and_none_leve
             "--json",
         ],
         [
-            "trigger-glitch",
+            "trigger-pulse-width",
             "--channel",
             "1",
             "--polarity",
@@ -200,28 +200,31 @@ def test_trigger_glitch_query_simulate_json_handles_digital_source_and_none_leve
         ],
     ],
 )
-def test_trigger_glitch_rejects_invalid_argument_combinations(argv, capsys):
+def test_trigger_pulse_width_rejects_invalid_argument_combinations(argv, capsys):
     assert cli.main(argv) == 1
     payload = _json_stdout(capsys)
     assert payload["ok"] is False
 
 
-@pytest.mark.parametrize("command", ["trigger-pulse", "pulse-width", "glitch-trigger", "trigger-width"])
-def test_trigger_glitch_rejects_unsupported_aliases(command):
+@pytest.mark.parametrize(
+    "command",
+    ["trigger-glitch", "trigger-pulse", "pulse-width", "glitch-trigger", "trigger-width"],
+)
+def test_trigger_pulse_width_rejects_unsupported_aliases(command):
     with pytest.raises(SystemExit):
         cli.main([command, "--query", "--dry-run", "--json"])
 
 
-def test_trigger_glitch_rejects_digital_source_options():
+def test_trigger_pulse_width_rejects_digital_source_options():
     with pytest.raises(SystemExit):
-        cli.main(["trigger-glitch", "--digital", "0", "--dry-run", "--json"])
+        cli.main(["trigger-pulse-width", "--digital", "0", "--dry-run", "--json"])
 
 
-def test_trigger_glitch_does_not_emit_acquisition_or_capture_scpi(capsys):
+def test_trigger_pulse_width_does_not_emit_acquisition_or_capture_scpi(capsys):
     assert (
         cli.main(
             [
-                "trigger-glitch",
+                "trigger-pulse-width",
                 "--channel",
                 "1",
                 "--polarity",

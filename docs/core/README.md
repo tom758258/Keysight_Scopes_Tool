@@ -27,7 +27,7 @@ Core owns runtime behavior:
   `:OPERegister:CONDition?`, classify DSO-X 2000X/3000X/4000X completion by
   the Operation Status Condition Run bit, and expose raw poll values for
   adapter JSON.
-- Analog-channel pulse-width glitch trigger helpers for the Keysight
+- Analog-channel pulse-width trigger helpers for the Keysight
   `:TRIGger:GLITch...` command family. This first slice configures and queries
   pulse-width trigger state only; it does not run, stop, single, force trigger,
   wait for trigger, or capture waveform data.

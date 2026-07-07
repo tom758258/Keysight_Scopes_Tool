@@ -89,7 +89,7 @@ class EdgeTriggerState:
 
 @dataclass(frozen=True)
 class GlitchTriggerState:
-    """Readback state for pulse-width glitch trigger settings."""
+    """Readback state for pulse-width trigger settings."""
 
     mode: str | None
     source: str
@@ -201,7 +201,7 @@ class EdgeTriggerController:
 
 
 class GlitchTriggerController:
-    """Controls for analog pulse-width glitch trigger settings."""
+    """Controls for analog pulse-width trigger settings."""
 
     def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
         self.scpi = scpi
@@ -218,7 +218,7 @@ class GlitchTriggerController:
         max_time_seconds: float | None = None,
         level_volts: float | None = None,
     ) -> None:
-        """Configure analog-channel pulse-width glitch trigger settings."""
+        """Configure analog-channel pulse-width trigger settings."""
 
         commands = glitch_trigger_configure_commands(
             channel=channel,
@@ -234,7 +234,7 @@ class GlitchTriggerController:
             self.scpi.write(command)
 
     def query(self) -> GlitchTriggerState:
-        """Query pulse-width glitch trigger state without changing acquisition state."""
+        """Query pulse-width trigger state without changing acquisition state."""
 
         raw = {
             "mode": self.scpi.query(trigger_mode_query()),
@@ -299,7 +299,7 @@ def normalize_glitch_polarity(polarity: str) -> str:
         return _GLITCH_POLARITY_COMMANDS[normalized]
     except KeyError as exc:
         raise ParameterValidationError(
-            "glitch trigger polarity must be one of: positive, negative."
+            "pulse-width trigger polarity must be one of: positive, negative."
         ) from exc
 
 
@@ -311,7 +311,7 @@ def normalize_glitch_qualifier(qualifier: str) -> str:
         return _GLITCH_QUALIFIER_COMMANDS[normalized]
     except KeyError as exc:
         raise ParameterValidationError(
-            "glitch trigger qualifier must be one of: greater-than, less-than, range."
+            "pulse-width trigger qualifier must be one of: greater-than, less-than, range."
         ) from exc
 
 
@@ -382,13 +382,13 @@ def edge_trigger_slope_query() -> str:
 
 
 def glitch_trigger_source_command(channel: int) -> str:
-    """Build the SCPI command for analog glitch trigger source."""
+    """Build the SCPI command for analog GLITch source."""
 
     return f":TRIGger:GLITch:SOURce CHANnel{channel}"
 
 
 def glitch_trigger_source_query() -> str:
-    """Build the SCPI query for glitch trigger source."""
+    """Build the SCPI query for GLITch source."""
 
     return ":TRIGger:GLITch:SOURce?"
 
@@ -512,31 +512,31 @@ def glitch_trigger_configure_commands(
     if qualifier_command == "GREaterthan":
         if time_seconds is None:
             raise ParameterValidationError(
-                "glitch trigger greater-than requires time_seconds."
+                "pulse-width trigger greater-than requires time_seconds."
             )
         if min_time_seconds is not None or max_time_seconds is not None:
             raise ParameterValidationError(
-                "glitch trigger greater-than does not accept range timing."
+                "pulse-width trigger greater-than does not accept range timing."
             )
         commands.append(glitch_trigger_greater_than_command(validate_trigger_time(time_seconds)))
     elif qualifier_command == "LESSthan":
         if time_seconds is None:
-            raise ParameterValidationError("glitch trigger less-than requires time_seconds.")
+            raise ParameterValidationError("pulse-width trigger less-than requires time_seconds.")
         if min_time_seconds is not None or max_time_seconds is not None:
-            raise ParameterValidationError("glitch trigger less-than does not accept range timing.")
+            raise ParameterValidationError("pulse-width trigger less-than does not accept range timing.")
         commands.append(glitch_trigger_less_than_command(validate_trigger_time(time_seconds)))
     else:
         if time_seconds is not None:
-            raise ParameterValidationError("glitch trigger range does not accept time_seconds.")
+            raise ParameterValidationError("pulse-width trigger range does not accept time_seconds.")
         if min_time_seconds is None or max_time_seconds is None:
             raise ParameterValidationError(
-                "glitch trigger range requires min_time_seconds and max_time_seconds."
+                "pulse-width trigger range requires min_time_seconds and max_time_seconds."
             )
         min_time = validate_trigger_time(min_time_seconds)
         max_time = validate_trigger_time(max_time_seconds)
         if min_time >= max_time:
             raise ParameterValidationError(
-                "glitch trigger min_time_seconds must be less than max_time_seconds."
+                "pulse-width trigger min_time_seconds must be less than max_time_seconds."
             )
         commands.append(glitch_trigger_range_command(max_time, min_time))
 

@@ -20,7 +20,7 @@ def _runtime(tmp_path):
 @pytest.mark.parametrize(
     "arguments, expected",
     [
-        ({"query": True}, ["trigger-glitch", "--query"]),
+        ({"query": True}, ["trigger-pulse-width", "--query"]),
         (
             {
                 "channel": 1,
@@ -29,7 +29,7 @@ def _runtime(tmp_path):
                 "time_seconds": 1e-6,
             },
             [
-                "trigger-glitch",
+                "trigger-pulse-width",
                 "--channel",
                 "1",
                 "--polarity",
@@ -49,7 +49,7 @@ def _runtime(tmp_path):
                 "level_volts": 0.5,
             },
             [
-                "trigger-glitch",
+                "trigger-pulse-width",
                 "--channel",
                 "1",
                 "--polarity",
@@ -71,7 +71,7 @@ def _runtime(tmp_path):
                 "max_time_seconds": 10e-6,
             },
             [
-                "trigger-glitch",
+                "trigger-pulse-width",
                 "--channel",
                 "1",
                 "--polarity",
@@ -86,14 +86,14 @@ def _runtime(tmp_path):
         ),
     ],
 )
-def test_worker_trigger_glitch_arguments_parse(tmp_path, arguments, expected):
+def test_worker_trigger_pulse_width_arguments_parse(tmp_path, arguments, expected):
     runtime = _runtime(tmp_path)
 
-    parsed = worker.parse_domain_command("trigger-glitch", arguments, runtime)
+    parsed = worker.parse_domain_command("trigger-pulse-width", arguments, runtime)
 
-    assert parsed.command == "trigger-glitch"
+    assert parsed.command == "trigger-pulse-width"
     assert worker.arguments_to_argv(
-        worker._normalize_trigger_glitch_worker_arguments("trigger-glitch", arguments)
+        worker._normalize_trigger_glitch_worker_arguments("trigger-pulse-width", arguments)
     ) == expected[1:]
 
 
@@ -108,22 +108,23 @@ def test_worker_trigger_glitch_arguments_parse(tmp_path, arguments, expected):
         {"digital": 0, "polarity": "positive", "qualifier": "less_than", "time_seconds": 1e-6},
     ],
 )
-def test_worker_trigger_glitch_rejects_invalid_arguments(tmp_path, arguments):
+def test_worker_trigger_pulse_width_rejects_invalid_arguments(tmp_path, arguments):
     runtime = _runtime(tmp_path)
 
     with pytest.raises(KeysightScopeError):
-        worker.parse_domain_command("trigger-glitch", arguments, runtime)
+        worker.parse_domain_command("trigger-pulse-width", arguments, runtime)
 
 
-def test_worker_rejects_trigger_glitch_alias():
+@pytest.mark.parametrize("command", ["trigger-glitch", "trigger-pulse"])
+def test_worker_rejects_trigger_pulse_width_aliases(command):
     with pytest.raises(KeysightScopeError):
-        worker.validate_command_request({"command": "trigger-pulse", "arguments": {"query": True}})
+        worker.validate_command_request({"command": command, "arguments": {"query": True}})
 
 
-def test_worker_trigger_glitch_simulator_execution_sends_expected_scpi(tmp_path):
+def test_worker_trigger_pulse_width_simulator_execution_sends_expected_scpi(tmp_path):
     runtime = _runtime(tmp_path)
     parsed = worker.parse_domain_command(
-        "trigger-glitch",
+        "trigger-pulse-width",
         {
             "channel": 1,
             "polarity": "positive",

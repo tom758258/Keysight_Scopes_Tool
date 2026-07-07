@@ -319,7 +319,7 @@ class KeysightScope:
         max_time_seconds: float | None = None,
         level_volts: float | None = None,
     ) -> None:
-        """Configure analog pulse-width glitch trigger settings."""
+        """Configure analog pulse-width trigger settings."""
 
         self._glitch_trigger_controller().configure(
             channel=channel,
@@ -332,7 +332,7 @@ class KeysightScope:
         )
 
     def query_glitch_trigger(self) -> GlitchTriggerState:
-        """Query pulse-width glitch trigger settings."""
+        """Query pulse-width trigger settings."""
 
         return self._glitch_trigger_controller().query()
 

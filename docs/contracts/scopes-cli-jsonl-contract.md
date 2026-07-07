@@ -168,7 +168,7 @@ Control and setup:
   `position_seconds`.
 - `edge-trigger`: `operation`, `commands`, `source_channel`, `level_volts`,
   `slope`.
-- `trigger-glitch`: `operation` and `commands`. Configure results include
+- `trigger-pulse-width`: `operation` and `commands`. Configure results include
   `channel`, `source`, `polarity`, `qualifier`, optional `time_seconds`,
   optional `min_time_seconds`/`max_time_seconds`, optional `level_volts`, and
   `state_changing: true`. Query results include normalized `mode`, `source`,

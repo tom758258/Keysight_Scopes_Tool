@@ -134,7 +134,7 @@ Worker `/command` supports the existing Scopes capability surface:
 - `display-label`, `display-clear`, `display-persistence`,
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
-- `edge-trigger`, `trigger-glitch`, `trigger-holdoff`, `cursor`, `autoscale`
+- `edge-trigger`, `trigger-pulse-width`, `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -213,15 +213,16 @@ form:
 {"command": "force-trigger", "arguments": {}}
 ```
 
-`trigger-glitch` is accepted only as the canonical pulse-width trigger command:
+`trigger-pulse-width` is accepted only as the canonical Pulse Width trigger
+command. It uses the underlying Keysight `:TRIGger:GLITch...` SCPI family:
 
 ```json
-{"command": "trigger-glitch", "arguments": {"query": true}}
+{"command": "trigger-pulse-width", "arguments": {"query": true}}
 ```
 
 ```json
 {
-  "command": "trigger-glitch",
+  "command": "trigger-pulse-width",
   "arguments": {
     "channel": 1,
     "polarity": "positive",
@@ -233,7 +234,7 @@ form:
 
 ```json
 {
-  "command": "trigger-glitch",
+  "command": "trigger-pulse-width",
   "arguments": {
     "channel": 1,
     "polarity": "negative",
@@ -246,7 +247,7 @@ form:
 
 ```json
 {
-  "command": "trigger-glitch",
+  "command": "trigger-pulse-width",
   "arguments": {
     "channel": 1,
     "polarity": "positive",
@@ -261,8 +262,8 @@ Worker JSON may use `greater_than` and `less_than` qualifier values; they are
 converted to the CLI `greater-than` and `less-than` values before parsing.
 Configure mode is analog-channel-only and changes trigger settings. Query mode
 must use `query: true` without configure keys. The worker does not accept
-aliases such as `trigger-pulse`, `pulse-width`, `glitch-trigger`, or
-`trigger-width`.
+aliases such as `trigger-glitch`, `trigger-pulse`, `pulse-width`,
+`glitch-trigger`, or `trigger-width`.
 
 ### Advanced Channel Commands
 
@@ -507,7 +508,7 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`trigger-glitch`, `display-clear`, `display-persistence`, `display-intensity`,
+`trigger-pulse-width`, `display-clear`, `display-persistence`, `display-intensity`,
 and `display-vectors` do not create command artifacts. Their terminal
 `result.json.result` contains the existing one-shot structured `result` fields
 for that command. For `sample-rate` maximum queries, that includes

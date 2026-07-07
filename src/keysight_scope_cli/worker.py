@@ -65,7 +65,7 @@ DOMAIN_COMMANDS = {
     "timebase-scale",
     "timebase-position",
     "edge-trigger",
-    "trigger-glitch",
+    "trigger-pulse-width",
     "trigger-holdoff",
     "cursor",
     "autoscale",
@@ -359,7 +359,7 @@ def _validate_display_worker_arguments(command: str, arguments: dict[str, Any]) 
 def _normalize_trigger_glitch_worker_arguments(
     command: str, arguments: dict[str, Any]
 ) -> dict[str, Any]:
-    if command != "trigger-glitch":
+    if command != "trigger-pulse-width":
         return arguments
     allowed = {
         "query",
@@ -373,9 +373,9 @@ def _normalize_trigger_glitch_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-glitch: {sorted(unknown)[0]}")
+        raise KeysightScopeError(f"unknown argument for trigger-pulse-width: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-glitch argument query must be exactly true")
+        raise KeysightScopeError("trigger-pulse-width argument query must be exactly true")
     normalized = dict(arguments)
     qualifier = normalized.get("qualifier")
     if qualifier == "greater_than":
