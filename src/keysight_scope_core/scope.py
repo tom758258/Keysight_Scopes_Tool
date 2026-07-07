@@ -28,6 +28,8 @@ from .trigger import (
     EdgeTriggerState,
     GlitchTriggerController,
     GlitchTriggerState,
+    PatternTriggerController,
+    PatternTriggerState,
     RuntTriggerController,
     RuntTriggerState,
     TransitionTriggerController,
@@ -397,6 +399,16 @@ class KeysightScope:
 
         return self._transition_trigger_controller().query()
 
+    def configure_pattern_trigger(self, pattern: str) -> PatternTriggerState:
+        """Configure DSO ASCII pattern trigger settings."""
+
+        return self._pattern_trigger_controller().configure(pattern)
+
+    def query_pattern_trigger(self) -> PatternTriggerState:
+        """Query pattern trigger settings."""
+
+        return self._pattern_trigger_controller().query()
+
     def capture_waveform_byte(self, channel: int, points: int = 1000) -> WaveformCapture:
         """Capture one analog channel using BYTE waveform format."""
 
@@ -635,6 +647,13 @@ class KeysightScope:
                 "Transition trigger operations require known capabilities; call query_idn() first."
             )
         return TransitionTriggerController(self.scpi, self.capabilities)
+
+    def _pattern_trigger_controller(self) -> PatternTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Pattern trigger operations require known capabilities; call query_idn() first."
+            )
+        return PatternTriggerController(self.scpi, self.capabilities)
 
     def _waveform_controller(self) -> WaveformController:
         if self.capabilities is None:

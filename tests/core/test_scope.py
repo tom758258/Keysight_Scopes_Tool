@@ -444,6 +444,42 @@ def test_scope_transition_trigger_uses_capabilities_from_idn():
     ]
 
 
+def test_scope_pattern_trigger_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":TRIGger:MODE?": "PATT",
+            ":TRIGger:PATTern:FORMat?": "ASC",
+            ":TRIGger:PATTern?": '"XXX1",NONE,POS',
+            ":TRIGger:PATTern:QUALifier?": "ENT",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    configured = scope.configure_pattern_trigger("xxx1")
+    state = scope.query_pattern_trigger()
+
+    assert configured.pattern == "XXX1"
+    assert state.mode == "pattern"
+    assert state.format == "ascii"
+    assert state.pattern == "XXX1"
+    assert state.qualifier == "entered"
+    assert state.edge_source_raw == "NONE"
+    assert state.edge_raw == "POS"
+    assert backend.history == [
+        "*IDN?",
+        ":TRIGger:MODE PATTern",
+        ":TRIGger:PATTern:FORMat ASCii",
+        ':TRIGger:PATTern "XXX1"',
+        ":TRIGger:PATTern:QUALifier ENTered",
+        ":TRIGger:MODE?",
+        ":TRIGger:PATTern:FORMat?",
+        ":TRIGger:PATTern?",
+        ":TRIGger:PATTern:QUALifier?",
+    ]
+
+
 def test_scope_waveform_requires_known_capabilities():
     scope = KeysightScope(FakeBackend())
 

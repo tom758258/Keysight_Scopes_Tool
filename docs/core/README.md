@@ -40,6 +40,12 @@ Core owns runtime behavior:
   families. This v1 slice configures and queries transition trigger state only;
   it does not run, stop, single, force trigger, wait for trigger, or capture
   waveform data.
+- DSO analog ASCII pattern trigger helpers for the Keysight
+  `:TRIGger:PATTern...` command family. This v1 slice configures
+  `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`, raw `0/1/X`
+  patterns, and `:TRIGger:PATTern:QUALifier ENTered`; query mode preserves
+  raw pattern, edge source, and edge readbacks. It is hardware-free only so
+  far; no live hardware validation has been run.
 - Model capability profiles for the runtime-supported feature surface.
   DSO-X 3000X and 4000X profiles enable 50 ohm channel impedance support;
   DSO-X 2000X profiles keep channel impedance guarded to one-meg only.

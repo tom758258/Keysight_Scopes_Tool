@@ -172,6 +172,11 @@ class SimulatorBackend:
     transition_time: float = 1e-6
     transition_low_level: float = -0.5
     transition_high_level: float = 0.5
+    pattern_format: str = "ASCii"
+    pattern: str = "XXXX"
+    pattern_qualifier: str = "ENTered"
+    pattern_edge_source: str = "NONE"
+    pattern_edge: str = "POS"
     trigger_holdoff: float = 100e-9
     marker_mode: str = "OFF"
     marker_source: int = 1
@@ -340,6 +345,15 @@ class SimulatorBackend:
             if value.upper() not in {"GREATERTHAN", "LESSTHAN"}:
                 raise SimulatorBackendError(f"Unsupported simulator write: {command}")
             self.transition_qualifier = value
+        elif upper == ":TRIGGER:PATTERN:FORMAT ASCII":
+            self.pattern_format = "ASCii"
+        elif upper.startswith(":TRIGGER:PATTERN:QUALIFIER "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"ENTERED"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.pattern_qualifier = value
+        elif upper.startswith(":TRIGGER:PATTERN "):
+            self.pattern = _parse_scpi_string_arg(command.split(" ", 1)[1]).upper()
         elif upper.startswith(":TRIGGER:HOLDOFF "):
             self.trigger_holdoff = _parse_scpi_number(command.split(" ", 1)[1])
         elif upper.startswith(":TRIGGER:HOLDOFF:RANDOM "):
@@ -481,6 +495,12 @@ class SimulatorBackend:
             return _abbreviate_transition_qualifier(self.transition_qualifier)
         if upper == ":TRIGGER:TRANSITION:TIME?":
             return f"{self.transition_time:.8E}"
+        if upper == ":TRIGGER:PATTERN:FORMAT?":
+            return _abbreviate_pattern_format(self.pattern_format)
+        if upper == ":TRIGGER:PATTERN?":
+            return f'"{self.pattern}",{self.pattern_edge_source},{self.pattern_edge}'
+        if upper == ":TRIGGER:PATTERN:QUALIFIER?":
+            return _abbreviate_pattern_qualifier(self.pattern_qualifier)
         if upper.startswith(":TRIGGER:LEVEL:LOW?"):
             if self.trigger_mode.strip().upper().startswith("TRAN"):
                 return f"{self.transition_low_level:.8E}"
@@ -1447,6 +1467,8 @@ def _abbreviate_trigger_mode(value: str) -> str:
         return "RUNT"
     if upper.startswith("TRAN"):
         return "TRAN"
+    if upper.startswith("PATT"):
+        return "PATT"
     if upper.startswith("EDGE"):
         return "EDGE"
     return upper
@@ -1500,6 +1522,22 @@ def _abbreviate_glitch_qualifier(value: str) -> str:
         return "LESS"
     if upper.startswith("RANG"):
         return "RANG"
+    return upper
+
+
+def _abbreviate_pattern_format(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("ASC"):
+        return "ASC"
+    if upper.startswith("HEX"):
+        return "HEX"
+    return upper
+
+
+def _abbreviate_pattern_qualifier(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("ENT"):
+        return "ENT"
     return upper
 
 

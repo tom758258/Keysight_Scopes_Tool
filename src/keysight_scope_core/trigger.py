@@ -126,6 +126,17 @@ _TRANSITION_QUALIFIER_READBACKS = {
     "LESSTHAN": "less-than",
 }
 
+_PATTERN_FORMAT_READBACKS = {
+    "ASC": "ascii",
+    "ASCII": "ascii",
+    "HEX": "hex",
+}
+
+_PATTERN_QUALIFIER_READBACKS = {
+    "ENT": "entered",
+    "ENTERED": "entered",
+}
+
 OPERATION_CONDITION_RUN_MASK = 1 << 3
 OPERATION_CONDITION_RUI_ENAB_MASK = 1 << 4
 OPERATION_CONDITION_WAIT_TRIG_MASK = 1 << 5
@@ -232,6 +243,32 @@ class TransitionTriggerState:
             "time_seconds": self.time_seconds,
             "low_level_volts": self.low_level_volts,
             "high_level_volts": self.high_level_volts,
+            "raw": dict(self.raw),
+        }
+
+
+@dataclass(frozen=True)
+class PatternTriggerState:
+    """Readback state for pattern trigger settings."""
+
+    mode: str | None
+    format: str | None
+    pattern: str | None
+    qualifier: str | None
+    edge_source_raw: str | None
+    edge_raw: str | None
+    raw_pattern_response: str | None
+    raw: dict[str, str]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "format": self.format,
+            "pattern": self.pattern,
+            "qualifier": self.qualifier,
+            "edge_source_raw": self.edge_source_raw,
+            "edge_raw": self.edge_raw,
+            "raw_pattern_response": self.raw_pattern_response,
             "raw": dict(self.raw),
         }
 
@@ -506,6 +543,61 @@ class TransitionTriggerController:
         )
 
 
+class PatternTriggerController:
+    """Controls for DSO ASCII pattern trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(self, pattern: str) -> PatternTriggerState:
+        """Configure DSO ASCII entered-pattern trigger settings."""
+
+        commands = pattern_trigger_configure_commands(
+            pattern=pattern,
+            capabilities=self.capabilities,
+        )
+        for command in commands:
+            self.scpi.write(command)
+        normalized = validate_pattern_trigger_pattern(pattern, self.capabilities)
+        return PatternTriggerState(
+            mode="pattern",
+            format="ascii",
+            pattern=normalized,
+            qualifier="entered",
+            edge_source_raw=None,
+            edge_raw=None,
+            raw_pattern_response=None,
+            raw={
+                "mode": "PATTern",
+                "format": "ASCii",
+                "pattern": normalized,
+                "qualifier": "ENTered",
+            },
+        )
+
+    def query(self) -> PatternTriggerState:
+        """Query pattern trigger state without changing acquisition state."""
+
+        raw = {
+            "mode": self.scpi.query(trigger_mode_query()),
+            "format": self.scpi.query(pattern_trigger_format_query()),
+            "pattern": self.scpi.query(pattern_trigger_pattern_query()),
+            "qualifier": self.scpi.query(pattern_trigger_qualifier_query()),
+        }
+        pattern, edge_source, edge = parse_pattern_trigger_response(raw["pattern"])
+        return PatternTriggerState(
+            mode=parse_trigger_mode(raw["mode"]),
+            format=parse_pattern_format_readback(raw["format"]),
+            pattern=pattern,
+            qualifier=parse_pattern_qualifier_readback(raw["qualifier"]),
+            edge_source_raw=edge_source,
+            edge_raw=edge,
+            raw_pattern_response=raw["pattern"],
+            raw=raw,
+        )
+
+
 def validate_trigger_level(level_volts: float) -> float:
     """Validate a trigger level before sending it to the instrument."""
 
@@ -624,6 +716,12 @@ def trigger_mode_transition_command() -> str:
     """Build the SCPI command that selects transition trigger mode."""
 
     return ":TRIGger:MODE TRANsition"
+
+
+def trigger_mode_pattern_command() -> str:
+    """Build the SCPI command that selects pattern trigger mode."""
+
+    return ":TRIGger:MODE PATTern"
 
 
 def trigger_mode_query() -> str:
@@ -1088,6 +1186,89 @@ def transition_trigger_configure_commands(
     ]
 
 
+def pattern_trigger_format_command() -> str:
+    """Build the SCPI command for ASCII pattern format."""
+
+    return ":TRIGger:PATTern:FORMat ASCii"
+
+
+def pattern_trigger_format_query() -> str:
+    """Build the SCPI query for pattern format."""
+
+    return ":TRIGger:PATTern:FORMat?"
+
+
+def pattern_trigger_pattern_command(pattern: str) -> str:
+    """Build the SCPI command for the raw ASCII pattern string."""
+
+    return f':TRIGger:PATTern "{pattern}"'
+
+
+def pattern_trigger_pattern_query() -> str:
+    """Build the SCPI query for pattern state."""
+
+    return ":TRIGger:PATTern?"
+
+
+def pattern_trigger_qualifier_command() -> str:
+    """Build the SCPI command for entered pattern qualifier."""
+
+    return ":TRIGger:PATTern:QUALifier ENTered"
+
+
+def pattern_trigger_qualifier_query() -> str:
+    """Build the SCPI query for pattern qualifier."""
+
+    return ":TRIGger:PATTern:QUALifier?"
+
+
+def pattern_trigger_query_commands() -> list[str]:
+    """Return the pattern trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        pattern_trigger_format_query(),
+        pattern_trigger_pattern_query(),
+        pattern_trigger_qualifier_query(),
+    ]
+
+
+def pattern_trigger_configure_commands(
+    *,
+    pattern: str,
+    capabilities: ScopeCapabilities,
+) -> list[str]:
+    """Return the DSO ASCII pattern trigger configure SCPI sequence."""
+
+    normalized = validate_pattern_trigger_pattern(pattern, capabilities)
+    return [
+        trigger_mode_pattern_command(),
+        pattern_trigger_format_command(),
+        pattern_trigger_pattern_command(normalized),
+        pattern_trigger_qualifier_command(),
+    ]
+
+
+def validate_pattern_trigger_pattern(pattern: str, capabilities: ScopeCapabilities) -> str:
+    """Validate and normalize a v1 DSO ASCII pattern string."""
+
+    if not isinstance(pattern, str):
+        raise ParameterValidationError("pattern trigger pattern must be a string.")
+    if pattern.lower().startswith("0x"):
+        raise ParameterValidationError("pattern trigger pattern does not accept hex strings.")
+    normalized = pattern.upper()
+    if not normalized:
+        raise ParameterValidationError("pattern trigger pattern must not be empty.")
+    if any(char not in {"0", "1", "X"} for char in normalized):
+        raise ParameterValidationError("pattern trigger pattern may contain only 0, 1, and X.")
+    if len(normalized) != capabilities.analog_channels:
+        raise ParameterValidationError(
+            "pattern trigger pattern length must match the model analog channel count "
+            f"({capabilities.analog_channels})."
+        )
+    return normalized
+
+
 def parse_edge_trigger_source(raw: str) -> int:
     """Parse an edge trigger source readback into an analog channel number."""
 
@@ -1118,6 +1299,8 @@ def parse_trigger_mode(raw: str) -> str | None:
         return "runt"
     if normalized in {"TRAN", "TRANSITION"}:
         return "transition"
+    if normalized in {"PATT", "PATTERN"}:
+        return "pattern"
     if normalized in {"EDGE"}:
         return "edge"
     return None
@@ -1206,6 +1389,30 @@ def parse_transition_qualifier_readback(raw: str) -> str | None:
     """Parse a transition qualifier readback when recognized."""
 
     return _TRANSITION_QUALIFIER_READBACKS.get(raw.strip().upper())
+
+
+def parse_pattern_format_readback(raw: str) -> str | None:
+    """Parse a pattern format readback when recognized."""
+
+    return _PATTERN_FORMAT_READBACKS.get(raw.strip().upper())
+
+
+def parse_pattern_qualifier_readback(raw: str) -> str | None:
+    """Parse a pattern qualifier readback when recognized."""
+
+    return _PATTERN_QUALIFIER_READBACKS.get(raw.strip().upper())
+
+
+def parse_pattern_trigger_response(raw: str) -> tuple[str | None, str | None, str | None]:
+    """Parse :TRIGger:PATTern? as string plus optional edge fields."""
+
+    parts = _split_pattern_response(raw)
+    if not parts:
+        return None, None, None
+    pattern = _strip_optional_quotes(parts[0])
+    edge_source = parts[1].strip() if len(parts) > 1 else None
+    edge = parts[2].strip() if len(parts) > 2 else None
+    return pattern, edge_source, edge
 
 
 def parse_edge_slope(raw: str) -> str:
@@ -1301,6 +1508,31 @@ def _parse_channel_source(suffix: str) -> str | None:
 
 def _parse_digital_source(suffix: str) -> str | None:
     return "digital" if _parse_digital_suffix(suffix) is not None else None
+
+
+def _split_pattern_response(raw: str) -> list[str]:
+    parts: list[str] = []
+    current: list[str] = []
+    in_quotes = False
+    for char in raw.strip():
+        if char == '"':
+            in_quotes = not in_quotes
+            current.append(char)
+        elif char == "," and not in_quotes:
+            parts.append("".join(current).strip())
+            current = []
+        else:
+            current.append(char)
+    if current or raw.strip():
+        parts.append("".join(current).strip())
+    return parts
+
+
+def _strip_optional_quotes(value: str) -> str:
+    text = value.strip()
+    if len(text) >= 2 and text[0] == '"' and text[-1] == '"':
+        return text[1:-1]
+    return text
 
 
 def force_trigger_command() -> str:

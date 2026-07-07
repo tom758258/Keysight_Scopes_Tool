@@ -68,6 +68,7 @@ DOMAIN_COMMANDS = {
     "trigger-pulse-width",
     "trigger-runt",
     "trigger-transition",
+    "trigger-pattern",
     "trigger-holdoff",
     "cursor",
     "autoscale",
@@ -316,6 +317,7 @@ def parse_domain_command(
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_pattern_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
     if runtime.mode == "simulate":
         argv += ["--simulate", "--model", runtime.model]
@@ -443,6 +445,20 @@ def _normalize_trigger_transition_worker_arguments(
     elif qualifier == "less_than":
         normalized["qualifier"] = "less-than"
     return normalized
+
+
+def _normalize_trigger_pattern_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-pattern":
+        return arguments
+    allowed = {"query", "pattern"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for trigger-pattern: {sorted(unknown)[0]}")
+    if "query" in arguments and arguments["query"] is not True:
+        raise KeysightScopeError("trigger-pattern argument query must be exactly true")
+    return dict(arguments)
 
 
 def arguments_to_argv(arguments: dict[str, Any]) -> list[str]:

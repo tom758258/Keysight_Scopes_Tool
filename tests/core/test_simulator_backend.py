@@ -109,6 +109,20 @@ def test_simulator_glitch_less_than_roundtrip():
     assert backend.query(":TRIGger:GLITch:QUALifier?") == "LESS"
 
 
+def test_simulator_pattern_trigger_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE PATTern")
+    backend.write(":TRIGger:PATTern:FORMat ASCii")
+    backend.write(':TRIGger:PATTern "XXX1"')
+    backend.write(":TRIGger:PATTern:QUALifier ENTered")
+
+    assert backend.query(":TRIGger:MODE?") == "PATT"
+    assert backend.query(":TRIGger:PATTern:FORMat?") == "ASC"
+    assert backend.query(":TRIGger:PATTern?") == '"XXX1",NONE,POS'
+    assert backend.query(":TRIGger:PATTern:QUALifier?") == "ENT"
+
+
 def test_simulator_glitch_greater_than_with_level_roundtrip():
     backend = SimulatorBackend()
 

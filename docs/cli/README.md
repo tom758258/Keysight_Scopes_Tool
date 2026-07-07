@@ -88,6 +88,10 @@ Current implemented scope:
 - Configure or query analog-channel transition trigger settings with
   `:TRIGger:MODE TRANsition`, `:TRIGger:TRANsition:*`, and shared
   `:TRIGger:LEVel:LOW/HIGH` threshold commands.
+- Configure or query DSO analog ASCII pattern trigger settings with
+  `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`,
+  `:TRIGger:PATTern "<pattern>"`, and
+  `:TRIGger:PATTern:QUALifier ENTered`.
 - Enable, disable, or query display labels with `:DISPlay:LABel`; clear
   waveform display data with `:DISPlay:CLEar`; set/query display persistence,
   waveform intensity, and vector display with `:DISPlay:PERSistence`,
@@ -771,6 +775,48 @@ Worker usage:
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-transition --arguments-json "{\"query\":true}" --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-transition --arguments-json "{\"channel\":1,\"slope\":\"positive\",\"qualifier\":\"greater_than\",\"time_seconds\":0.000005,\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
+```
+
+Configure or query DSO analog ASCII pattern trigger settings with the canonical
+`trigger-pattern` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-pattern --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --pattern XXX1 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-pattern --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-pattern --dry-run --json --pattern XXX1
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-pattern --simulate --json --query
+```
+
+`trigger-pattern` v1 configures and queries the Keysight Pattern trigger using
+the DSO analog ASCII entered-pattern surface only. Configure mode is
+state-changing and sends `:TRIGger:MODE PATTern`,
+`:TRIGger:PATTern:FORMat ASCii`, `:TRIGger:PATTern "<pattern>"`, and
+`:TRIGger:PATTern:QUALifier ENTered`. The pattern is a raw ASCII string using
+only `0`, `1`, and `X`; lowercase input is normalized to uppercase. The CLI
+rejects empty strings, whitespace, commas, quotes, `R`, `F`, `0x...`, and other
+characters before opening an instrument. Pattern length must match the selected
+model profile analog channel count.
+
+Query mode reads `:TRIGger:MODE?`, `:TRIGger:PATTern:FORMat?`,
+`:TRIGger:PATTern?`, and `:TRIGger:PATTern:QUALifier?`. JSON normalizes common
+readbacks such as `ASC`/`ASCii` to `ascii`, `HEX` to `hex`, and
+`ENT`/`ENTered` to `entered`, while preserving raw pattern response,
+edge-source, and edge readback fields.
+
+This v1 slice does not support HEX configure mode, digital/MSO pattern
+configuration, `R`/`F`, edge source/edge configure parameters, duration
+qualifiers, pattern range commands, source commands, level commands, aliases,
+or generic trigger-tree behavior. Hardware-free Core/CLI/simulator/worker
+tests cover this command. No live hardware validation was run because no
+instrument is currently available. Pending validation includes live CLI,
+worker live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A live validation,
+MSO/digital validation, and broader trigger-tree validation.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-pattern --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-pattern --arguments-json "{\"pattern\":\"XXX1\"}" --json
 ```
 
 Query read-only measurements:

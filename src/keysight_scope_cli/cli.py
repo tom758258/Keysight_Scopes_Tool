@@ -215,6 +215,8 @@ from keysight_scope_core.trigger import (
     normalize_transition_qualifier,
     normalize_transition_slope,
     operation_condition_query,
+    pattern_trigger_configure_commands,
+    pattern_trigger_query_commands,
     runt_trigger_configure_commands,
     runt_trigger_high_level_query,
     runt_trigger_low_level_query,
@@ -225,6 +227,7 @@ from keysight_scope_core.trigger import (
     trigger_mode_edge_command,
     trigger_high_level_query,
     trigger_low_level_query,
+    validate_pattern_trigger_pattern,
     validate_trigger_level,
     validate_trigger_time,
 )
@@ -1058,6 +1061,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="upper transition threshold in volts",
     )
 
+    pattern_trigger_parser = subparsers.add_parser(
+        "trigger-pattern",
+        help="configure or query DSO ASCII pattern trigger settings",
+    )
+    _add_scope_connection_args(pattern_trigger_parser)
+    pattern_trigger_parser.add_argument(
+        "--query",
+        dest="pattern_query",
+        action="store_true",
+        help="query pattern trigger state",
+    )
+    pattern_trigger_parser.add_argument(
+        "--pattern",
+        dest="pattern",
+        default=None,
+        help="raw ASCII pattern using only 0, 1, and X",
+    )
+
     cursor_parser = subparsers.add_parser(
         "cursor",
         help="query, hide, or configure manual marker cursors",
@@ -1733,6 +1754,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_runt(args)
     if args.command == "trigger-transition":
         return _cmd_trigger_transition(args)
+    if args.command == "trigger-pattern":
+        return _cmd_trigger_pattern(args)
     if args.command == "cursor":
         return _cmd_cursor(args)
     if args.command == "trigger-holdoff":
@@ -2035,6 +2058,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_runt_args(args)
     if getattr(args, "command", None) == "trigger-transition":
         _validate_trigger_transition_args(args)
+    if getattr(args, "command", None) == "trigger-pattern":
+        _validate_trigger_pattern_args(args)
 
 
 def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
@@ -2172,6 +2197,18 @@ def _validate_trigger_transition_args(args: argparse.Namespace) -> None:
         raise ParameterValidationError(
             "trigger-transition --low-level-volts must be less than --high-level-volts."
         )
+
+
+def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
+    if getattr(args, "pattern_query", False):
+        if args.pattern is not None:
+            raise ParameterValidationError(
+                "trigger-pattern --query cannot be combined with --pattern."
+            )
+        return
+    if args.pattern is None:
+        raise ParameterValidationError("trigger-pattern configure requires --pattern.")
+    validate_pattern_trigger_pattern(args.pattern, capabilities_for_model(args.model))
 
 
 def _json_error(exc: KeysightScopeError) -> dict[str, object]:
@@ -2507,6 +2544,24 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "state_changing": True,
         }
         return commands + [":SYSTem:ERRor?"], [], result
+    if command == "trigger-pattern":
+        if args.pattern_query:
+            commands = pattern_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        normalized = validate_pattern_trigger_pattern(args.pattern, capabilities)
+        commands = pattern_trigger_configure_commands(
+            pattern=args.pattern,
+            capabilities=capabilities,
+        )
+        return commands + [":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "commands": commands,
+            "mode": "pattern",
+            "format": "ascii",
+            "pattern": normalized,
+            "qualifier": "entered",
+            "state_changing": True,
+        }
     if command == "cursor":
         if args.cursor_query:
             commands = _cursor_query_commands()
@@ -4468,6 +4523,63 @@ def _cmd_trigger_transition(args: argparse.Namespace) -> int:
                 time_seconds=args.time_seconds,
                 low_level_volts=args.low_level_volts,
                 high_level_volts=args.high_level_volts,
+                state_changing=True,
+            )
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_pattern(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.pattern_query:
+            commands = pattern_trigger_query_commands()
+            print("Planned query: pattern trigger state")
+            state = scope.query_pattern_trigger()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or state.raw['mode']}")
+            print(f"Format: {state.format or state.raw['format']}")
+            print(f"Pattern: {state.pattern if state.pattern is not None else state.raw['pattern']}")
+            print(f"Qualifier: {state.qualifier or state.raw['qualifier']}")
+            if state.edge_source_raw is not None:
+                print(f"Edge source: {state.edge_source_raw}")
+            if state.edge_raw is not None:
+                print(f"Edge: {state.edge_raw}")
+        else:
+            commands = pattern_trigger_configure_commands(
+                pattern=args.pattern,
+                capabilities=scope.capabilities,
+            )
+            print(f"Planned change: pattern trigger {args.pattern.upper()}")
+            state = scope.configure_pattern_trigger(args.pattern)
+            _json_update_result(
+                operation="set",
+                commands=commands,
+                mode=state.mode,
+                format=state.format,
+                pattern=state.pattern,
+                qualifier=state.qualifier,
                 state_changing=True,
             )
             for command in commands:

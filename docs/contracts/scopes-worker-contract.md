@@ -135,7 +135,8 @@ Worker `/command` supports the existing Scopes capability surface:
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
-  `trigger-transition`, `trigger-holdoff`, `cursor`, `autoscale`
+  `trigger-transition`, `trigger-pattern`, `trigger-holdoff`, `cursor`,
+  `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -354,6 +355,42 @@ must use `query: true` without configure keys. Configure mode requires
 level must be less than high level. The worker does not accept digital/MSO or
 external source configuration, and it does not accept aliases such as
 `transition-trigger`, `trigger-rise-fall`, or `trigger-rise-time`.
+
+`trigger-pattern` is accepted only as the canonical Pattern trigger command.
+It uses the DSO analog ASCII entered-pattern `:TRIGger:PATTern...` SCPI
+surface:
+
+```json
+{"command": "trigger-pattern", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-pattern", "arguments": {"pattern": "XXX1"}}
+```
+
+Configure mode changes trigger settings and sends `:TRIGger:MODE PATTern`,
+`:TRIGger:PATTern:FORMat ASCii`, `:TRIGger:PATTern "<pattern>"`, and
+`:TRIGger:PATTern:QUALifier ENTered`. The pattern is a raw string using only
+`0`, `1`, and `X`; lowercase input is normalized by the CLI/Core path. Empty
+strings, whitespace, commas, quotes, `R`, `F`, `0x...`, and other characters
+are rejected before enqueue, artifact creation, VISA open, or SCPI. Pattern
+length must match the selected model profile analog channel count.
+
+Query mode must use `query: true` without configure keys and reads
+`:TRIGger:MODE?`, `:TRIGger:PATTern:FORMat?`, `:TRIGger:PATTern?`, and
+`:TRIGger:PATTern:QUALifier?`. Result JSON normalizes common ASCII/HEX format
+and entered qualifier readbacks while preserving raw pattern response,
+edge-source, and edge fields.
+
+The worker does not accept `source`, `level`, `format`, `edge`, `edge_source`,
+`qualifier`, `time_seconds`, `greater_than_seconds`, `less_than_seconds`,
+`range_min_seconds`, or `range_max_seconds` for this v1 command. It does not
+support HEX configure mode, digital/MSO pattern configuration, `R`/`F`,
+optional edge parameters, duration qualifiers, pattern range commands,
+source/level commands, aliases such as `pattern-trigger`, or generic
+trigger-tree behavior. Worker support has hardware-free validation only; live
+CLI, worker live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A, MSO/digital, and
+broader trigger-tree validation have not been run.
 
 ### Advanced Channel Commands
 
@@ -598,11 +635,12 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`trigger-pulse-width`, `trigger-runt`, `trigger-transition`, `display-clear`,
-`display-persistence`, `display-intensity`, and `display-vectors` do not create
-command artifacts. Their terminal `result.json.result` contains the existing
-one-shot structured `result` fields for that command. For `sample-rate` maximum
-queries, that includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.
+`trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
+`trigger-pattern`, `display-clear`, `display-persistence`,
+`display-intensity`, and `display-vectors` do not create command artifacts.
+Their terminal `result.json.result` contains the existing one-shot structured
+`result` fields for that command. For `sample-rate` maximum queries, that
+includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.
 
 Directory-output commands may use the worker job directory even though
 `request.json` already exists there. Other pre-existing command artifact paths
