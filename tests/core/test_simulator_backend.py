@@ -144,6 +144,56 @@ def test_simulator_glitch_level_none_query_is_explicit():
     assert backend.query(":TRIGger:GLITch:LEVel?") == "NONE"
 
 
+def test_simulator_runt_none_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE RUNT")
+    backend.write(":TRIGger:RUNT:SOURce CHANnel1")
+    backend.write(":TRIGger:LEVel:LOW -0.5,CHANnel1")
+    backend.write(":TRIGger:LEVel:HIGH 0.5,CHANnel1")
+    backend.write(":TRIGger:RUNT:POLarity EITHer")
+    backend.write(":TRIGger:RUNT:QUALifier NONE")
+
+    assert backend.query(":TRIGger:MODE?") == "RUNT"
+    assert backend.query(":TRIGger:RUNT:SOURce?") == "CHAN1"
+    assert backend.query(":TRIGger:LEVel:LOW? CHANnel1") == "-5.00000000E-01"
+    assert backend.query(":TRIGger:LEVel:HIGH? CHANnel1") == "5.00000000E-01"
+    assert backend.query(":TRIGger:RUNT:POLarity?") == "EITH"
+    assert backend.query(":TRIGger:RUNT:QUALifier?") == "NONE"
+
+
+def test_simulator_runt_greater_than_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE RUNT")
+    backend.write(":TRIGger:RUNT:SOURce CHANnel1")
+    backend.write(":TRIGger:LEVel:LOW -0.25,CHANnel1")
+    backend.write(":TRIGger:LEVel:HIGH 0.75,CHANnel1")
+    backend.write(":TRIGger:RUNT:POLarity POSitive")
+    backend.write(":TRIGger:RUNT:TIME 5e-6")
+    backend.write(":TRIGger:RUNT:QUALifier GREaterthan")
+
+    assert backend.query(":TRIGger:RUNT:TIME?") == "5.00000000E-06"
+    assert backend.query(":TRIGger:RUNT:POLarity?") == "POS"
+    assert backend.query(":TRIGger:RUNT:QUALifier?") == "GRE"
+
+
+def test_simulator_runt_less_than_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE RUNT")
+    backend.write(":TRIGger:RUNT:SOURce CHANnel1")
+    backend.write(":TRIGger:LEVel:LOW -0.25,CHANnel1")
+    backend.write(":TRIGger:LEVel:HIGH 0.75,CHANnel1")
+    backend.write(":TRIGger:RUNT:POLarity NEGative")
+    backend.write(":TRIGger:RUNT:TIME 2e-6")
+    backend.write(":TRIGger:RUNT:QUALifier LESSthan")
+
+    assert backend.query(":TRIGger:RUNT:TIME?") == "2.00000000E-06"
+    assert backend.query(":TRIGger:RUNT:POLarity?") == "NEG"
+    assert backend.query(":TRIGger:RUNT:QUALifier?") == "LESS"
+
+
 def test_simulator_channel_advanced_settings_round_trip():
     backend = SimulatorBackend()
 

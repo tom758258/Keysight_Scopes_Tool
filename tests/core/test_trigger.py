@@ -10,6 +10,7 @@ from keysight_scope_core.trigger import (
     OPERATION_CONDITION_RUI_ENAB_MASK,
     OPERATION_CONDITION_RUN_MASK,
     OPERATION_CONDITION_WAIT_TRIG_MASK,
+    RuntTriggerController,
     TriggerWaitConfig,
     classify_operation_condition,
     edge_trigger_level_command,
@@ -24,16 +25,22 @@ from keysight_scope_core.trigger import (
     normalize_edge_slope,
     normalize_glitch_polarity,
     normalize_glitch_qualifier,
+    normalize_runt_polarity,
+    normalize_runt_qualifier,
     parse_edge_slope,
     parse_edge_trigger_source,
     parse_glitch_level,
     parse_glitch_range,
     parse_glitch_source,
     parse_operation_condition,
+    parse_runt_source,
     parse_trigger_float,
+    runt_trigger_configure_commands,
+    runt_trigger_query_commands,
     wait_for_trigger_completion,
     trigger_mode_edge_command,
     trigger_mode_glitch_command,
+    trigger_mode_runt_command,
     validate_trigger_level,
 )
 
@@ -388,6 +395,226 @@ def test_glitch_trigger_controller_configures_and_queries_state():
         ":TRIGger:GLITch:LESSthan 1e-06",
         ":TRIGger:GLITch:QUALifier LESSthan",
         *glitch_trigger_query_commands(),
+    ]
+
+
+def test_runt_trigger_none_sequence_skips_time_command():
+    commands = runt_trigger_configure_commands(
+        channel=1,
+        polarity="either",
+        qualifier="none",
+        low_level_volts=-0.5,
+        high_level_volts=0.5,
+        capabilities=capabilities_for_model("DSOX4024A"),
+    )
+
+    assert commands == [
+        ":TRIGger:MODE RUNT",
+        ":TRIGger:RUNT:SOURce CHANnel1",
+        ":TRIGger:LEVel:LOW -0.5,CHANnel1",
+        ":TRIGger:LEVel:HIGH 0.5,CHANnel1",
+        ":TRIGger:RUNT:POLarity EITHer",
+        ":TRIGger:RUNT:QUALifier NONE",
+    ]
+
+
+@pytest.mark.parametrize(
+    "qualifier, expected_time_command, expected_qualifier_command",
+    [
+        ("greater-than", ":TRIGger:RUNT:TIME 5e-06", ":TRIGger:RUNT:QUALifier GREaterthan"),
+        ("less-than", ":TRIGger:RUNT:TIME 5e-06", ":TRIGger:RUNT:QUALifier LESSthan"),
+    ],
+)
+def test_runt_trigger_timed_sequences(qualifier, expected_time_command, expected_qualifier_command):
+    commands = runt_trigger_configure_commands(
+        channel=1,
+        polarity="positive",
+        qualifier=qualifier,
+        time_seconds=5e-6,
+        low_level_volts=-0.25,
+        high_level_volts=0.75,
+        capabilities=capabilities_for_model("DSOX4024A"),
+    )
+
+    assert commands == [
+        ":TRIGger:MODE RUNT",
+        ":TRIGger:RUNT:SOURce CHANnel1",
+        ":TRIGger:LEVel:LOW -0.25,CHANnel1",
+        ":TRIGger:LEVel:HIGH 0.75,CHANnel1",
+        ":TRIGger:RUNT:POLarity POSitive",
+        expected_time_command,
+        expected_qualifier_command,
+    ]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"qualifier": "greater-than", "low_level_volts": -0.5, "high_level_volts": 0.5},
+        {
+            "qualifier": "less-than",
+            "time_seconds": 1e-6,
+            "low_level_volts": 0.5,
+            "high_level_volts": 0.5,
+        },
+        {
+            "qualifier": "none",
+            "time_seconds": 1e-6,
+            "low_level_volts": -0.5,
+            "high_level_volts": 0.5,
+        },
+        {
+            "qualifier": "none",
+            "low_level_volts": float("nan"),
+            "high_level_volts": 0.5,
+        },
+    ],
+)
+def test_runt_trigger_rejects_invalid_timing_and_levels(kwargs):
+    with pytest.raises(ParameterValidationError):
+        runt_trigger_configure_commands(
+            channel=1,
+            polarity="positive",
+            capabilities=capabilities_for_model("DSOX4024A"),
+            **kwargs,
+        )
+
+
+def test_runt_trigger_rejects_invalid_channel_before_scpi():
+    backend = FakeBackend()
+    controller = RuntTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+
+    with pytest.raises(ParameterValidationError):
+        controller.configure(
+            channel=3,
+            polarity="positive",
+            qualifier="none",
+            low_level_volts=-0.5,
+            high_level_volts=0.5,
+        )
+
+    assert backend.history == []
+
+
+@pytest.mark.parametrize("value", ["positive", "negative", "either"])
+def test_normalize_runt_polarity_accepts_public_values(value):
+    assert normalize_runt_polarity(value) in {"POSitive", "NEGative", "EITHer"}
+
+
+@pytest.mark.parametrize("value", ["greater-than", "less-than", "none"])
+def test_normalize_runt_qualifier_accepts_public_values(value):
+    assert normalize_runt_qualifier(value) in {"GREaterthan", "LESSthan", "NONE"}
+
+
+@pytest.mark.parametrize("value", ["sideways", ""])
+def test_normalize_runt_polarity_rejects_invalid_values(value):
+    with pytest.raises(ParameterValidationError):
+        normalize_runt_polarity(value)
+
+
+@pytest.mark.parametrize("value", ["range", "greater_than", ""])
+def test_normalize_runt_qualifier_rejects_invalid_values(value):
+    with pytest.raises(ParameterValidationError):
+        normalize_runt_qualifier(value)
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("CHAN1", ("channel", 1)),
+        ("CHANnel2", ("channel", 2)),
+        ("DIGital7", (None, None)),
+        ("EXT", (None, None)),
+    ],
+)
+def test_parse_runt_source_preserves_only_safe_analog_channels(raw, expected):
+    assert parse_runt_source(raw) == expected
+
+
+def test_runt_trigger_query_sequence_is_explicit_and_non_acquisition():
+    assert trigger_mode_runt_command() == ":TRIGger:MODE RUNT"
+    assert runt_trigger_query_commands() == [
+        ":TRIGger:MODE?",
+        ":TRIGger:RUNT:SOURce?",
+        ":TRIGger:RUNT:POLarity?",
+        ":TRIGger:RUNT:QUALifier?",
+        ":TRIGger:RUNT:TIME?",
+    ]
+
+
+def test_runt_trigger_controller_configures_and_queries_analog_state():
+    backend = FakeBackend(
+        responses={
+            ":TRIGger:MODE?": "RUNT",
+            ":TRIGger:RUNT:SOURce?": "CHAN1",
+            ":TRIGger:RUNT:POLarity?": "EITH",
+            ":TRIGger:RUNT:QUALifier?": "NONE",
+            ":TRIGger:RUNT:TIME?": "+1.00000000E-06",
+            ":TRIGger:LEVel:LOW? CHANnel1": "-5.00000000E-01",
+            ":TRIGger:LEVel:HIGH? CHANnel1": "+5.00000000E-01",
+        }
+    )
+    controller = RuntTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    controller.configure(
+        channel=1,
+        polarity="either",
+        qualifier="none",
+        low_level_volts=-0.5,
+        high_level_volts=0.5,
+    )
+    state = controller.query()
+
+    assert state.mode == "runt"
+    assert state.source_kind == "channel"
+    assert state.channel == 1
+    assert state.polarity == "either"
+    assert state.qualifier == "none"
+    assert state.time_seconds == pytest.approx(1e-6)
+    assert state.low_level_volts == pytest.approx(-0.5)
+    assert state.high_level_volts == pytest.approx(0.5)
+    assert backend.history == [
+        ":TRIGger:MODE RUNT",
+        ":TRIGger:RUNT:SOURce CHANnel1",
+        ":TRIGger:LEVel:LOW -0.5,CHANnel1",
+        ":TRIGger:LEVel:HIGH 0.5,CHANnel1",
+        ":TRIGger:RUNT:POLarity EITHer",
+        ":TRIGger:RUNT:QUALifier NONE",
+        ":TRIGger:MODE?",
+        ":TRIGger:RUNT:SOURce?",
+        ":TRIGger:RUNT:POLarity?",
+        ":TRIGger:RUNT:QUALifier?",
+        ":TRIGger:RUNT:TIME?",
+        ":TRIGger:LEVel:LOW? CHANnel1",
+        ":TRIGger:LEVel:HIGH? CHANnel1",
+    ]
+
+
+def test_runt_trigger_query_skips_levels_for_unsafe_source():
+    backend = FakeBackend(
+        responses={
+            ":TRIGger:MODE?": "RUNT",
+            ":TRIGger:RUNT:SOURce?": "DIGital7",
+            ":TRIGger:RUNT:POLarity?": "POS",
+            ":TRIGger:RUNT:QUALifier?": "GRE",
+            ":TRIGger:RUNT:TIME?": "+1.00000000E-06",
+        }
+    )
+    controller = RuntTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+
+    state = controller.query()
+
+    assert state.source == "DIGital7"
+    assert state.source_kind is None
+    assert state.channel is None
+    assert state.low_level_volts is None
+    assert state.high_level_volts is None
+    assert backend.history == [
+        ":TRIGger:MODE?",
+        ":TRIGger:RUNT:SOURce?",
+        ":TRIGger:RUNT:POLarity?",
+        ":TRIGger:RUNT:QUALifier?",
+        ":TRIGger:RUNT:TIME?",
     ]
 
 

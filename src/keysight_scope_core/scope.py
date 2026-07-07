@@ -23,7 +23,14 @@ from .scpi import SCPIBackend, SCPIClient
 from .screenshot import ScreenshotCapture, ScreenshotController
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
-from .trigger import EdgeTriggerController, EdgeTriggerState, GlitchTriggerController, GlitchTriggerState
+from .trigger import (
+    EdgeTriggerController,
+    EdgeTriggerState,
+    GlitchTriggerController,
+    GlitchTriggerState,
+    RuntTriggerController,
+    RuntTriggerState,
+)
 from .visa_backend import VisaBackend
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformController
 
@@ -336,6 +343,32 @@ class KeysightScope:
 
         return self._glitch_trigger_controller().query()
 
+    def configure_runt_trigger(
+        self,
+        *,
+        channel: int,
+        polarity: str,
+        qualifier: str,
+        low_level_volts: float,
+        high_level_volts: float,
+        time_seconds: float | None = None,
+    ) -> None:
+        """Configure analog runt trigger settings."""
+
+        self._runt_trigger_controller().configure(
+            channel=channel,
+            polarity=polarity,
+            qualifier=qualifier,
+            low_level_volts=low_level_volts,
+            high_level_volts=high_level_volts,
+            time_seconds=time_seconds,
+        )
+
+    def query_runt_trigger(self) -> RuntTriggerState:
+        """Query runt trigger settings."""
+
+        return self._runt_trigger_controller().query()
+
     def capture_waveform_byte(self, channel: int, points: int = 1000) -> WaveformCapture:
         """Capture one analog channel using BYTE waveform format."""
 
@@ -560,6 +593,13 @@ class KeysightScope:
                 "Glitch trigger operations require known capabilities; call query_idn() first."
             )
         return GlitchTriggerController(self.scpi, self.capabilities)
+
+    def _runt_trigger_controller(self) -> RuntTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Runt trigger operations require known capabilities; call query_idn() first."
+            )
+        return RuntTriggerController(self.scpi, self.capabilities)
 
     def _waveform_controller(self) -> WaveformController:
         if self.capabilities is None:

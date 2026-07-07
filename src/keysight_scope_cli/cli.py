@@ -211,7 +211,12 @@ from keysight_scope_core.trigger import (
     glitch_trigger_query_commands,
     normalize_edge_slope,
     normalize_glitch_qualifier,
+    normalize_runt_qualifier,
     operation_condition_query,
+    runt_trigger_configure_commands,
+    runt_trigger_high_level_query,
+    runt_trigger_low_level_query,
+    runt_trigger_query_commands,
     single_command,
     trigger_mode_edge_command,
     validate_trigger_level,
@@ -951,6 +956,54 @@ def _build_parser() -> argparse.ArgumentParser:
         help="optional pulse-width trigger level in volts",
     )
 
+    runt_trigger_parser = subparsers.add_parser(
+        "trigger-runt",
+        help="configure or query analog runt trigger settings",
+    )
+    _add_scope_connection_args(runt_trigger_parser)
+    runt_trigger_parser.add_argument(
+        "--query",
+        dest="runt_query",
+        action="store_true",
+        help="query runt trigger state",
+    )
+    runt_trigger_parser.add_argument(
+        "--channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the runt trigger source",
+    )
+    runt_trigger_parser.add_argument(
+        "--polarity",
+        choices=("positive", "negative", "either"),
+        default=None,
+        help="runt trigger polarity",
+    )
+    runt_trigger_parser.add_argument(
+        "--qualifier",
+        choices=("greater-than", "less-than", "none"),
+        default=None,
+        help="runt trigger qualifier",
+    )
+    runt_trigger_parser.add_argument(
+        "--time-seconds",
+        type=_positive_float,
+        default=None,
+        help="runt time threshold for greater-than or less-than qualifiers",
+    )
+    runt_trigger_parser.add_argument(
+        "--low-level-volts",
+        type=_trigger_level_float,
+        default=None,
+        help="lower runt threshold in volts",
+    )
+    runt_trigger_parser.add_argument(
+        "--high-level-volts",
+        type=_trigger_level_float,
+        default=None,
+        help="upper runt threshold in volts",
+    )
+
     cursor_parser = subparsers.add_parser(
         "cursor",
         help="query, hide, or configure manual marker cursors",
@@ -1622,6 +1675,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_edge_trigger(args)
     if args.command == "trigger-pulse-width":
         return _cmd_trigger_glitch(args)
+    if args.command == "trigger-runt":
+        return _cmd_trigger_runt(args)
     if args.command == "cursor":
         return _cmd_cursor(args)
     if args.command == "trigger-holdoff":
@@ -1920,6 +1975,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             raise ParameterValidationError("display-vectors set OFF is not supported.")
     if getattr(args, "command", None) == "trigger-pulse-width":
         _validate_trigger_glitch_args(args)
+    if getattr(args, "command", None) == "trigger-runt":
+        _validate_trigger_runt_args(args)
 
 
 def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
@@ -1969,6 +2026,54 @@ def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
         raise ParameterValidationError(
             "trigger-pulse-width --min-time-seconds must be less than --max-time-seconds."
         )
+
+
+def _validate_trigger_runt_args(args: argparse.Namespace) -> None:
+    set_values = (
+        getattr(args, "channel", None),
+        getattr(args, "polarity", None),
+        getattr(args, "qualifier", None),
+        getattr(args, "time_seconds", None),
+        getattr(args, "low_level_volts", None),
+        getattr(args, "high_level_volts", None),
+    )
+    if getattr(args, "runt_query", False):
+        if any(value is not None for value in set_values):
+            raise ParameterValidationError(
+                "trigger-runt --query cannot be combined with configure options."
+            )
+        return
+
+    if (
+        args.channel is None
+        or args.polarity is None
+        or args.qualifier is None
+        or args.low_level_volts is None
+        or args.high_level_volts is None
+    ):
+        raise ParameterValidationError(
+            "trigger-runt configure requires --channel, --polarity, --qualifier, "
+            "--low-level-volts, and --high-level-volts."
+        )
+
+    qualifier = normalize_runt_qualifier(args.qualifier)
+    low_level = validate_trigger_level(args.low_level_volts)
+    high_level = validate_trigger_level(args.high_level_volts)
+    if low_level >= high_level:
+        raise ParameterValidationError(
+            "trigger-runt --low-level-volts must be less than --high-level-volts."
+        )
+
+    if qualifier in {"GREaterthan", "LESSthan"}:
+        if args.time_seconds is None:
+            raise ParameterValidationError(
+                "trigger-runt greater-than and less-than require --time-seconds."
+            )
+        validate_trigger_time(args.time_seconds)
+        return
+
+    if args.time_seconds is not None:
+        raise ParameterValidationError("trigger-runt qualifier none rejects --time-seconds.")
 
 
 def _json_error(exc: KeysightScopeError) -> dict[str, object]:
@@ -2251,6 +2356,32 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         else:
             result["min_time_seconds"] = args.min_time_seconds
             result["max_time_seconds"] = args.max_time_seconds
+        return commands + [":SYSTem:ERRor?"], [], result
+    if command == "trigger-runt":
+        if args.runt_query:
+            commands = runt_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        commands = runt_trigger_configure_commands(
+            channel=args.channel,
+            polarity=args.polarity,
+            qualifier=args.qualifier,
+            capabilities=capabilities,
+            time_seconds=args.time_seconds,
+            low_level_volts=args.low_level_volts,
+            high_level_volts=args.high_level_volts,
+        )
+        result: dict[str, object] = {
+            "operation": "set",
+            "commands": commands,
+            "channel": args.channel,
+            "source": f"CHANnel{args.channel}",
+            "polarity": args.polarity,
+            "qualifier": args.qualifier,
+            "time_seconds": args.time_seconds,
+            "low_level_volts": args.low_level_volts,
+            "high_level_volts": args.high_level_volts,
+            "state_changing": True,
+        }
         return commands + [":SYSTem:ERRor?"], [], result
     if command == "cursor":
         if args.cursor_query:
@@ -4038,6 +4169,95 @@ def _cmd_trigger_glitch(args: argparse.Namespace) -> int:
                 result["min_time_seconds"] = args.min_time_seconds
                 result["max_time_seconds"] = args.max_time_seconds
             _json_update_result(**result)
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_runt(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.runt_query:
+            commands = runt_trigger_query_commands()
+            print("Planned query: runt trigger state")
+            state = scope.query_runt_trigger()
+            commands = [command for command in commands if "<source>" not in command]
+            if state.channel is not None:
+                commands.extend(
+                    [
+                        runt_trigger_low_level_query(state.channel),
+                        runt_trigger_high_level_query(state.channel),
+                    ]
+                )
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or state.raw['mode']}")
+            print(f"Source: {state.source}")
+            if state.channel is not None:
+                print(f"Channel: CH{state.channel}")
+            print(f"Polarity: {state.polarity or state.raw['polarity']}")
+            print(f"Qualifier: {state.qualifier or state.raw['qualifier']}")
+            if state.time_seconds is None:
+                print(f"Time s: {state.raw['time']}")
+            else:
+                print(f"Time s: {state.time_seconds:.12g}")
+            if state.low_level_volts is not None:
+                print(f"Low level V: {state.low_level_volts:.12g}")
+            if state.high_level_volts is not None:
+                print(f"High level V: {state.high_level_volts:.12g}")
+        else:
+            commands = runt_trigger_configure_commands(
+                channel=args.channel,
+                polarity=args.polarity,
+                qualifier=args.qualifier,
+                capabilities=scope.capabilities,
+                time_seconds=args.time_seconds,
+                low_level_volts=args.low_level_volts,
+                high_level_volts=args.high_level_volts,
+            )
+            print(
+                f"Planned change: runt trigger CH{args.channel}, polarity {args.polarity}, "
+                f"qualifier {args.qualifier}"
+            )
+            scope.configure_runt_trigger(
+                channel=args.channel,
+                polarity=args.polarity,
+                qualifier=args.qualifier,
+                time_seconds=args.time_seconds,
+                low_level_volts=args.low_level_volts,
+                high_level_volts=args.high_level_volts,
+            )
+            _json_update_result(
+                operation="set",
+                commands=commands,
+                channel=args.channel,
+                source=f"CHANnel{args.channel}",
+                polarity=args.polarity,
+                qualifier=args.qualifier,
+                time_seconds=args.time_seconds,
+                low_level_volts=args.low_level_volts,
+                high_level_volts=args.high_level_volts,
+                state_changing=True,
+            )
             for command in commands:
                 print(f"Command: {command}")
 

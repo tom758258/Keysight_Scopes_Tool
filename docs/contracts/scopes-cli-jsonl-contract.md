@@ -175,6 +175,14 @@ Control and setup:
   `source_kind`, `channel`, `digital`, `polarity`, `qualifier`,
   `greater_than_seconds`, `less_than_seconds`, `range_min_seconds`,
   `range_max_seconds`, `level_volts`, and preserved `raw` readbacks.
+- `trigger-runt`: `operation` and `commands`. Configure results include
+  `channel`, `source`, `polarity`, `qualifier`, `time_seconds`,
+  `low_level_volts`, `high_level_volts`, and `state_changing: true`.
+  `time_seconds` is `null` for `qualifier: "none"`. Query results include
+  normalized `mode`, `source`, `source_kind`, `channel`, `polarity`,
+  `qualifier`, `time_seconds`, `low_level_volts`, `high_level_volts`, and
+  preserved `raw` readbacks. Query mode reads LOW/HIGH levels only when the
+  source readback safely parses as an analog channel.
 - `trigger-holdoff`: `operation`, `command`, optional `commands`, `seconds`.
 - `cursor`: `operation`, `commands`, `source_channel`, `x1_seconds`,
   `x2_seconds`, optional `y1_volts`, `y2_volts`, `auto_timebase`,

@@ -158,6 +158,13 @@ class SimulatorBackend:
     glitch_range_min: float = 1e-6
     glitch_range_max: float = 10e-6
     glitch_level: float | None = 0.0
+    runt_source_channel: int | None = 1
+    runt_source_raw: str = "CHANnel1"
+    runt_polarity: str = "POSitive"
+    runt_qualifier: str = "NONE"
+    runt_time: float = 1e-6
+    runt_low_level: float = -0.5
+    runt_high_level: float = 0.5
     trigger_holdoff: float = 100e-9
     marker_mode: str = "OFF"
     marker_source: int = 1
@@ -284,6 +291,30 @@ class SimulatorBackend:
                 )
             self.glitch_range_min = min_time
             self.glitch_range_max = max_time
+        elif upper.startswith(":TRIGGER:RUNT:SOURCE CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.runt_source_channel = channel
+            self.runt_source_raw = f"CHANnel{channel}"
+        elif upper.startswith(":TRIGGER:LEVEL:LOW "):
+            value, channel = _parse_glitch_level_write(command)
+            self._validate_channel(channel)
+            self.runt_low_level = value
+        elif upper.startswith(":TRIGGER:LEVEL:HIGH "):
+            value, channel = _parse_glitch_level_write(command)
+            self._validate_channel(channel)
+            self.runt_high_level = value
+        elif upper.startswith(":TRIGGER:RUNT:POLARITY "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"POSITIVE", "NEGATIVE", "EITHER"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.runt_polarity = value
+        elif upper.startswith(":TRIGGER:RUNT:TIME "):
+            self.runt_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:RUNT:QUALIFIER "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"GREATERTHAN", "LESSTHAN", "NONE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.runt_qualifier = value
         elif upper.startswith(":TRIGGER:HOLDOFF "):
             self.trigger_holdoff = _parse_scpi_number(command.split(" ", 1)[1])
         elif upper.startswith(":TRIGGER:HOLDOFF:RANDOM "):
@@ -405,6 +436,20 @@ class SimulatorBackend:
             return f"{self.glitch_range_max:.8E},{self.glitch_range_min:.8E}"
         if upper == ":TRIGGER:GLITCH:LEVEL?":
             return "NONE" if self.glitch_level is None else f"{self.glitch_level:.8E}"
+        if upper == ":TRIGGER:RUNT:SOURCE?":
+            if self.runt_source_channel is None:
+                return self.runt_source_raw
+            return f"CHAN{self.runt_source_channel}"
+        if upper == ":TRIGGER:RUNT:POLARITY?":
+            return _abbreviate_runt_polarity(self.runt_polarity)
+        if upper == ":TRIGGER:RUNT:QUALIFIER?":
+            return _abbreviate_runt_qualifier(self.runt_qualifier)
+        if upper == ":TRIGGER:RUNT:TIME?":
+            return f"{self.runt_time:.8E}"
+        if upper.startswith(":TRIGGER:LEVEL:LOW?"):
+            return f"{self.runt_low_level:.8E}"
+        if upper.startswith(":TRIGGER:LEVEL:HIGH?"):
+            return f"{self.runt_high_level:.8E}"
         if upper == ":TRIGGER:HOLDOFF?":
             return f"{self.trigger_holdoff:.12g}"
         if upper == ":MARKER:MODE?":
@@ -1359,8 +1404,32 @@ def _abbreviate_trigger_mode(value: str) -> str:
     upper = value.strip().upper()
     if upper.startswith("GLIT"):
         return "GLIT"
+    if upper.startswith("RUNT"):
+        return "RUNT"
     if upper.startswith("EDGE"):
         return "EDGE"
+    return upper
+
+
+def _abbreviate_runt_polarity(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("POS"):
+        return "POS"
+    if upper.startswith("NEG"):
+        return "NEG"
+    if upper.startswith("EITH"):
+        return "EITH"
+    return upper
+
+
+def _abbreviate_runt_qualifier(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("GRE"):
+        return "GRE"
+    if upper.startswith("LESS"):
+        return "LESS"
+    if upper.startswith("NONE"):
+        return "NONE"
     return upper
 
 

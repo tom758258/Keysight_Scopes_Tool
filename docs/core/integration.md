@@ -17,6 +17,8 @@ names are intended for package consumers and tests:
 - `EdgeTriggerState`
 - `GlitchTriggerController`
 - `GlitchTriggerState`
+- `RuntTriggerController`
+- `RuntTriggerState`
 - `IDN`
 - `KeysightScope`
 - `MeasurementController`

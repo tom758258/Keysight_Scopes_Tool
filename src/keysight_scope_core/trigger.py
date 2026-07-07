@@ -73,6 +73,35 @@ _GLITCH_QUALIFIER_READBACKS = {
     "RANGE": "range",
 }
 
+_RUNT_POLARITY_COMMANDS = {
+    "positive": "POSitive",
+    "negative": "NEGative",
+    "either": "EITHer",
+}
+
+_RUNT_POLARITY_READBACKS = {
+    "POS": "positive",
+    "POSITIVE": "positive",
+    "NEG": "negative",
+    "NEGATIVE": "negative",
+    "EITH": "either",
+    "EITHER": "either",
+}
+
+_RUNT_QUALIFIER_COMMANDS = {
+    "greater-than": "GREaterthan",
+    "less-than": "LESSthan",
+    "none": "NONE",
+}
+
+_RUNT_QUALIFIER_READBACKS = {
+    "GRE": "greater-than",
+    "GREATERTHAN": "greater-than",
+    "LESS": "less-than",
+    "LESSTHAN": "less-than",
+    "NONE": "none",
+}
+
 OPERATION_CONDITION_RUN_MASK = 1 << 3
 OPERATION_CONDITION_RUI_ENAB_MASK = 1 << 4
 OPERATION_CONDITION_WAIT_TRIG_MASK = 1 << 5
@@ -119,6 +148,36 @@ class GlitchTriggerState:
             "range_min_seconds": self.range_min_seconds,
             "range_max_seconds": self.range_max_seconds,
             "level_volts": self.level_volts,
+            "raw": dict(self.raw),
+        }
+
+
+@dataclass(frozen=True)
+class RuntTriggerState:
+    """Readback state for runt trigger settings."""
+
+    mode: str | None
+    source: str
+    source_kind: str | None
+    channel: int | None
+    polarity: str | None
+    qualifier: str | None
+    time_seconds: float | None
+    low_level_volts: float | None
+    high_level_volts: float | None
+    raw: dict[str, str]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "source": self.source,
+            "source_kind": self.source_kind,
+            "channel": self.channel,
+            "polarity": self.polarity,
+            "qualifier": self.qualifier,
+            "time_seconds": self.time_seconds,
+            "low_level_volts": self.low_level_volts,
+            "high_level_volts": self.high_level_volts,
             "raw": dict(self.raw),
         }
 
@@ -267,6 +326,69 @@ class GlitchTriggerController:
         )
 
 
+class RuntTriggerController:
+    """Controls for analog runt trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        channel: int,
+        polarity: str,
+        qualifier: str,
+        low_level_volts: float,
+        high_level_volts: float,
+        time_seconds: float | None = None,
+    ) -> None:
+        """Configure analog-channel runt trigger settings."""
+
+        commands = runt_trigger_configure_commands(
+            channel=channel,
+            polarity=polarity,
+            qualifier=qualifier,
+            low_level_volts=low_level_volts,
+            high_level_volts=high_level_volts,
+            capabilities=self.capabilities,
+            time_seconds=time_seconds,
+        )
+        for command in commands:
+            self.scpi.write(command)
+
+    def query(self) -> RuntTriggerState:
+        """Query runt trigger state without changing acquisition state."""
+
+        raw = {
+            "mode": self.scpi.query(trigger_mode_query()),
+            "source": self.scpi.query(runt_trigger_source_query()),
+            "polarity": self.scpi.query(runt_trigger_polarity_query()),
+            "qualifier": self.scpi.query(runt_trigger_qualifier_query()),
+            "time": self.scpi.query(runt_trigger_time_query()),
+        }
+        source_kind, channel = parse_runt_source(raw["source"])
+        low_level = None
+        high_level = None
+        if channel is not None:
+            raw["low_level"] = self.scpi.query(runt_trigger_low_level_query(channel))
+            raw["high_level"] = self.scpi.query(runt_trigger_high_level_query(channel))
+            low_level = parse_trigger_float(raw["low_level"], "runt low level")
+            high_level = parse_trigger_float(raw["high_level"], "runt high level")
+        return RuntTriggerState(
+            mode=parse_trigger_mode(raw["mode"]),
+            source=raw["source"].strip(),
+            source_kind=source_kind,
+            channel=channel,
+            polarity=parse_runt_polarity_readback(raw["polarity"]),
+            qualifier=parse_runt_qualifier_readback(raw["qualifier"]),
+            time_seconds=parse_optional_trigger_float(raw["time"], "runt time"),
+            low_level_volts=low_level,
+            high_level_volts=high_level,
+            raw=raw,
+        )
+
+
 def validate_trigger_level(level_volts: float) -> float:
     """Validate a trigger level before sending it to the instrument."""
 
@@ -315,6 +437,30 @@ def normalize_glitch_qualifier(qualifier: str) -> str:
         ) from exc
 
 
+def normalize_runt_polarity(polarity: str) -> str:
+    """Normalize a user-facing runt polarity into a SCPI argument."""
+
+    normalized = polarity.strip().lower()
+    try:
+        return _RUNT_POLARITY_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "runt trigger polarity must be one of: positive, negative, either."
+        ) from exc
+
+
+def normalize_runt_qualifier(qualifier: str) -> str:
+    """Normalize a user-facing runt qualifier into a SCPI argument."""
+
+    normalized = qualifier.strip().lower()
+    try:
+        return _RUNT_QUALIFIER_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "runt trigger qualifier must be one of: greater-than, less-than, none."
+        ) from exc
+
+
 def trigger_mode_edge_command() -> str:
     """Build the SCPI command that selects edge trigger mode."""
 
@@ -325,6 +471,12 @@ def trigger_mode_glitch_command() -> str:
     """Build the SCPI command that selects glitch trigger mode."""
 
     return ":TRIGger:MODE GLITch"
+
+
+def trigger_mode_runt_command() -> str:
+    """Build the SCPI command that selects runt trigger mode."""
+
+    return ":TRIGger:MODE RUNT"
 
 
 def trigger_mode_query() -> str:
@@ -544,6 +696,133 @@ def glitch_trigger_configure_commands(
     return commands
 
 
+def runt_trigger_source_command(channel: int) -> str:
+    """Build the SCPI command for analog RUNT source."""
+
+    return f":TRIGger:RUNT:SOURce CHANnel{channel}"
+
+
+def runt_trigger_source_query() -> str:
+    """Build the SCPI query for RUNT source."""
+
+    return ":TRIGger:RUNT:SOURce?"
+
+
+def runt_trigger_low_level_command(level_volts: float, channel: int) -> str:
+    """Build the SCPI command for analog runt low level."""
+
+    return f":TRIGger:LEVel:LOW {_format_scpi_float(level_volts)},CHANnel{channel}"
+
+
+def runt_trigger_low_level_query(channel: int) -> str:
+    """Build the SCPI query for analog runt low level."""
+
+    return f":TRIGger:LEVel:LOW? CHANnel{channel}"
+
+
+def runt_trigger_high_level_command(level_volts: float, channel: int) -> str:
+    """Build the SCPI command for analog runt high level."""
+
+    return f":TRIGger:LEVel:HIGH {_format_scpi_float(level_volts)},CHANnel{channel}"
+
+
+def runt_trigger_high_level_query(channel: int) -> str:
+    """Build the SCPI query for analog runt high level."""
+
+    return f":TRIGger:LEVel:HIGH? CHANnel{channel}"
+
+
+def runt_trigger_polarity_command(polarity_command: str) -> str:
+    """Build the SCPI command for runt trigger polarity."""
+
+    return f":TRIGger:RUNT:POLarity {polarity_command}"
+
+
+def runt_trigger_polarity_query() -> str:
+    """Build the SCPI query for runt trigger polarity."""
+
+    return ":TRIGger:RUNT:POLarity?"
+
+
+def runt_trigger_time_command(time_seconds: float) -> str:
+    """Build the SCPI command for runt timing."""
+
+    return f":TRIGger:RUNT:TIME {_format_scpi_float(time_seconds)}"
+
+
+def runt_trigger_time_query() -> str:
+    """Build the SCPI query for runt timing."""
+
+    return ":TRIGger:RUNT:TIME?"
+
+
+def runt_trigger_qualifier_command(qualifier_command: str) -> str:
+    """Build the SCPI command for runt trigger qualifier."""
+
+    return f":TRIGger:RUNT:QUALifier {qualifier_command}"
+
+
+def runt_trigger_qualifier_query() -> str:
+    """Build the SCPI query for runt trigger qualifier."""
+
+    return ":TRIGger:RUNT:QUALifier?"
+
+
+def runt_trigger_query_commands() -> list[str]:
+    """Return the unconditional runt trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        runt_trigger_source_query(),
+        runt_trigger_polarity_query(),
+        runt_trigger_qualifier_query(),
+        runt_trigger_time_query(),
+    ]
+
+
+def runt_trigger_configure_commands(
+    *,
+    channel: int,
+    polarity: str,
+    qualifier: str,
+    low_level_volts: float,
+    high_level_volts: float,
+    capabilities: ScopeCapabilities,
+    time_seconds: float | None = None,
+) -> list[str]:
+    """Return the analog runt trigger configure SCPI sequence."""
+
+    channel = validate_analog_channel(channel, capabilities)
+    polarity_command = normalize_runt_polarity(polarity)
+    qualifier_command = normalize_runt_qualifier(qualifier)
+    low_level = validate_trigger_level(low_level_volts)
+    high_level = validate_trigger_level(high_level_volts)
+    if low_level >= high_level:
+        raise ParameterValidationError(
+            "runt trigger low_level_volts must be less than high_level_volts."
+        )
+
+    commands = [
+        trigger_mode_runt_command(),
+        runt_trigger_source_command(channel),
+        runt_trigger_low_level_command(low_level, channel),
+        runt_trigger_high_level_command(high_level, channel),
+        runt_trigger_polarity_command(polarity_command),
+    ]
+
+    if qualifier_command in {"GREaterthan", "LESSthan"}:
+        if time_seconds is None:
+            raise ParameterValidationError(
+                "runt trigger greater-than and less-than require time_seconds."
+            )
+        commands.append(runt_trigger_time_command(validate_trigger_time(time_seconds)))
+    elif time_seconds is not None:
+        raise ParameterValidationError("runt trigger qualifier none rejects time_seconds.")
+
+    commands.append(runt_trigger_qualifier_command(qualifier_command))
+    return commands
+
+
 def parse_edge_trigger_source(raw: str) -> int:
     """Parse an edge trigger source readback into an analog channel number."""
 
@@ -570,6 +849,8 @@ def parse_trigger_mode(raw: str) -> str | None:
     normalized = raw.strip().upper()
     if normalized in {"GLIT", "GLITCH"}:
         return "glitch"
+    if normalized in {"RUNT"}:
+        return "runt"
     if normalized in {"EDGE"}:
         return "edge"
     return None
@@ -608,6 +889,31 @@ def parse_glitch_qualifier_readback(raw: str) -> str | None:
     """Parse a glitch qualifier readback when recognized."""
 
     return _GLITCH_QUALIFIER_READBACKS.get(raw.strip().upper())
+
+
+def parse_runt_source(raw: str) -> tuple[str | None, int | None]:
+    """Parse a runt source readback, preserving unsafe non-analog sources."""
+
+    normalized = raw.strip().upper()
+    if normalized.startswith("CHANNEL"):
+        suffix = normalized.removeprefix("CHANNEL")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix)
+    if normalized.startswith("CHAN"):
+        suffix = normalized.removeprefix("CHAN")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix)
+    return None, None
+
+
+def parse_runt_polarity_readback(raw: str) -> str | None:
+    """Parse a runt polarity readback when recognized."""
+
+    return _RUNT_POLARITY_READBACKS.get(raw.strip().upper())
+
+
+def parse_runt_qualifier_readback(raw: str) -> str | None:
+    """Parse a runt qualifier readback when recognized."""
+
+    return _RUNT_QUALIFIER_READBACKS.get(raw.strip().upper())
 
 
 def parse_edge_slope(raw: str) -> str:

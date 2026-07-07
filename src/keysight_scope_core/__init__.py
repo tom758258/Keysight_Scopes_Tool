@@ -53,6 +53,8 @@ from .trigger import (
     EdgeTriggerState,
     GlitchTriggerController,
     GlitchTriggerState,
+    RuntTriggerController,
+    RuntTriggerState,
     TriggerWaitConfig,
     TriggerWaitResult,
 )
@@ -67,6 +69,8 @@ __all__ = [
     "EdgeTriggerState",
     "GlitchTriggerController",
     "GlitchTriggerState",
+    "RuntTriggerController",
+    "RuntTriggerState",
     "TriggerWaitConfig",
     "TriggerWaitResult",
     "IDN",

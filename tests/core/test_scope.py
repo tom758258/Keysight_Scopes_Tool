@@ -346,6 +346,53 @@ def test_scope_edge_trigger_uses_capabilities_from_idn():
     ]
 
 
+def test_scope_runt_trigger_uses_capabilities_from_idn():
+    backend = FakeBackend(
+        responses={
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":TRIGger:MODE?": "RUNT",
+            ":TRIGger:RUNT:SOURce?": "CHAN1",
+            ":TRIGger:RUNT:POLarity?": "EITH",
+            ":TRIGger:RUNT:QUALifier?": "NONE",
+            ":TRIGger:RUNT:TIME?": "1.0E-6",
+            ":TRIGger:LEVel:LOW? CHANnel1": "-5.0E-1",
+            ":TRIGger:LEVel:HIGH? CHANnel1": "5.0E-1",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.query_idn()
+    scope.configure_runt_trigger(
+        channel=1,
+        polarity="either",
+        qualifier="none",
+        low_level_volts=-0.5,
+        high_level_volts=0.5,
+    )
+    state = scope.query_runt_trigger()
+
+    assert state.mode == "runt"
+    assert state.channel == 1
+    assert state.low_level_volts == -0.5
+    assert state.high_level_volts == 0.5
+    assert backend.history == [
+        "*IDN?",
+        ":TRIGger:MODE RUNT",
+        ":TRIGger:RUNT:SOURce CHANnel1",
+        ":TRIGger:LEVel:LOW -0.5,CHANnel1",
+        ":TRIGger:LEVel:HIGH 0.5,CHANnel1",
+        ":TRIGger:RUNT:POLarity EITHer",
+        ":TRIGger:RUNT:QUALifier NONE",
+        ":TRIGger:MODE?",
+        ":TRIGger:RUNT:SOURce?",
+        ":TRIGger:RUNT:POLarity?",
+        ":TRIGger:RUNT:QUALifier?",
+        ":TRIGger:RUNT:TIME?",
+        ":TRIGger:LEVel:LOW? CHANnel1",
+        ":TRIGger:LEVel:HIGH? CHANnel1",
+    ]
+
+
 def test_scope_waveform_requires_known_capabilities():
     scope = KeysightScope(FakeBackend())
 
