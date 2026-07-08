@@ -180,6 +180,13 @@ class SimulatorBackend:
     delay_trigger_slope: str = "POSitive"
     delay_time: float = 1e-6
     delay_count: int = 2
+    setup_hold_clock_source_channel: int | None = 1
+    setup_hold_clock_source_raw: str = "CHANnel1"
+    setup_hold_data_source_channel: int | None = 2
+    setup_hold_data_source_raw: str = "CHANnel2"
+    setup_hold_slope: str = "POSitive"
+    setup_hold_setup_time: float = 1e-9
+    setup_hold_hold_time: float = 1e-9
     pattern_format: str = "ASCii"
     pattern: str = "XXXX"
     pattern_qualifier: str = "ENTered"
@@ -379,6 +386,23 @@ class SimulatorBackend:
             if value.upper() not in {"POSITIVE", "NEGATIVE"}:
                 raise SimulatorBackendError(f"Unsupported simulator write: {command}")
             self.delay_trigger_slope = value
+        elif upper.startswith(":TRIGGER:SHOLD:SOURCE:CLOCK CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.setup_hold_clock_source_channel = channel
+            self.setup_hold_clock_source_raw = f"CHANnel{channel}"
+        elif upper.startswith(":TRIGGER:SHOLD:SOURCE:DATA CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.setup_hold_data_source_channel = channel
+            self.setup_hold_data_source_raw = f"CHANnel{channel}"
+        elif upper.startswith(":TRIGGER:SHOLD:SLOPE "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"POSITIVE", "NEGATIVE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.setup_hold_slope = value
+        elif upper.startswith(":TRIGGER:SHOLD:TIME:SETUP "):
+            self.setup_hold_setup_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:SHOLD:TIME:HOLD "):
+            self.setup_hold_hold_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
         elif upper == ":TRIGGER:PATTERN:FORMAT ASCII":
             self.pattern_format = "ASCii"
         elif upper.startswith(":TRIGGER:PATTERN:QUALIFIER "):
@@ -547,6 +571,20 @@ class SimulatorBackend:
             return f"CHAN{self.delay_trigger_source_channel}"
         if upper == ":TRIGGER:DELAY:TRIGGER:SLOPE?":
             return _abbreviate_transition_slope(self.delay_trigger_slope)
+        if upper == ":TRIGGER:SHOLD:SOURCE:CLOCK?":
+            if self.setup_hold_clock_source_channel is None:
+                return self.setup_hold_clock_source_raw
+            return f"CHAN{self.setup_hold_clock_source_channel}"
+        if upper == ":TRIGGER:SHOLD:SOURCE:DATA?":
+            if self.setup_hold_data_source_channel is None:
+                return self.setup_hold_data_source_raw
+            return f"CHAN{self.setup_hold_data_source_channel}"
+        if upper == ":TRIGGER:SHOLD:SLOPE?":
+            return _abbreviate_transition_slope(self.setup_hold_slope)
+        if upper == ":TRIGGER:SHOLD:TIME:SETUP?":
+            return f"{self.setup_hold_setup_time:.8E}"
+        if upper == ":TRIGGER:SHOLD:TIME:HOLD?":
+            return f"{self.setup_hold_hold_time:.8E}"
         if upper == ":TRIGGER:PATTERN:FORMAT?":
             return _abbreviate_pattern_format(self.pattern_format)
         if upper == ":TRIGGER:PATTERN?":
@@ -1523,6 +1561,8 @@ def _abbreviate_trigger_mode(value: str) -> str:
         return "TRAN"
     if upper.startswith("DEL"):
         return "DEL"
+    if upper.startswith("SHOL"):
+        return "SHOL"
     if upper.startswith("PATT"):
         return "PATT"
     if upper == "OR":

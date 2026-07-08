@@ -90,6 +90,8 @@ Current implemented scope:
   `:TRIGger:LEVel:LOW/HIGH` threshold commands.
 - Configure or query DSO analog-channel Edge Then Edge / Delay trigger
   settings with `:TRIGger:MODE DELay` and `:TRIGger:DELay:*`.
+- Configure or query DSO analog-channel setup-hold trigger settings with
+  `:TRIGger:MODE SHOLd` and `:TRIGger:SHOLd:*`.
 - Configure or query DSO analog ASCII pattern trigger settings with
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`,
   `:TRIGger:PATTern "<pattern>"`, and
@@ -823,6 +825,57 @@ Worker usage:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-delay --arguments-json "{\"query\":true}" --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-delay --arguments-json "{\"arm_channel\":1,\"arm_slope\":\"positive\",\"trigger_channel\":2,\"trigger_slope\":\"negative\",\"time_seconds\":0.000001,\"count\":2}" --json
 ```
+
+Configure or query DSO analog-channel setup-hold trigger settings with the
+canonical `trigger-setup-hold` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-setup-hold --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --clock-channel 1 --data-channel 2 --slope positive --setup-time 1e-9 --hold-time 1e-9 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-setup-hold --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-setup-hold --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-setup-hold --simulate --json --query
+```
+
+`trigger-setup-hold` v1 configures and queries the Keysight Setup and Hold
+trigger using `:TRIGger:MODE SHOLd` and the `:TRIGger:SHOLd:*` SCPI family.
+Configure mode is state-changing and DSO analog-channel-only: it sets analog
+clock and data source channels, clock slope, setup time, and hold time. Public
+slope values are only `positive` and `negative`; aliases such as `pos`, `neg`,
+`rising`, and `falling` are rejected. `--setup-time` and `--hold-time` are
+plain seconds values and must be positive finite numbers. v1 does not parse
+time suffixes.
+
+Query mode reads `:TRIGger:MODE?`,
+`:TRIGger:SHOLd:SOURce:CLOCk?`, `:TRIGger:SHOLd:SOURce:DATA?`,
+`:TRIGger:SHOLd:SLOPe?`, `:TRIGger:SHOLd:TIME:SETup?`, and
+`:TRIGger:SHOLd:TIME:HOLD?`. Query JSON preserves raw mode/source/slope/time
+readbacks, normalizes `SHOL`/`SHOLD` mode readbacks to `setup-hold`, normalizes
+common analog channel and positive/negative slope readbacks, and tolerates
+digital or unknown source readback by leaving the parsed analog channel null.
+Query does not fail only because the current trigger mode is not setup-hold.
+
+Configure mode rejects partial configure requests, `--query` combined with
+configure options, non-integer channels, channels outside the selected model
+profile, digital/MSO source aliases such as `D0`, `DIG0`, `digital0`, `pod`, or
+`bus`, unknown source aliases, invalid slopes, and non-finite, zero, negative,
+or nonnumeric setup/hold times before instrument access. MSO/digital and
+external setup-hold sources are intentionally unsupported in v1 even though
+the instrument SCPI family may support digital sources on MSO models. This
+command does not implement threshold/level convenience helpers, run, stop,
+single, force trigger, wait-trigger, capture integration, actual
+signal-trigger validation, or a generic trigger-tree framework.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-setup-hold --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-setup-hold --arguments-json "{\"clock_channel\":1,\"data_channel\":2,\"slope\":\"positive\",\"setup_time\":0.000000001,\"hold_time\":0.000000001}" --json
+```
+
+Worker JSON uses canonical keys `setup_time` and `hold_time`, matching the CLI
+`--setup-time` and `--hold-time` options. Worker live, LAN, WebUI,
+2000X/3000X/4024A live validation, and DSO-X 4034A USB CLI live validation have
+not been run for `trigger-setup-hold`.
 
 Configure or query DSO analog ASCII pattern trigger settings with the canonical
 `trigger-pattern` command:

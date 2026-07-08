@@ -69,6 +69,7 @@ DOMAIN_COMMANDS = {
     "trigger-runt",
     "trigger-transition",
     "trigger-delay",
+    "trigger-setup-hold",
     "trigger-pattern",
     "trigger-or",
     "trigger-holdoff",
@@ -320,6 +321,7 @@ def parse_domain_command(
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
     arguments = _normalize_trigger_delay_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_setup_hold_worker_arguments(command, arguments)
     arguments = _normalize_trigger_pattern_worker_arguments(command, arguments)
     arguments = _normalize_trigger_or_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
@@ -470,6 +472,29 @@ def _normalize_trigger_delay_worker_arguments(
         raise KeysightScopeError(f"unknown argument for trigger-delay: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
         raise KeysightScopeError("trigger-delay argument query must be exactly true")
+    return dict(arguments)
+
+
+def _normalize_trigger_setup_hold_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-setup-hold":
+        return arguments
+    allowed = {
+        "query",
+        "clock_channel",
+        "data_channel",
+        "slope",
+        "setup_time",
+        "hold_time",
+    }
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for trigger-setup-hold: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments and arguments["query"] is not True:
+        raise KeysightScopeError("trigger-setup-hold argument query must be exactly true")
     return dict(arguments)
 
 

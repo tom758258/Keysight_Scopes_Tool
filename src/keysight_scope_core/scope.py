@@ -36,6 +36,8 @@ from .trigger import (
     PatternTriggerState,
     RuntTriggerController,
     RuntTriggerState,
+    SetupHoldTriggerController,
+    SetupHoldTriggerState,
     TransitionTriggerController,
     TransitionTriggerState,
 )
@@ -429,6 +431,30 @@ class KeysightScope:
 
         return self._delay_trigger_controller().query()
 
+    def configure_setup_hold_trigger(
+        self,
+        *,
+        clock_channel: int,
+        data_channel: int,
+        slope: str,
+        setup_time_seconds: float,
+        hold_time_seconds: float,
+    ) -> SetupHoldTriggerState:
+        """Configure DSO analog setup-hold trigger settings."""
+
+        return self._setup_hold_trigger_controller().configure(
+            clock_channel=clock_channel,
+            data_channel=data_channel,
+            slope=slope,
+            setup_time_seconds=setup_time_seconds,
+            hold_time_seconds=hold_time_seconds,
+        )
+
+    def query_setup_hold_trigger(self) -> SetupHoldTriggerState:
+        """Query setup-hold trigger settings."""
+
+        return self._setup_hold_trigger_controller().query()
+
     def configure_pattern_trigger(self, pattern: str) -> PatternTriggerState:
         """Configure DSO ASCII pattern trigger settings."""
 
@@ -694,6 +720,13 @@ class KeysightScope:
                 "Delay trigger operations require known capabilities; call query_idn() first."
             )
         return DelayTriggerController(self.scpi, self.capabilities)
+
+    def _setup_hold_trigger_controller(self) -> SetupHoldTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Setup-hold trigger operations require known capabilities; call query_idn() first."
+            )
+        return SetupHoldTriggerController(self.scpi, self.capabilities)
 
     def _pattern_trigger_controller(self) -> PatternTriggerController:
         if self.capabilities is None:

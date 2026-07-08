@@ -48,6 +48,15 @@ Core owns runtime behavior:
   hardware-free only so far; no live hardware validation has been run, and it
   does not add run, stop, single, force trigger, wait-trigger, capture, or
   WebUI runtime behavior.
+- DSO analog-channel setup-hold trigger helpers for the Keysight
+  `:TRIGger:SHOLd...` command family. This `trigger-setup-hold v1` slice
+  configures analog clock and data source channels, positive/negative clock
+  slope, setup time, and hold time. Query mode preserves raw readbacks and
+  tolerates digital or unknown source state, but configure mode intentionally
+  rejects MSO/digital, external, and unknown sources. It is hardware-free only
+  so far; DSO-X 4034A USB CLI live validation has not been run, and it does not
+  add threshold helpers, run, stop, single, force trigger, wait-trigger,
+  capture, or WebUI runtime behavior.
 - DSO analog ASCII pattern trigger helpers for the Keysight
   `:TRIGger:PATTern...` command family. This v1 slice configures
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`, raw `0/1/X`

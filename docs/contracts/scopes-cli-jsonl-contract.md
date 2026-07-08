@@ -190,6 +190,15 @@ Control and setup:
   `slope`, `qualifier`, `time_seconds`, `low_level_volts`,
   `high_level_volts`, and preserved `raw` readbacks. Query mode reads LOW/HIGH
   levels only when the source readback safely parses as an analog channel.
+- `trigger-setup-hold`: `operation` and `commands`. Configure results include
+  `mode: "setup-hold"`, `clock_source`, `clock_channel`,
+  `clock_source_kind`, `data_source`, `data_channel`, `data_source_kind`,
+  `slope`, `setup_time_seconds`, `hold_time_seconds`, and
+  `state_changing: true`. Query results include normalized `mode`, `raw_mode`,
+  clock/data source raw and parsed fields, slope raw and parsed fields,
+  setup/hold time raw and parsed fields, and preserved `raw` readbacks. The v1
+  configure surface is DSO analog-channel-only; query tolerates digital or
+  unknown source readback by leaving parsed analog channels null.
 - `trigger-pattern`: `operation` and `commands`. Configure results include
   `mode: "pattern"`, `format: "ascii"`, `pattern`, `qualifier: "entered"`, and
   `state_changing: true`. Query results include normalized `mode`, `format`,

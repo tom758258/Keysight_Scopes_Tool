@@ -25,6 +25,8 @@ names are intended for package consumers and tests:
 - `PatternTriggerState`
 - `RuntTriggerController`
 - `RuntTriggerState`
+- `SetupHoldTriggerController`
+- `SetupHoldTriggerState`
 - `TransitionTriggerController`
 - `TransitionTriggerState`
 - `IDN`

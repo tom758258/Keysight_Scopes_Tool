@@ -135,8 +135,8 @@ Worker `/command` supports the existing Scopes capability surface:
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
-  `trigger-transition`, `trigger-delay`, `trigger-pattern`, `trigger-or`,
-  `trigger-holdoff`, `cursor`, `autoscale`
+  `trigger-transition`, `trigger-delay`, `trigger-setup-hold`,
+  `trigger-pattern`, `trigger-or`, `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -393,6 +393,48 @@ command. It rejects `arm_source`, `trigger_source`, `digital`, `level_volts`,
 external source configuration, aliases such as `edge-then-edge`, and generic
 trigger-tree arguments. Worker support has hardware-free validation only; live
 CLI, worker live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A, digital/MSO, and
+broader trigger-tree validation have not been run.
+
+`trigger-setup-hold` is accepted only as the canonical Setup and Hold trigger
+command. It uses the Keysight `:TRIGger:SHOLd...` SCPI family:
+
+```json
+{"command": "trigger-setup-hold", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "trigger-setup-hold",
+  "arguments": {
+    "clock_channel": 1,
+    "data_channel": 2,
+    "slope": "positive",
+    "setup_time": 0.000000001,
+    "hold_time": 0.000000001
+  }
+}
+```
+
+Configure mode changes trigger settings and is DSO analog-channel-only. It
+sends `:TRIGger:MODE SHOLd`, clock source, data source, clock slope, setup
+time, and hold time. Slopes are `positive` or `negative`; `setup_time` and
+`hold_time` are seconds values and must be positive finite numbers. Query mode
+must use `query: true` without configure keys and reads mode, clock source,
+data source, slope, setup time, and hold time. Query result JSON preserves raw
+readbacks and tolerates digital or unknown source state, but configure rejects
+digital/MSO, external, and unknown source inputs.
+
+The worker accepts only `query`, `clock_channel`, `data_channel`, `slope`,
+`setup_time`, and `hold_time` for this v1 command. The canonical timing keys
+are `setup_time` and `hold_time`, matching CLI `--setup-time` and
+`--hold-time`; `setup_time_seconds` and `hold_time_seconds` are not accepted.
+It rejects partial configure, `query` values other than exactly `true`,
+`query` combined with configure keys, unknown keys even when false or null,
+source aliases, threshold/level fields, digital/MSO or external source
+configuration, aliases such as `setup-hold-trigger`, and generic trigger-tree
+arguments before enqueue, artifact creation, VISA open, or SCPI. Worker support
+has hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
+2000X/3000X/4024A/4034A, MSO/digital, actual signal-trigger behavior, and
 broader trigger-tree validation have not been run.
 
 `trigger-pattern` is accepted only as the canonical Pattern trigger command.
@@ -712,8 +754,9 @@ recorded as absolute paths. Default worker outputs are:
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
 `trigger-pulse-width`, `trigger-runt`, `trigger-transition`, `trigger-delay`,
-`trigger-pattern`, `trigger-or`, `display-clear`, `display-persistence`,
-`display-intensity`, and `display-vectors` do not create command artifacts.
+`trigger-setup-hold`, `trigger-pattern`, `trigger-or`, `display-clear`,
+`display-persistence`, `display-intensity`, and `display-vectors` do not create
+command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
 includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.

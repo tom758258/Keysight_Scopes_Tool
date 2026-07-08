@@ -138,6 +138,18 @@ _DELAY_SLOPE_READBACKS = {
     "NEGATIVE": "negative",
 }
 
+_SETUP_HOLD_SLOPE_COMMANDS = {
+    "positive": "POSitive",
+    "negative": "NEGative",
+}
+
+_SETUP_HOLD_SLOPE_READBACKS = {
+    "POS": "positive",
+    "POSITIVE": "positive",
+    "NEG": "negative",
+    "NEGATIVE": "negative",
+}
+
 _PATTERN_FORMAT_READBACKS = {
     "ASC": "ascii",
     "ASCII": "ascii",
@@ -293,6 +305,44 @@ class DelayTriggerState:
             "trigger_slope": self.trigger_slope,
             "time_seconds": self.time_seconds,
             "count": self.count,
+            "raw": dict(self.raw),
+        }
+
+
+@dataclass(frozen=True)
+class SetupHoldTriggerState:
+    """Readback state for setup-hold trigger settings."""
+
+    mode: str | None
+    raw_mode: str
+    clock_source: str
+    clock_source_kind: str | None
+    clock_channel: int | None
+    clock_digital: int | None
+    data_source: str
+    data_source_kind: str | None
+    data_channel: int | None
+    data_digital: int | None
+    slope: str | None
+    setup_time_seconds: float | None
+    hold_time_seconds: float | None
+    raw: dict[str, str]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "raw_mode": self.raw_mode,
+            "clock_source": self.clock_source,
+            "clock_source_kind": self.clock_source_kind,
+            "clock_channel": self.clock_channel,
+            "clock_digital": self.clock_digital,
+            "data_source": self.data_source,
+            "data_source_kind": self.data_source_kind,
+            "data_channel": self.data_channel,
+            "data_digital": self.data_digital,
+            "slope": self.slope,
+            "setup_time_seconds": self.setup_time_seconds,
+            "hold_time_seconds": self.hold_time_seconds,
             "raw": dict(self.raw),
         }
 
@@ -678,6 +728,89 @@ class DelayTriggerController:
         )
 
 
+class SetupHoldTriggerController:
+    """Controls for DSO analog setup-hold trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        clock_channel: int,
+        data_channel: int,
+        slope: str,
+        setup_time_seconds: float,
+        hold_time_seconds: float,
+    ) -> SetupHoldTriggerState:
+        """Configure DSO analog setup-hold trigger settings."""
+
+        commands = setup_hold_trigger_configure_commands(
+            clock_channel=clock_channel,
+            data_channel=data_channel,
+            slope=slope,
+            setup_time_seconds=setup_time_seconds,
+            hold_time_seconds=hold_time_seconds,
+            capabilities=self.capabilities,
+        )
+        for command in commands:
+            self.scpi.write(command)
+        return SetupHoldTriggerState(
+            mode="setup-hold",
+            raw_mode="SHOLd",
+            clock_source=f"CHANnel{clock_channel}",
+            clock_source_kind="channel",
+            clock_channel=clock_channel,
+            clock_digital=None,
+            data_source=f"CHANnel{data_channel}",
+            data_source_kind="channel",
+            data_channel=data_channel,
+            data_digital=None,
+            slope=slope,
+            setup_time_seconds=setup_time_seconds,
+            hold_time_seconds=hold_time_seconds,
+            raw={
+                "mode": "SHOLd",
+                "clock_source": f"CHANnel{clock_channel}",
+                "data_source": f"CHANnel{data_channel}",
+                "slope": normalize_setup_hold_slope(slope),
+                "setup_time": _format_scpi_float(setup_time_seconds),
+                "hold_time": _format_scpi_float(hold_time_seconds),
+            },
+        )
+
+    def query(self) -> SetupHoldTriggerState:
+        """Query setup-hold trigger state without changing acquisition state."""
+
+        raw = {
+            "mode": self.scpi.query(trigger_mode_query()),
+            "clock_source": self.scpi.query(setup_hold_trigger_clock_source_query()),
+            "data_source": self.scpi.query(setup_hold_trigger_data_source_query()),
+            "slope": self.scpi.query(setup_hold_trigger_slope_query()),
+            "setup_time": self.scpi.query(setup_hold_trigger_setup_time_query()),
+            "hold_time": self.scpi.query(setup_hold_trigger_hold_time_query()),
+        }
+        clock_kind, clock_channel, clock_digital = parse_setup_hold_source(raw["clock_source"])
+        data_kind, data_channel, data_digital = parse_setup_hold_source(raw["data_source"])
+        return SetupHoldTriggerState(
+            mode=parse_trigger_mode(raw["mode"]) or raw["mode"].strip(),
+            raw_mode=raw["mode"],
+            clock_source=raw["clock_source"].strip(),
+            clock_source_kind=clock_kind,
+            clock_channel=clock_channel,
+            clock_digital=clock_digital,
+            data_source=raw["data_source"].strip(),
+            data_source_kind=data_kind,
+            data_channel=data_channel,
+            data_digital=data_digital,
+            slope=parse_setup_hold_slope_readback(raw["slope"]),
+            setup_time_seconds=parse_optional_trigger_float(raw["setup_time"], "setup-hold setup time"),
+            hold_time_seconds=parse_optional_trigger_float(raw["hold_time"], "setup-hold hold time"),
+            raw=raw,
+        )
+
+
 class PatternTriggerController:
     """Controls for DSO ASCII pattern trigger settings."""
 
@@ -882,6 +1015,18 @@ def normalize_delay_slope(slope: str) -> str:
         ) from exc
 
 
+def normalize_setup_hold_slope(slope: str) -> str:
+    """Normalize a public setup-hold slope value into a SCPI argument."""
+
+    normalized = slope.strip().lower()
+    try:
+        return _SETUP_HOLD_SLOPE_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "setup-hold trigger slope must be one of: positive, negative."
+        ) from exc
+
+
 def trigger_mode_edge_command() -> str:
     """Build the SCPI command that selects edge trigger mode."""
 
@@ -910,6 +1055,12 @@ def trigger_mode_delay_command() -> str:
     """Build the SCPI command that selects delay trigger mode."""
 
     return ":TRIGger:MODE DELay"
+
+
+def trigger_mode_setup_hold_command() -> str:
+    """Build the SCPI command that selects setup-hold trigger mode."""
+
+    return ":TRIGger:MODE SHOLd"
 
 
 def trigger_mode_pattern_command() -> str:
@@ -1532,6 +1683,134 @@ def validate_delay_trigger_count(count: int) -> int:
     return count
 
 
+def setup_hold_trigger_clock_source_command(channel: int) -> str:
+    """Build the SCPI command for setup-hold clock source."""
+
+    return f":TRIGger:SHOLd:SOURce:CLOCk CHANnel{channel}"
+
+
+def setup_hold_trigger_clock_source_query() -> str:
+    """Build the SCPI query for setup-hold clock source."""
+
+    return ":TRIGger:SHOLd:SOURce:CLOCk?"
+
+
+def setup_hold_trigger_data_source_command(channel: int) -> str:
+    """Build the SCPI command for setup-hold data source."""
+
+    return f":TRIGger:SHOLd:SOURce:DATA CHANnel{channel}"
+
+
+def setup_hold_trigger_data_source_query() -> str:
+    """Build the SCPI query for setup-hold data source."""
+
+    return ":TRIGger:SHOLd:SOURce:DATA?"
+
+
+def setup_hold_trigger_slope_command(slope_command: str) -> str:
+    """Build the SCPI command for setup-hold clock slope."""
+
+    return f":TRIGger:SHOLd:SLOPe {slope_command}"
+
+
+def setup_hold_trigger_slope_query() -> str:
+    """Build the SCPI query for setup-hold clock slope."""
+
+    return ":TRIGger:SHOLd:SLOPe?"
+
+
+def setup_hold_trigger_setup_time_command(time_seconds: float) -> str:
+    """Build the SCPI command for setup time."""
+
+    return f":TRIGger:SHOLd:TIME:SETup {_format_scpi_float(time_seconds)}"
+
+
+def setup_hold_trigger_setup_time_query() -> str:
+    """Build the SCPI query for setup time."""
+
+    return ":TRIGger:SHOLd:TIME:SETup?"
+
+
+def setup_hold_trigger_hold_time_command(time_seconds: float) -> str:
+    """Build the SCPI command for hold time."""
+
+    return f":TRIGger:SHOLd:TIME:HOLD {_format_scpi_float(time_seconds)}"
+
+
+def setup_hold_trigger_hold_time_query() -> str:
+    """Build the SCPI query for hold time."""
+
+    return ":TRIGger:SHOLd:TIME:HOLD?"
+
+
+def setup_hold_trigger_query_commands() -> list[str]:
+    """Return the setup-hold trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        setup_hold_trigger_clock_source_query(),
+        setup_hold_trigger_data_source_query(),
+        setup_hold_trigger_slope_query(),
+        setup_hold_trigger_setup_time_query(),
+        setup_hold_trigger_hold_time_query(),
+    ]
+
+
+def setup_hold_trigger_configure_commands(
+    *,
+    clock_channel: int,
+    data_channel: int,
+    slope: str,
+    setup_time_seconds: float,
+    hold_time_seconds: float,
+    capabilities: ScopeCapabilities,
+) -> list[str]:
+    """Return the DSO analog setup-hold trigger configure SCPI sequence."""
+
+    clock_channel = validate_setup_hold_trigger_channel(clock_channel, capabilities, "clock")
+    data_channel = validate_setup_hold_trigger_channel(data_channel, capabilities, "data")
+    slope_command = normalize_setup_hold_slope(slope)
+    setup_time = validate_setup_hold_trigger_time(setup_time_seconds, "setup")
+    hold_time = validate_setup_hold_trigger_time(hold_time_seconds, "hold")
+
+    return [
+        trigger_mode_setup_hold_command(),
+        setup_hold_trigger_clock_source_command(clock_channel),
+        setup_hold_trigger_data_source_command(data_channel),
+        setup_hold_trigger_slope_command(slope_command),
+        setup_hold_trigger_setup_time_command(setup_time),
+        setup_hold_trigger_hold_time_command(hold_time),
+    ]
+
+
+def validate_setup_hold_trigger_time(seconds: float, field_name: str = "time") -> float:
+    """Validate setup-hold timing in seconds."""
+
+    try:
+        value = float(seconds)
+    except (TypeError, ValueError) as exc:
+        raise ParameterValidationError(
+            f"setup-hold trigger {field_name} time must be a number of seconds."
+        ) from exc
+    if not math.isfinite(value) or value <= 0:
+        raise ParameterValidationError(
+            f"setup-hold trigger {field_name} time must be a positive finite number of seconds."
+        )
+    return value
+
+
+def validate_setup_hold_trigger_channel(
+    channel: int, capabilities: ScopeCapabilities, field_name: str = "source"
+) -> int:
+    """Validate setup-hold DSO analog channel input."""
+
+    if isinstance(channel, bool) or not isinstance(channel, int):
+        raise ParameterValidationError(
+            f"setup-hold trigger {field_name} channel must be an integer analog channel."
+        )
+    return validate_analog_channel(channel, capabilities)
+
+
 def pattern_trigger_format_command() -> str:
     """Build the SCPI command for ASCII pattern format."""
 
@@ -1702,6 +1981,8 @@ def parse_trigger_mode(raw: str) -> str | None:
         return "transition"
     if normalized in {"DEL", "DELAY"}:
         return "delay"
+    if normalized in {"SHOL", "SHOLD"}:
+        return "setup-hold"
     if normalized in {"PATT", "PATTERN"}:
         return "pattern"
     if normalized in {"OR"}:
@@ -1819,6 +2100,31 @@ def parse_delay_slope_readback(raw: str) -> str | None:
     """Parse a delay trigger slope readback when recognized."""
 
     return _DELAY_SLOPE_READBACKS.get(raw.strip().upper())
+
+
+def parse_setup_hold_source(raw: str) -> tuple[str | None, int | None, int | None]:
+    """Parse a setup-hold source while preserving unsupported raw states."""
+
+    normalized = raw.strip().upper()
+    if normalized.startswith("CHANNEL"):
+        suffix = normalized.removeprefix("CHANNEL")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("CHAN"):
+        suffix = normalized.removeprefix("CHAN")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("DIGITAL"):
+        suffix = normalized.removeprefix("DIGITAL")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    if normalized.startswith("DIG"):
+        suffix = normalized.removeprefix("DIG")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    return None, None, None
+
+
+def parse_setup_hold_slope_readback(raw: str) -> str | None:
+    """Parse a setup-hold trigger slope readback when recognized."""
+
+    return _SETUP_HOLD_SLOPE_READBACKS.get(raw.strip().upper())
 
 
 def parse_delay_count_readback(raw: str) -> int | None:

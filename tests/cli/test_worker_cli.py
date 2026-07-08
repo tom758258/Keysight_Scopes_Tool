@@ -282,6 +282,7 @@ def test_worker_request_rejects_non_object_arguments():
         ("display-vectors", {"on": True}),
         ("annotation", {"slot": 1, "query": True}),
         ("trigger-delay", {"query": True}),
+        ("trigger-setup-hold", {"query": True}),
     ),
 )
 def test_worker_request_accepts_trigger_and_acquisition_queries(command, arguments):

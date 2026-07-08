@@ -215,6 +215,7 @@ from keysight_scope_core.trigger import (
     normalize_delay_slope,
     normalize_glitch_qualifier,
     normalize_runt_qualifier,
+    normalize_setup_hold_slope,
     normalize_transition_qualifier,
     normalize_transition_slope,
     operation_condition_query,
@@ -226,6 +227,8 @@ from keysight_scope_core.trigger import (
     runt_trigger_high_level_query,
     runt_trigger_low_level_query,
     runt_trigger_query_commands,
+    setup_hold_trigger_configure_commands,
+    setup_hold_trigger_query_commands,
     single_command,
     transition_trigger_configure_commands,
     transition_trigger_query_commands,
@@ -236,6 +239,7 @@ from keysight_scope_core.trigger import (
     trigger_low_level_query,
     validate_or_trigger_pattern,
     validate_pattern_trigger_pattern,
+    validate_setup_hold_trigger_time,
     validate_trigger_level,
     validate_trigger_time,
 )
@@ -1117,6 +1121,47 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Nth trigger edge count",
     )
 
+    setup_hold_trigger_parser = subparsers.add_parser(
+        "trigger-setup-hold",
+        help="configure or query DSO analog setup-hold trigger settings",
+    )
+    _add_scope_connection_args(setup_hold_trigger_parser)
+    setup_hold_trigger_parser.add_argument(
+        "--query",
+        dest="setup_hold_query",
+        action="store_true",
+        help="query setup-hold trigger state",
+    )
+    setup_hold_trigger_parser.add_argument(
+        "--clock-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the setup-hold clock source",
+    )
+    setup_hold_trigger_parser.add_argument(
+        "--data-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the setup-hold data source",
+    )
+    setup_hold_trigger_parser.add_argument(
+        "--slope",
+        default=None,
+        help="setup-hold clock slope",
+    )
+    setup_hold_trigger_parser.add_argument(
+        "--setup-time",
+        type=float,
+        default=None,
+        help="setup time in seconds",
+    )
+    setup_hold_trigger_parser.add_argument(
+        "--hold-time",
+        type=float,
+        default=None,
+        help="hold time in seconds",
+    )
+
     pattern_trigger_parser = subparsers.add_parser(
         "trigger-pattern",
         help="configure or query DSO ASCII pattern trigger settings",
@@ -1830,6 +1875,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_transition(args)
     if args.command == "trigger-delay":
         return _cmd_trigger_delay(args)
+    if args.command == "trigger-setup-hold":
+        return _cmd_trigger_setup_hold(args)
     if args.command == "trigger-pattern":
         return _cmd_trigger_pattern(args)
     if args.command == "trigger-or":
@@ -2138,6 +2185,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_transition_args(args)
     if getattr(args, "command", None) == "trigger-delay":
         _validate_trigger_delay_args(args)
+    if getattr(args, "command", None) == "trigger-setup-hold":
+        _validate_trigger_setup_hold_args(args)
     if getattr(args, "command", None) == "trigger-pattern":
         _validate_trigger_pattern_args(args)
     if getattr(args, "command", None) == "trigger-or":
@@ -2317,6 +2366,41 @@ def _validate_trigger_delay_args(args: argparse.Namespace) -> None:
     normalize_delay_slope(args.trigger_slope)
     validate_delay_trigger_time(args.time_seconds)
     validate_delay_trigger_count(args.count)
+
+
+def _validate_trigger_setup_hold_args(args: argparse.Namespace) -> None:
+    set_values = (
+        getattr(args, "clock_channel", None),
+        getattr(args, "data_channel", None),
+        getattr(args, "slope", None),
+        getattr(args, "setup_time", None),
+        getattr(args, "hold_time", None),
+    )
+    if getattr(args, "setup_hold_query", False):
+        if any(value is not None for value in set_values):
+            raise ParameterValidationError(
+                "trigger-setup-hold --query cannot be combined with configure options."
+            )
+        return
+
+    if (
+        args.clock_channel is None
+        or args.data_channel is None
+        or args.slope is None
+        or args.setup_time is None
+        or args.hold_time is None
+    ):
+        raise ParameterValidationError(
+            "trigger-setup-hold configure requires --clock-channel, --data-channel, "
+            "--slope, --setup-time, and --hold-time."
+        )
+
+    capabilities = capabilities_for_model(args.model)
+    validate_analog_channel(args.clock_channel, capabilities)
+    validate_analog_channel(args.data_channel, capabilities)
+    normalize_setup_hold_slope(args.slope)
+    validate_setup_hold_trigger_time(args.setup_time, "setup")
+    validate_setup_hold_trigger_time(args.hold_time, "hold")
 
 
 def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
@@ -2700,6 +2784,34 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "trigger_slope": args.trigger_slope,
             "time_seconds": args.time_seconds,
             "count": args.count,
+            "state_changing": True,
+        }
+        return commands + [":SYSTem:ERRor?"], [], result
+    if command == "trigger-setup-hold":
+        if args.setup_hold_query:
+            commands = setup_hold_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        commands = setup_hold_trigger_configure_commands(
+            clock_channel=args.clock_channel,
+            data_channel=args.data_channel,
+            slope=args.slope,
+            setup_time_seconds=args.setup_time,
+            hold_time_seconds=args.hold_time,
+            capabilities=capabilities,
+        )
+        result: dict[str, object] = {
+            "operation": "configure",
+            "mode": "setup-hold",
+            "commands": commands,
+            "clock_source": f"CHANnel{args.clock_channel}",
+            "clock_channel": args.clock_channel,
+            "clock_source_kind": "channel",
+            "data_source": f"CHANnel{args.data_channel}",
+            "data_channel": args.data_channel,
+            "data_source_kind": "channel",
+            "slope": args.slope,
+            "setup_time_seconds": args.setup_time,
+            "hold_time_seconds": args.hold_time,
             "state_changing": True,
         }
         return commands + [":SYSTem:ERRor?"], [], result
@@ -4788,6 +4900,95 @@ def _cmd_trigger_delay(args: argparse.Namespace) -> int:
                 trigger_slope=args.trigger_slope,
                 time_seconds=args.time_seconds,
                 count=args.count,
+                state_changing=True,
+            )
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_setup_hold(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.setup_hold_query:
+            commands = setup_hold_trigger_query_commands()
+            print("Planned query: setup-hold trigger state")
+            state = scope.query_setup_hold_trigger()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or state.raw_mode}")
+            print(f"Clock source: {state.clock_source}")
+            if state.clock_channel is not None:
+                print(f"Clock channel: CH{state.clock_channel}")
+            if state.clock_digital is not None:
+                print(f"Clock digital: D{state.clock_digital}")
+            print(f"Data source: {state.data_source}")
+            if state.data_channel is not None:
+                print(f"Data channel: CH{state.data_channel}")
+            if state.data_digital is not None:
+                print(f"Data digital: D{state.data_digital}")
+            print(f"Slope: {state.slope or state.raw['slope']}")
+            if state.setup_time_seconds is None:
+                print(f"Setup time s: {state.raw['setup_time']}")
+            else:
+                print(f"Setup time s: {state.setup_time_seconds:.12g}")
+            if state.hold_time_seconds is None:
+                print(f"Hold time s: {state.raw['hold_time']}")
+            else:
+                print(f"Hold time s: {state.hold_time_seconds:.12g}")
+        else:
+            commands = setup_hold_trigger_configure_commands(
+                clock_channel=args.clock_channel,
+                data_channel=args.data_channel,
+                slope=args.slope,
+                setup_time_seconds=args.setup_time,
+                hold_time_seconds=args.hold_time,
+                capabilities=scope.capabilities,
+            )
+            print(
+                f"Planned change: setup-hold trigger clock CH{args.clock_channel}, "
+                f"data CH{args.data_channel}, slope {args.slope}"
+            )
+            state = scope.configure_setup_hold_trigger(
+                clock_channel=args.clock_channel,
+                data_channel=args.data_channel,
+                slope=args.slope,
+                setup_time_seconds=args.setup_time,
+                hold_time_seconds=args.hold_time,
+            )
+            _json_update_result(
+                operation="configure",
+                commands=commands,
+                mode=state.mode,
+                clock_source=state.clock_source,
+                clock_channel=state.clock_channel,
+                clock_source_kind=state.clock_source_kind,
+                data_source=state.data_source,
+                data_channel=state.data_channel,
+                data_source_kind=state.data_source_kind,
+                slope=state.slope,
+                setup_time_seconds=state.setup_time_seconds,
+                hold_time_seconds=state.hold_time_seconds,
+                raw=state.raw,
                 state_changing=True,
             )
             for command in commands:
