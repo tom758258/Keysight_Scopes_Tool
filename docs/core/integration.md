@@ -17,6 +17,8 @@ names are intended for package consumers and tests:
 - `EdgeTriggerState`
 - `GlitchTriggerController`
 - `GlitchTriggerState`
+- `OrTriggerController`
+- `OrTriggerState`
 - `PatternTriggerController`
 - `PatternTriggerState`
 - `RuntTriggerController`
