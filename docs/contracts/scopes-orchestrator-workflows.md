@@ -51,6 +51,8 @@ keysight-scopes send-command --port 8765 --command trigger-delay --arguments-jso
 keysight-scopes send-command --port 8765 --command trigger-delay --arguments-json "{\"arm_channel\":1,\"arm_slope\":\"positive\",\"trigger_channel\":2,\"trigger_slope\":\"negative\",\"time_seconds\":0.000001,\"count\":2}" --json
 keysight-scopes send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"source_channel\":1,\"slope\":\"positive\",\"count\":3,\"idle_time\":0.000001}" --json
+keysight-scopes send-command --port 8765 --command trigger-tv --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command trigger-tv --arguments-json "{\"source_channel\":1,\"standard\":\"ntsc\",\"mode\":\"line-field1\",\"line\":20,\"polarity\":\"negative\"}" --json
 keysight-scopes send-command --port 8765 --command trigger-pattern --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command trigger-pattern --arguments-json "{\"pattern\":\"XXX1\"}" --json
 keysight-scopes send-command --port 8765 --command trigger-or --arguments-json "{\"query\":true}" --json

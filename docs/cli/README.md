@@ -95,6 +95,8 @@ Current implemented scope:
 - Configure or query DSO analog-channel Nth Edge Burst trigger settings with
   `:TRIGger:MODE EBURst`, `:TRIGger:EBURst:*`, and optional source-qualified
   `:TRIGger:EDGE:LEVel`.
+- Configure or query DSO analog-channel basic TV / video trigger settings with
+  `:TRIGger:MODE TV` and `:TRIGger:TV:*`.
 - Configure or query DSO analog ASCII pattern trigger settings with
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`,
   `:TRIGger:PATTern "<pattern>"`, and
@@ -923,6 +925,47 @@ live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A live validation, MSO/digital
 source validation, actual signal-trigger behavior, broader trigger-tree
 behavior, and capture/wait-trigger/run/stop/single workflow integration have
 not been run or implemented for `trigger-edge-burst`.
+
+Configure or query DSO analog-channel basic TV / video trigger settings with
+the canonical `trigger-tv` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-tv --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-tv --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --standard ntsc --mode field1 --polarity negative --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-tv --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --standard ntsc --mode line-field1 --line 20 --polarity negative --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-tv --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 2 --standard pal --mode line-field2 --line 400 --polarity positive --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-tv --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-tv --simulate --json --query
+```
+
+`trigger-tv` v1 configures and queries the common Keysight TV trigger subtree
+using `:TRIGger:MODE TV`, `:TRIGger:TV:SOURce`,
+`:TRIGger:TV:STANdard`, `:TRIGger:TV:MODE`, optional
+`:TRIGger:TV:LINE`, and `:TRIGger:TV:POLarity`. Configure mode is
+state-changing and DSO analog-channel-only: it accepts `--source-channel`,
+`--standard ntsc|pal|palm|secam`, `--mode field1|field2|all-fields|all-lines|line-field1|line-field2|line-alternate`,
+`--polarity positive|negative`, and optional `--line` only for line modes.
+Extended video standards, UDTV commands, 3000X/4000X-only `LINE` mode,
+digital/MSO, external, USB, NFC, serial/bus, and zone trigger configuration
+are not part of this v1 surface.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-tv --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-tv --arguments-json "{\"source_channel\":1,\"standard\":\"ntsc\",\"mode\":\"field1\",\"polarity\":\"negative\"}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-tv --arguments-json "{\"source_channel\":1,\"standard\":\"ntsc\",\"mode\":\"line-field1\",\"line\":20,\"polarity\":\"negative\"}" --json
+```
+
+Worker support has hardware-free validation only. It accepts only `query`,
+`source_channel`, `standard`, `mode`, `line`, and `polarity`; aliases such as
+`channel`, `source`, `tv_source`, `tv_standard`, `trigger_standard`, `tv_mode`,
+`trigger_mode`, `line_number`, `field`, `pol`, `trigger_polarity`,
+`polarity_raw`, `sourceChannel`, and `source_channel_number` are not accepted.
+Live CLI, worker live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A live
+validation, MSO/digital source validation, extended video/UDTV, actual
+signal-trigger behavior, and capture/wait-trigger/run/stop/single workflow
+integration have not been run or implemented for `trigger-tv`.
 
 Configure or query DSO analog ASCII pattern trigger settings with the canonical
 `trigger-pattern` command:

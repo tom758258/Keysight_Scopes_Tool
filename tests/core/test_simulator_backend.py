@@ -141,6 +141,70 @@ def test_simulator_or_trigger_accepts_unquoted_write():
     assert backend.query(":TRIGger:OR?") == '"XXFR"'
 
 
+@pytest.mark.parametrize(
+    "standard, readback",
+    [
+        ("NTSC", "NTSC"),
+        ("PAL", "PAL"),
+        ("PALM", "PALM"),
+        ("SECam", "SEC"),
+    ],
+)
+def test_simulator_tv_standard_roundtrip(standard, readback):
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE TV")
+    backend.write(":TRIGger:TV:SOURce CHANnel2")
+    backend.write(f":TRIGger:TV:STANdard {standard}")
+    backend.write(":TRIGger:TV:MODE LFIeld1")
+    backend.write(":TRIGger:TV:LINE 20")
+    backend.write(":TRIGger:TV:POLarity NEGative")
+
+    assert backend.query(":TRIGger:MODE?") == "TV"
+    assert backend.query(":TRIGger:TV:SOURce?") == "CHAN2"
+    assert backend.query(":TRIGger:TV:STANdard?") == readback
+    assert backend.query(":TRIGger:TV:MODE?") == "LFI1"
+    assert backend.query(":TRIGger:TV:LINE?") == "20"
+    assert backend.query(":TRIGger:TV:POLarity?") == "NEG"
+
+
+@pytest.mark.parametrize(
+    "mode, readback",
+    [
+        ("FIEld1", "FIE1"),
+        ("FIEld2", "FIE2"),
+        ("AFIelds", "AFI"),
+        ("ALINes", "ALIN"),
+        ("LFIeld1", "LFI1"),
+        ("LFIeld2", "LFI2"),
+        ("LALTernate", "LALT"),
+    ],
+)
+def test_simulator_tv_mode_short_readbacks(mode, readback):
+    backend = SimulatorBackend()
+
+    backend.write(f":TRIGger:TV:MODE {mode}")
+
+    assert backend.query(":TRIGger:TV:MODE?") == readback
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ":TRIGger:TV:SOURce DIGital0",
+        ":TRIGger:TV:STANdard GEN",
+        ":TRIGger:TV:MODE LINE",
+        ":TRIGger:TV:LINE 0",
+        ":TRIGger:TV:POLarity EITHer",
+    ],
+)
+def test_simulator_tv_rejects_invalid_writes(command):
+    backend = SimulatorBackend()
+
+    with pytest.raises(SimulatorBackendError):
+        backend.write(command)
+
+
 def test_simulator_glitch_greater_than_with_level_roundtrip():
     backend = SimulatorBackend()
 

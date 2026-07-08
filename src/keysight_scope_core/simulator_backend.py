@@ -193,6 +193,12 @@ class SimulatorBackend:
     edge_burst_slope: str = "POSitive"
     edge_burst_count: int = 3
     edge_burst_idle_time: float = 1e-6
+    tv_source_channel: int | None = 1
+    tv_source_raw: str = "CHANnel1"
+    tv_standard: str = "NTSC"
+    tv_mode: str = "FIEld1"
+    tv_line: int = 1
+    tv_polarity: str = "NEGative"
     pattern_format: str = "ASCii"
     pattern: str = "XXXX"
     pattern_qualifier: str = "ENTered"
@@ -432,6 +438,38 @@ class SimulatorBackend:
             self.edge_burst_count = value
         elif upper.startswith(":TRIGGER:EBURST:IDLE "):
             self.edge_burst_idle_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:TV:SOURCE CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.tv_source_channel = channel
+            self.tv_source_raw = f"CHANnel{channel}"
+        elif upper.startswith(":TRIGGER:TV:STANDARD "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"NTSC", "PAL", "PALM", "SECAM"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.tv_standard = value
+        elif upper.startswith(":TRIGGER:TV:MODE "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {
+                "FIELD1",
+                "FIELD2",
+                "AFIELDS",
+                "ALINES",
+                "LFIELD1",
+                "LFIELD2",
+                "LALTERNATE",
+            }:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.tv_mode = value
+        elif upper.startswith(":TRIGGER:TV:LINE "):
+            value = int(command.rsplit(" ", 1)[1])
+            if value < 1:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.tv_line = value
+        elif upper.startswith(":TRIGGER:TV:POLARITY "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"POSITIVE", "NEGATIVE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.tv_polarity = value
         elif upper == ":TRIGGER:PATTERN:FORMAT ASCII":
             self.pattern_format = "ASCii"
         elif upper.startswith(":TRIGGER:PATTERN:QUALIFIER "):
@@ -627,6 +665,18 @@ class SimulatorBackend:
             return str(self.edge_burst_count)
         if upper == ":TRIGGER:EBURST:IDLE?":
             return f"{self.edge_burst_idle_time:.8E}"
+        if upper == ":TRIGGER:TV:SOURCE?":
+            if self.tv_source_channel is None:
+                return self.tv_source_raw
+            return f"CHAN{self.tv_source_channel}"
+        if upper == ":TRIGGER:TV:STANDARD?":
+            return _abbreviate_tv_standard(self.tv_standard)
+        if upper == ":TRIGGER:TV:MODE?":
+            return _abbreviate_tv_mode(self.tv_mode)
+        if upper == ":TRIGGER:TV:LINE?":
+            return str(self.tv_line)
+        if upper == ":TRIGGER:TV:POLARITY?":
+            return _abbreviate_transition_slope(self.tv_polarity)
         if upper == ":TRIGGER:PATTERN:FORMAT?":
             return _abbreviate_pattern_format(self.pattern_format)
         if upper == ":TRIGGER:PATTERN?":
@@ -1607,6 +1657,8 @@ def _abbreviate_trigger_mode(value: str) -> str:
         return "SHOL"
     if upper.startswith("EBUR"):
         return "EBUR"
+    if upper == "TV":
+        return "TV"
     if upper.startswith("PATT"):
         return "PATT"
     if upper == "OR":
@@ -1673,6 +1725,34 @@ def _abbreviate_pattern_format(value: str) -> str:
         return "ASC"
     if upper.startswith("HEX"):
         return "HEX"
+    return upper
+
+
+def _abbreviate_tv_standard(value: str) -> str:
+    upper = value.strip().upper()
+    if upper == "SECAM":
+        return "SEC"
+    if upper in {"NTSC", "PAL", "PALM"}:
+        return upper
+    return upper
+
+
+def _abbreviate_tv_mode(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("FIELD1"):
+        return "FIE1"
+    if upper.startswith("FIELD2"):
+        return "FIE2"
+    if upper.startswith("AFIELDS"):
+        return "AFI"
+    if upper.startswith("ALINES"):
+        return "ALIN"
+    if upper.startswith("LFIELD1"):
+        return "LFI1"
+    if upper.startswith("LFIELD2"):
+        return "LFI2"
+    if upper.startswith("LALTERNATE"):
+        return "LALT"
     return upper
 
 

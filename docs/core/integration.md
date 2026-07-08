@@ -53,6 +53,8 @@ names are intended for package consumers and tests:
 - `TimebaseController`
 - `TriggerWaitConfig`
 - `TriggerWaitResult`
+- `TvTriggerController`
+- `TvTriggerState`
 - `WaveformCapture`
 - `WaveformPreamble`
 - `capabilities_for_model`

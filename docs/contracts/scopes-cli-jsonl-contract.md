@@ -207,6 +207,14 @@ Control and setup:
   preserved `raw_mode`, `raw_source`, `raw_slope`, `raw_count`,
   `raw_idle_time`, and `raw_level` readbacks. Query mode reads analog edge
   level only when the source readback safely parses as an analog channel.
+- `trigger-tv`: `operation` and `commands`. Configure results include
+  `mode: "tv"`, `source_raw`, `source_channel`, `standard_raw`, normalized
+  `standard`, `tv_mode_raw`, normalized `tv_mode`, `line_raw`, nullable
+  `line`, `polarity_raw`, normalized `polarity`, and
+  `state_changing: true`. Query results include the same normalized and raw
+  readback fields. Query preserves digital, external, extended-standard,
+  unsupported TV mode, non-integer line, and unknown polarity readbacks without
+  failing solely because they are outside the v1 configure surface.
 - `trigger-pattern`: `operation` and `commands`. Configure results include
   `mode: "pattern"`, `format: "ascii"`, `pattern`, `qualifier: "entered"`, and
   `state_changing: true`. Query results include normalized `mode`, `format`,

@@ -162,6 +162,94 @@ _EDGE_BURST_SLOPE_READBACKS = {
     "NEGATIVE": "negative",
 }
 
+_TV_STANDARD_COMMANDS = {
+    "ntsc": "NTSC",
+    "pal": "PAL",
+    "palm": "PALM",
+    "secam": "SECam",
+}
+
+_TV_STANDARD_READBACKS = {
+    "NTSC": "ntsc",
+    "PAL": "pal",
+    "PALM": "palm",
+    "SEC": "secam",
+    "SECAM": "secam",
+}
+
+_TV_EXTENDED_STANDARDS = {
+    "generic",
+    "gen",
+    "p480",
+    "p720",
+    "p1080",
+    "i1080",
+    "p480l60hz",
+    "p720l60hz",
+    "p1080l24hz",
+    "p1080l25hz",
+    "p1080l50hz",
+    "p1080l60hz",
+    "i1080l50hz",
+    "i1080l60hz",
+}
+
+_TV_MODE_COMMANDS = {
+    "field1": "FIEld1",
+    "field2": "FIEld2",
+    "all-fields": "AFIelds",
+    "all-lines": "ALINes",
+    "line-field1": "LFIeld1",
+    "line-field2": "LFIeld2",
+    "line-alternate": "LALTernate",
+}
+
+_TV_MODE_READBACKS = {
+    "FIE1": "field1",
+    "FIELD1": "field1",
+    "FIE2": "field2",
+    "FIELD2": "field2",
+    "AFI": "all-fields",
+    "AFIELDS": "all-fields",
+    "ALIN": "all-lines",
+    "ALINES": "all-lines",
+    "LFI1": "line-field1",
+    "LFIELD1": "line-field1",
+    "LFI2": "line-field2",
+    "LFIELD2": "line-field2",
+    "LALT": "line-alternate",
+    "LALTERNATE": "line-alternate",
+}
+
+_TV_LINE_MODES = frozenset(("line-field1", "line-field2", "line-alternate"))
+
+_TV_LINE_RANGES = {
+    ("ntsc", "line-field1"): (1, 263),
+    ("ntsc", "line-field2"): (1, 262),
+    ("ntsc", "line-alternate"): (1, 262),
+    ("pal", "line-field1"): (1, 313),
+    ("pal", "line-field2"): (314, 625),
+    ("pal", "line-alternate"): (1, 312),
+    ("palm", "line-field1"): (1, 263),
+    ("palm", "line-field2"): (264, 525),
+    ("palm", "line-alternate"): (1, 262),
+    ("secam", "line-field1"): (1, 313),
+    ("secam", "line-field2"): (314, 625),
+    ("secam", "line-alternate"): (1, 312),
+}
+
+_TV_POLARITY_COMMANDS = {
+    "positive": "POSitive",
+    "negative": "NEGative",
+}
+
+_TV_POLARITY_READBACKS = {
+    "POS": "positive",
+    "POSITIVE": "positive",
+    "NEG": "negative",
+    "NEGATIVE": "negative",
+}
+
 _PATTERN_FORMAT_READBACKS = {
     "ASC": "ascii",
     "ASCII": "ascii",
@@ -390,6 +478,38 @@ class EdgeBurstTriggerState:
             "raw_count": self.raw_count,
             "raw_idle_time": self.raw_idle_time,
             "raw_level": self.raw_level,
+        }
+
+
+@dataclass(frozen=True)
+class TvTriggerState:
+    """Readback state for basic TV / video trigger settings."""
+
+    mode: str | None
+    source_raw: str
+    source_channel: int | None
+    standard_raw: str
+    standard: str | None
+    tv_mode_raw: str
+    tv_mode: str | None
+    line_raw: str
+    line: int | None
+    polarity_raw: str
+    polarity: str | None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "source_raw": self.source_raw,
+            "source_channel": self.source_channel,
+            "standard_raw": self.standard_raw,
+            "standard": self.standard,
+            "tv_mode_raw": self.tv_mode_raw,
+            "tv_mode": self.tv_mode,
+            "line_raw": self.line_raw,
+            "line": self.line,
+            "polarity_raw": self.polarity_raw,
+            "polarity": self.polarity,
         }
 
 
@@ -939,6 +1059,77 @@ class EdgeBurstTriggerController:
         )
 
 
+class TvTriggerController:
+    """Controls for DSO analog basic TV / video trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        source_channel: int,
+        standard: str,
+        mode: str,
+        polarity: str,
+        line: int | None = None,
+    ) -> TvTriggerState:
+        """Configure DSO analog basic TV trigger settings."""
+
+        commands = tv_trigger_configure_commands(
+            source_channel=source_channel,
+            standard=standard,
+            mode=mode,
+            polarity=polarity,
+            capabilities=self.capabilities,
+            line=line,
+        )
+        for command in commands:
+            self.scpi.write(command)
+        channel = validate_tv_source_channel(source_channel, self.capabilities)
+        standard_value = validate_tv_standard(standard)
+        mode_value = validate_tv_mode(mode)
+        polarity_value = parse_tv_polarity_readback(normalize_tv_polarity(polarity))
+        line_value = validate_tv_line(standard_value, mode_value, line)
+        return TvTriggerState(
+            mode="tv",
+            source_raw=f"CHANnel{channel}",
+            source_channel=channel,
+            standard_raw=normalize_tv_standard(standard),
+            standard=standard_value,
+            tv_mode_raw=normalize_tv_mode(mode),
+            tv_mode=mode_value,
+            line_raw=str(line_value) if line_value is not None else "",
+            line=line_value,
+            polarity_raw=normalize_tv_polarity(polarity),
+            polarity=polarity_value,
+        )
+
+    def query(self) -> TvTriggerState:
+        """Query basic TV trigger state without changing acquisition state."""
+
+        raw_mode = self.scpi.query(trigger_mode_query())
+        raw_source = self.scpi.query(tv_trigger_source_query())
+        raw_standard = self.scpi.query(tv_trigger_standard_query())
+        raw_tv_mode = self.scpi.query(tv_trigger_mode_query())
+        raw_line = self.scpi.query(tv_trigger_line_query())
+        raw_polarity = self.scpi.query(tv_trigger_polarity_query())
+        return TvTriggerState(
+            mode=parse_trigger_mode(raw_mode),
+            source_raw=raw_source.strip(),
+            source_channel=parse_tv_source(raw_source),
+            standard_raw=raw_standard.strip(),
+            standard=parse_tv_standard_readback(raw_standard),
+            tv_mode_raw=raw_tv_mode.strip(),
+            tv_mode=parse_tv_mode_readback(raw_tv_mode),
+            line_raw=raw_line.strip(),
+            line=parse_tv_line_readback(raw_line),
+            polarity_raw=raw_polarity.strip(),
+            polarity=parse_tv_polarity_readback(raw_polarity),
+        )
+
+
 class PatternTriggerController:
     """Controls for DSO ASCII pattern trigger settings."""
 
@@ -1167,6 +1358,49 @@ def normalize_edge_burst_slope(slope: str) -> str:
         ) from exc
 
 
+def normalize_tv_standard(standard: str) -> str:
+    """Normalize a public TV standard value into a SCPI argument."""
+
+    normalized = standard.strip().lower()
+    if normalized in _TV_EXTENDED_STANDARDS:
+        raise ParameterValidationError(
+            "TV trigger standard is out of v1 scope; use one of: ntsc, pal, palm, secam."
+        )
+    try:
+        return _TV_STANDARD_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "TV trigger standard must be one of: ntsc, pal, palm, secam."
+        ) from exc
+
+
+def normalize_tv_mode(mode: str) -> str:
+    """Normalize a public TV mode value into a SCPI argument."""
+
+    normalized = mode.strip().lower()
+    if normalized == "line":
+        raise ParameterValidationError("TV trigger mode line is out of v1 scope.")
+    try:
+        return _TV_MODE_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "TV trigger mode must be one of: field1, field2, all-fields, all-lines, "
+            "line-field1, line-field2, line-alternate."
+        ) from exc
+
+
+def normalize_tv_polarity(polarity: str) -> str:
+    """Normalize a public TV polarity value into a SCPI argument."""
+
+    normalized = polarity.strip().lower()
+    try:
+        return _TV_POLARITY_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "TV trigger polarity must be one of: positive, negative."
+        ) from exc
+
+
 def trigger_mode_edge_command() -> str:
     """Build the SCPI command that selects edge trigger mode."""
 
@@ -1207,6 +1441,12 @@ def trigger_mode_edge_burst_command() -> str:
     """Build the SCPI command that selects Nth Edge Burst trigger mode."""
 
     return ":TRIGger:MODE EBURst"
+
+
+def trigger_mode_tv_command() -> str:
+    """Build the SCPI command that selects TV trigger mode."""
+
+    return ":TRIGger:MODE TV"
 
 
 def trigger_mode_pattern_command() -> str:
@@ -2102,6 +2342,152 @@ def validate_edge_burst_source_channel(
     return validate_analog_channel(channel, capabilities)
 
 
+def tv_trigger_source_command(channel: int) -> str:
+    """Build the SCPI command for TV trigger source."""
+
+    return f":TRIGger:TV:SOURce CHANnel{channel}"
+
+
+def tv_trigger_source_query() -> str:
+    """Build the SCPI query for TV trigger source."""
+
+    return ":TRIGger:TV:SOURce?"
+
+
+def tv_trigger_standard_command(standard_scpi: str) -> str:
+    """Build the SCPI command for TV trigger standard."""
+
+    return f":TRIGger:TV:STANdard {standard_scpi}"
+
+
+def tv_trigger_standard_query() -> str:
+    """Build the SCPI query for TV trigger standard."""
+
+    return ":TRIGger:TV:STANdard?"
+
+
+def tv_trigger_mode_command(mode_scpi: str) -> str:
+    """Build the SCPI command for TV trigger mode."""
+
+    return f":TRIGger:TV:MODE {mode_scpi}"
+
+
+def tv_trigger_mode_query() -> str:
+    """Build the SCPI query for TV trigger mode."""
+
+    return ":TRIGger:TV:MODE?"
+
+
+def tv_trigger_line_command(line: int) -> str:
+    """Build the SCPI command for TV trigger line."""
+
+    return f":TRIGger:TV:LINE {line}"
+
+
+def tv_trigger_line_query() -> str:
+    """Build the SCPI query for TV trigger line."""
+
+    return ":TRIGger:TV:LINE?"
+
+
+def tv_trigger_polarity_command(polarity_scpi: str) -> str:
+    """Build the SCPI command for TV trigger polarity."""
+
+    return f":TRIGger:TV:POLarity {polarity_scpi}"
+
+
+def tv_trigger_polarity_query() -> str:
+    """Build the SCPI query for TV trigger polarity."""
+
+    return ":TRIGger:TV:POLarity?"
+
+
+def tv_trigger_query_commands() -> list[str]:
+    """Return the basic TV trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        tv_trigger_source_query(),
+        tv_trigger_standard_query(),
+        tv_trigger_mode_query(),
+        tv_trigger_line_query(),
+        tv_trigger_polarity_query(),
+    ]
+
+
+def tv_trigger_configure_commands(
+    *,
+    source_channel: int,
+    standard: str,
+    mode: str,
+    polarity: str,
+    capabilities: ScopeCapabilities,
+    line: int | None = None,
+) -> list[str]:
+    """Return the DSO analog basic TV trigger configure SCPI sequence."""
+
+    channel = validate_tv_source_channel(source_channel, capabilities)
+    standard_value = validate_tv_standard(standard)
+    standard_command = normalize_tv_standard(standard)
+    mode_value = validate_tv_mode(mode)
+    mode_command = normalize_tv_mode(mode)
+    line_value = validate_tv_line(standard_value, mode_value, line)
+    polarity_command = normalize_tv_polarity(polarity)
+    commands = [
+        trigger_mode_tv_command(),
+        tv_trigger_source_command(channel),
+        tv_trigger_standard_command(standard_command),
+        tv_trigger_mode_command(mode_command),
+    ]
+    if line_value is not None:
+        commands.append(tv_trigger_line_command(line_value))
+    commands.append(tv_trigger_polarity_command(polarity_command))
+    return commands
+
+
+def validate_tv_source_channel(channel: int, capabilities: ScopeCapabilities) -> int:
+    """Validate TV trigger DSO analog channel input."""
+
+    if isinstance(channel, bool) or not isinstance(channel, int):
+        raise ParameterValidationError(
+            "TV trigger source_channel must be an integer analog channel."
+        )
+    return validate_analog_channel(channel, capabilities)
+
+
+def validate_tv_standard(standard: str) -> str:
+    """Validate and normalize a public TV standard value."""
+
+    normalize_tv_standard(standard)
+    return standard.strip().lower()
+
+
+def validate_tv_mode(mode: str) -> str:
+    """Validate and normalize a public TV mode value."""
+
+    normalize_tv_mode(mode)
+    return mode.strip().lower()
+
+
+def validate_tv_line(standard: str, mode: str, line: int | None) -> int | None:
+    """Validate TV line presence and documented v1 line ranges."""
+
+    if mode in _TV_LINE_MODES:
+        if line is None:
+            raise ParameterValidationError(f"TV trigger mode {mode} requires line.")
+        if isinstance(line, bool) or not isinstance(line, int):
+            raise ParameterValidationError("TV trigger line must be a positive integer.")
+        low, high = _TV_LINE_RANGES[(standard, mode)]
+        if line < low or line > high:
+            raise ParameterValidationError(
+                f"TV trigger line for {standard} {mode} must be from {low} through {high}."
+            )
+        return line
+    if line is not None:
+        raise ParameterValidationError(f"TV trigger mode {mode} does not accept line.")
+    return None
+
+
 def pattern_trigger_format_command() -> str:
     """Build the SCPI command for ASCII pattern format."""
 
@@ -2276,6 +2662,8 @@ def parse_trigger_mode(raw: str) -> str | None:
         return "setup-hold"
     if normalized in {"EBUR", "EBURST"}:
         return "edge-burst"
+    if normalized in {"TV"}:
+        return "tv"
     if normalized in {"PATT", "PATTERN"}:
         return "pattern"
     if normalized in {"OR"}:
@@ -2445,6 +2833,44 @@ def parse_edge_burst_slope_readback(raw: str) -> str | None:
     """Parse an edge-burst trigger slope readback when recognized."""
 
     return _EDGE_BURST_SLOPE_READBACKS.get(raw.strip().upper())
+
+
+def parse_tv_source(raw: str) -> int | None:
+    """Parse a TV source readback as analog channel when safe."""
+
+    normalized = raw.strip().upper()
+    if normalized.startswith("CHANNEL"):
+        return _parse_channel_suffix(normalized.removeprefix("CHANNEL"))
+    if normalized.startswith("CHAN"):
+        return _parse_channel_suffix(normalized.removeprefix("CHAN"))
+    return None
+
+
+def parse_tv_standard_readback(raw: str) -> str | None:
+    """Parse a TV standard readback when it is in the basic v1 set."""
+
+    return _TV_STANDARD_READBACKS.get(raw.strip().upper())
+
+
+def parse_tv_mode_readback(raw: str) -> str | None:
+    """Parse a TV mode readback when it is in the basic v1 set."""
+
+    return _TV_MODE_READBACKS.get(raw.strip().upper())
+
+
+def parse_tv_line_readback(raw: str) -> int | None:
+    """Parse a TV line readback, preserving non-integer states as absent."""
+
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return None
+
+
+def parse_tv_polarity_readback(raw: str) -> str | None:
+    """Parse a TV polarity readback when recognized."""
+
+    return _TV_POLARITY_READBACKS.get(raw.strip().upper())
 
 
 def parse_edge_burst_count_readback(raw: str) -> int | None:

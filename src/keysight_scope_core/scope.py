@@ -42,6 +42,8 @@ from .trigger import (
     SetupHoldTriggerState,
     TransitionTriggerController,
     TransitionTriggerState,
+    TvTriggerController,
+    TvTriggerState,
 )
 from .visa_backend import VisaBackend
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformController
@@ -481,6 +483,30 @@ class KeysightScope:
 
         return self._edge_burst_trigger_controller().query()
 
+    def configure_tv_trigger(
+        self,
+        *,
+        source_channel: int,
+        standard: str,
+        mode: str,
+        polarity: str,
+        line: int | None = None,
+    ) -> TvTriggerState:
+        """Configure DSO analog basic TV trigger settings."""
+
+        return self._tv_trigger_controller().configure(
+            source_channel=source_channel,
+            standard=standard,
+            mode=mode,
+            polarity=polarity,
+            line=line,
+        )
+
+    def query_tv_trigger(self) -> TvTriggerState:
+        """Query basic TV trigger settings."""
+
+        return self._tv_trigger_controller().query()
+
     def configure_pattern_trigger(self, pattern: str) -> PatternTriggerState:
         """Configure DSO ASCII pattern trigger settings."""
 
@@ -760,6 +786,13 @@ class KeysightScope:
                 "Edge-burst trigger operations require known capabilities; call query_idn() first."
             )
         return EdgeBurstTriggerController(self.scpi, self.capabilities)
+
+    def _tv_trigger_controller(self) -> TvTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "TV trigger operations require known capabilities; call query_idn() first."
+            )
+        return TvTriggerController(self.scpi, self.capabilities)
 
     def _pattern_trigger_controller(self) -> PatternTriggerController:
         if self.capabilities is None:

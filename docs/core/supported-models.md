@@ -29,6 +29,9 @@ All supported series profiles currently expose:
 - BYTE and WORD waveform capture with a conservative 10,000-point safe maximum.
 - Read-only measurement helpers and screenshot capture.
 - Analog channel labels, display labels, and display annotation.
+- Hardware-free Core/CLI/simulator/worker support for the documented one-shot
+  trigger packs, including `trigger-tv` basic TV / video trigger configure and
+  query.
 - Triggered capture wait classification for DSO-X 2000X/3000X/4000X using the
   Operation Status Condition Run bit.
 

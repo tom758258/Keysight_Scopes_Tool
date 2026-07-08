@@ -67,6 +67,16 @@ Core owns runtime behavior:
   far; no live hardware validation has been run, and it does not add MSO/digital
   configuration, signal-trigger behavior, run, stop, single, wait-trigger,
   capture, or broader trigger-tree behavior.
+- DSO analog-channel basic TV / video trigger helpers for the Keysight
+  `:TRIGger:TV...` command family. This `trigger-tv v1` slice configures
+  `:TRIGger:MODE TV`, analog source channel, basic standard
+  `ntsc`/`pal`/`palm`/`secam`, basic TV mode, optional line number for line
+  modes, and positive/negative polarity. Query mode preserves raw readbacks and
+  tolerates digital, external, extended-standard, `LINE` mode, or unknown TV
+  subtree states without crashing. It is hardware-free only so far; no live
+  hardware validation has been run, and it does not add extended video/UDTV,
+  MSO/digital or external source configuration, signal-trigger behavior, run,
+  stop, single, wait-trigger, capture, or WebUI runtime behavior.
 - DSO analog ASCII pattern trigger helpers for the Keysight
   `:TRIGger:PATTern...` command family. This v1 slice configures
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`, raw `0/1/X`

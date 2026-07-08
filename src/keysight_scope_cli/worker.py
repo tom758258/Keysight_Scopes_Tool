@@ -71,6 +71,7 @@ DOMAIN_COMMANDS = {
     "trigger-delay",
     "trigger-setup-hold",
     "trigger-edge-burst",
+    "trigger-tv",
     "trigger-pattern",
     "trigger-or",
     "trigger-holdoff",
@@ -324,6 +325,7 @@ def parse_domain_command(
     arguments = _normalize_trigger_delay_worker_arguments(command, arguments)
     arguments = _normalize_trigger_setup_hold_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_burst_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_tv_worker_arguments(command, arguments)
     arguments = _normalize_trigger_pattern_worker_arguments(command, arguments)
     arguments = _normalize_trigger_or_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
@@ -520,6 +522,27 @@ def _normalize_trigger_edge_burst_worker_arguments(
         )
     if "query" in arguments and arguments["query"] is not True:
         raise KeysightScopeError("trigger-edge-burst argument query must be exactly true")
+    return dict(arguments)
+
+
+def _normalize_trigger_tv_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-tv":
+        return arguments
+    allowed = {
+        "query",
+        "source_channel",
+        "standard",
+        "mode",
+        "line",
+        "polarity",
+    }
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for trigger-tv: {sorted(unknown)[0]}")
+    if "query" in arguments and arguments["query"] is not True:
+        raise KeysightScopeError("trigger-tv argument query must be exactly true")
     return dict(arguments)
 
 

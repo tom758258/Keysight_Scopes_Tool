@@ -236,6 +236,8 @@ from keysight_scope_core.trigger import (
     transition_trigger_configure_commands,
     transition_trigger_query_commands,
     trigger_mode_edge_command,
+    tv_trigger_configure_commands,
+    tv_trigger_query_commands,
     validate_delay_trigger_count,
     validate_delay_trigger_time,
     validate_edge_burst_count,
@@ -1210,6 +1212,57 @@ def _build_parser() -> argparse.ArgumentParser:
         help="optional analog edge level in volts",
     )
 
+    tv_trigger_parser = subparsers.add_parser(
+        "trigger-tv",
+        allow_abbrev=False,
+        help="configure or query DSO analog basic TV trigger settings",
+    )
+    _add_scope_connection_args(tv_trigger_parser)
+    tv_trigger_parser.add_argument(
+        "--query",
+        dest="tv_query",
+        action="store_true",
+        help="query TV trigger state",
+    )
+    tv_trigger_parser.add_argument(
+        "--source-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the TV trigger source",
+    )
+    tv_trigger_parser.add_argument(
+        "--standard",
+        choices=("ntsc", "pal", "palm", "secam"),
+        default=None,
+        help="basic TV trigger standard",
+    )
+    tv_trigger_parser.add_argument(
+        "--mode",
+        choices=(
+            "field1",
+            "field2",
+            "all-fields",
+            "all-lines",
+            "line-field1",
+            "line-field2",
+            "line-alternate",
+        ),
+        default=None,
+        help="basic TV trigger mode",
+    )
+    tv_trigger_parser.add_argument(
+        "--polarity",
+        choices=("positive", "negative"),
+        default=None,
+        help="TV trigger polarity",
+    )
+    tv_trigger_parser.add_argument(
+        "--line",
+        type=_positive_int,
+        default=None,
+        help="TV line number for line-field1, line-field2, or line-alternate",
+    )
+
     pattern_trigger_parser = subparsers.add_parser(
         "trigger-pattern",
         help="configure or query DSO ASCII pattern trigger settings",
@@ -1927,6 +1980,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_setup_hold(args)
     if args.command == "trigger-edge-burst":
         return _cmd_trigger_edge_burst(args)
+    if args.command == "trigger-tv":
+        return _cmd_trigger_tv(args)
     if args.command == "trigger-pattern":
         return _cmd_trigger_pattern(args)
     if args.command == "trigger-or":
@@ -2239,6 +2294,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_setup_hold_args(args)
     if getattr(args, "command", None) == "trigger-edge-burst":
         _validate_trigger_edge_burst_args(args)
+    if getattr(args, "command", None) == "trigger-tv":
+        _validate_trigger_tv_args(args)
     if getattr(args, "command", None) == "trigger-pattern":
         _validate_trigger_pattern_args(args)
     if getattr(args, "command", None) == "trigger-or":
@@ -2488,6 +2545,41 @@ def _validate_trigger_edge_burst_args(args: argparse.Namespace) -> None:
     validate_edge_burst_idle_time(args.idle_time)
     if args.level_volts is not None:
         validate_trigger_level(args.level_volts)
+
+
+def _validate_trigger_tv_args(args: argparse.Namespace) -> None:
+    set_values = (
+        getattr(args, "source_channel", None),
+        getattr(args, "standard", None),
+        getattr(args, "mode", None),
+        getattr(args, "polarity", None),
+        getattr(args, "line", None),
+    )
+    if getattr(args, "tv_query", False):
+        if any(value is not None for value in set_values):
+            raise ParameterValidationError(
+                "trigger-tv --query cannot be combined with configure options."
+            )
+        return
+
+    if (
+        args.source_channel is None
+        or args.standard is None
+        or args.mode is None
+        or args.polarity is None
+    ):
+        raise ParameterValidationError(
+            "trigger-tv configure requires --source-channel, --standard, --mode, and --polarity."
+        )
+
+    tv_trigger_configure_commands(
+        source_channel=args.source_channel,
+        standard=args.standard,
+        mode=args.mode,
+        polarity=args.polarity,
+        capabilities=capabilities_for_model(args.model),
+        line=args.line,
+    )
 
 
 def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
@@ -2927,6 +3019,31 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         }
         if args.level_volts is not None:
             result["level_volts"] = args.level_volts
+        return commands + [":SYSTem:ERRor?"], [], result
+    if command == "trigger-tv":
+        if args.tv_query:
+            commands = tv_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        commands = tv_trigger_configure_commands(
+            source_channel=args.source_channel,
+            standard=args.standard,
+            mode=args.mode,
+            polarity=args.polarity,
+            capabilities=capabilities,
+            line=args.line,
+        )
+        result: dict[str, object] = {
+            "operation": "configure",
+            "mode": "tv",
+            "commands": commands,
+            "source_channel": args.source_channel,
+            "source_raw": f"CHANnel{args.source_channel}",
+            "standard": args.standard,
+            "tv_mode": args.mode,
+            "polarity": args.polarity,
+            "line": args.line,
+            "state_changing": True,
+        }
         return commands + [":SYSTem:ERRor?"], [], result
     if command == "trigger-pattern":
         if args.pattern_query:
@@ -5177,6 +5294,76 @@ def _cmd_trigger_edge_burst(args: argparse.Namespace) -> int:
                     "operation": "configure",
                     "commands": commands,
                     "source": state.raw_source,
+                    "state_changing": True,
+                }
+            )
+            _json_update_result(**result)
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_tv(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.tv_query:
+            commands = tv_trigger_query_commands()
+            print("Planned query: TV trigger state")
+            state = scope.query_tv_trigger()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or 'unknown'}")
+            print(f"Source: {state.source_raw}")
+            if state.source_channel is not None:
+                print(f"Source channel: CH{state.source_channel}")
+            print(f"Standard: {state.standard or state.standard_raw}")
+            print(f"TV mode: {state.tv_mode or state.tv_mode_raw}")
+            print(f"Line: {state.line if state.line is not None else state.line_raw}")
+            print(f"Polarity: {state.polarity or state.polarity_raw}")
+        else:
+            commands = tv_trigger_configure_commands(
+                source_channel=args.source_channel,
+                standard=args.standard,
+                mode=args.mode,
+                polarity=args.polarity,
+                capabilities=scope.capabilities,
+                line=args.line,
+            )
+            print(
+                f"Planned change: TV trigger CH{args.source_channel}, "
+                f"{args.standard}, {args.mode}, {args.polarity}"
+            )
+            state = scope.configure_tv_trigger(
+                source_channel=args.source_channel,
+                standard=args.standard,
+                mode=args.mode,
+                polarity=args.polarity,
+                line=args.line,
+            )
+            result = state.to_json()
+            result.update(
+                {
+                    "operation": "configure",
+                    "commands": commands,
                     "state_changing": True,
                 }
             )

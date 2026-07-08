@@ -69,6 +69,8 @@ from .trigger import (
     TransitionTriggerState,
     TriggerWaitConfig,
     TriggerWaitResult,
+    TvTriggerController,
+    TvTriggerState,
 )
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformPreamble
 
@@ -97,6 +99,8 @@ __all__ = [
     "TransitionTriggerState",
     "TriggerWaitConfig",
     "TriggerWaitResult",
+    "TvTriggerController",
+    "TvTriggerState",
     "IDN",
     "KeysightScope",
     "MeasurementController",

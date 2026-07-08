@@ -136,8 +136,8 @@ Worker `/command` supports the existing Scopes capability surface:
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
   `trigger-transition`, `trigger-delay`, `trigger-setup-hold`,
-  `trigger-edge-burst`, `trigger-pattern`, `trigger-or`, `trigger-holdoff`,
-  `cursor`, `autoscale`
+  `trigger-edge-burst`, `trigger-tv`, `trigger-pattern`, `trigger-or`,
+  `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -496,6 +496,67 @@ has hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
 behavior, broader trigger-tree validation, and capture/wait-trigger/run/stop/
 single workflow integration have not been run or implemented.
 
+`trigger-tv` is accepted only as the canonical basic TV / Video trigger
+command. It uses the Keysight `:TRIGger:TV...` SCPI family:
+
+```json
+{"command": "trigger-tv", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "trigger-tv",
+  "arguments": {
+    "source_channel": 1,
+    "standard": "ntsc",
+    "mode": "field1",
+    "polarity": "negative"
+  }
+}
+```
+
+```json
+{
+  "command": "trigger-tv",
+  "arguments": {
+    "source_channel": 1,
+    "standard": "ntsc",
+    "mode": "line-field1",
+    "line": 20,
+    "polarity": "negative"
+  }
+}
+```
+
+Configure mode changes trigger settings and is DSO analog-channel-only. It
+sends `:TRIGger:MODE TV`, `:TRIGger:TV:SOURce`,
+`:TRIGger:TV:STANdard`, `:TRIGger:TV:MODE`, optional
+`:TRIGger:TV:LINE` for line modes, and `:TRIGger:TV:POLarity`.
+Standards are `ntsc`, `pal`, `palm`, and `secam`; modes are `field1`,
+`field2`, `all-fields`, `all-lines`, `line-field1`, `line-field2`, and
+`line-alternate`; polarity is `positive` or `negative`. `line` is required for
+line modes and rejected for non-line modes.
+
+Query mode must use `query: true` without configure keys and reads mode,
+source, standard, TV mode, line, and polarity. Result JSON preserves raw
+readbacks and tolerates digital, external, extended-standard, unsupported TV
+mode, non-integer line, and unknown polarity states.
+
+The worker accepts only `query`, `source_channel`, `standard`, `mode`, `line`,
+and `polarity` for this v1 command. It rejects partial configure, `query`
+values other than exactly `true`, `query` combined with configure keys, unknown
+keys even when false or null, and aliases such as `channel`, `source`,
+`tv_source`, `tv_standard`, `trigger_standard`, `tv_mode`, `trigger_mode`,
+`line_number`, `field`, `pol`, `trigger_polarity`, `polarity_raw`,
+`sourceChannel`, and `source_channel_number` before enqueue, artifact
+creation, VISA open, or SCPI. Extended video standards, UDTV commands, 3000X/
+4000X-only `LINE` mode, USB, NFC, serial/bus, zone trigger, MSO/digital source,
+external source, actual signal-trigger behavior, run/stop/single/force/wait/
+capture integration, and WebUI runtime are out of scope. Worker support has
+hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
+2000X/3000X/4024A/4034A, MSO/digital, extended video/UDTV, and actual
+signal-trigger validation have not been run.
+
 `trigger-pattern` is accepted only as the canonical Pattern trigger command.
 It uses the DSO analog ASCII entered-pattern `:TRIGger:PATTern...` SCPI
 surface:
@@ -813,8 +874,8 @@ recorded as absolute paths. Default worker outputs are:
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
 `trigger-pulse-width`, `trigger-runt`, `trigger-transition`, `trigger-delay`,
-`trigger-setup-hold`, `trigger-edge-burst`, `trigger-pattern`, `trigger-or`,
-`display-clear`, `display-persistence`, `display-intensity`, and
+`trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`, `trigger-pattern`,
+`trigger-or`, `display-clear`, `display-persistence`, `display-intensity`, and
 `display-vectors` do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
