@@ -669,17 +669,33 @@ Timebase position must be a finite number in seconds. These commands first
 query `*IDN?` to verify the connected scope model is recognized, then perform
 one `:SYSTem:ERRor?` post-check.
 
-Configure or query analog edge trigger source, level, and slope:
+Configure or query analog edge trigger source, level, and slope with the
+canonical `trigger-edge` command:
 
 ```powershell
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli edge-trigger --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --level 0.25 --slope positive --log-scpi
-.\.venv\Scripts\python.exe -m keysight_scope_cli.cli edge-trigger --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --level 0.25 --slope positive --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge --simulate --json --model DSOX4024A --source-channel 1 --level 0.5 --slope positive
 ```
 
 The configure command sends `:TRIGger:MODE EDGE`, then sets source, level, and
 slope. Supported slopes are `positive`, `negative`, `either`, and `alternate`.
-Only analog channel sources are supported in this first trigger slice. Trigger
-level must be a finite number in volts.
+Only DSO analog channel sources are supported. Trigger level must be a finite
+number in volts. External trigger, digital/MSO source, trigger coupling/reject,
+and broader trigger-tree expansion are not included. The old `edge-trigger`
+command name is not accepted.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge --arguments-json "{\"source_channel\":1,\"level\":0.5,\"slope\":\"positive\"}" --json
+```
+
+Worker JSON for `trigger-edge` accepts only `query`, `source_channel`,
+`level`, and `slope`. Aliases and unknown fields are rejected before enqueue,
+artifact creation, simulator/VISA session open, or SCPI.
 
 Configure or query Keysight pulse-width trigger settings with the canonical
 `trigger-pulse-width` command:

@@ -309,7 +309,7 @@ def test_scope_edge_trigger_requires_known_capabilities():
     scope = KeysightScope(FakeBackend())
 
     try:
-        scope.configure_edge_trigger(source_channel=1, level_volts=0.0, slope="positive")
+        scope.configure_trigger_edge(source_channel=1, level_volts=0.0, slope="positive")
     except ParameterValidationError as exc:
         assert "query_idn" in str(exc)
     else:
@@ -328,8 +328,8 @@ def test_scope_edge_trigger_uses_capabilities_from_idn():
     scope = KeysightScope(backend)
 
     scope.query_idn()
-    scope.configure_edge_trigger(source_channel=1, level_volts=0.25, slope="positive")
-    state = scope.query_edge_trigger()
+    scope.configure_trigger_edge(source_channel=1, level_volts=0.25, slope="positive")
+    state = scope.query_trigger_edge()
 
     assert state.source_channel == 1
     assert state.level_volts == 0.25
@@ -344,6 +344,13 @@ def test_scope_edge_trigger_uses_capabilities_from_idn():
         ":TRIGger:EDGE:LEVel?",
         ":TRIGger:EDGE:SLOPe?",
     ]
+
+
+def test_scope_edge_trigger_old_methods_are_removed():
+    scope = KeysightScope(FakeBackend())
+
+    assert not hasattr(scope, "configure_edge_trigger")
+    assert not hasattr(scope, "query_edge_trigger")
 
 
 def test_scope_runt_trigger_uses_capabilities_from_idn():

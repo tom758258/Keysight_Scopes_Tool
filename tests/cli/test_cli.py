@@ -1867,7 +1867,7 @@ def test_timebase_position_cli_queries_position_then_checks_error(monkeypatch, c
     assert "Timebase position s: -0.0005" in out
 
 
-def test_edge_trigger_cli_configures_edge_trigger_then_checks_error(monkeypatch, capsys):
+def test_trigger_edge_cli_configures_edge_trigger_then_checks_error(monkeypatch, capsys):
     class DummyBackend:
         backend = "backend"
         timeout = 2000
@@ -1890,8 +1890,8 @@ def test_edge_trigger_cli_configures_edge_trigger_then_checks_error(monkeypatch,
             self.capabilities = capabilities_for_model("DSOX4024A")
             return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
-        def configure_edge_trigger(self, source_channel, level_volts, slope):
-            self.calls.append(("configure_edge_trigger", source_channel, level_volts, slope))
+        def configure_trigger_edge(self, source_channel, level_volts, slope):
+            self.calls.append(("configure_trigger_edge", source_channel, level_volts, slope))
 
         def query_system_error(self):
             self.calls.append("query_system_error")
@@ -1903,7 +1903,7 @@ def test_edge_trigger_cli_configures_edge_trigger_then_checks_error(monkeypatch,
     assert (
         cli.main(
             [
-                "edge-trigger",
+                "trigger-edge",
                 "--resource",
                 "USB0::FAKE::INSTR",
                 "--source-channel",
@@ -1919,7 +1919,7 @@ def test_edge_trigger_cli_configures_edge_trigger_then_checks_error(monkeypatch,
 
     assert scope.calls == [
         "query_idn",
-        ("configure_edge_trigger", 1, 0.25, "POSitive"),
+        ("configure_trigger_edge", 1, 0.25, "POSitive"),
         "query_system_error",
     ]
     out = capsys.readouterr().out
@@ -1931,7 +1931,7 @@ def test_edge_trigger_cli_configures_edge_trigger_then_checks_error(monkeypatch,
     assert 'System error: +0, "No error"' in out
 
 
-def test_edge_trigger_cli_queries_edge_trigger_then_checks_error(monkeypatch, capsys):
+def test_trigger_edge_cli_queries_edge_trigger_then_checks_error(monkeypatch, capsys):
     class DummyBackend:
         backend = "backend"
         timeout = None
@@ -1959,8 +1959,8 @@ def test_edge_trigger_cli_queries_edge_trigger_then_checks_error(monkeypatch, ca
             self.capabilities = capabilities_for_model("DSOX4024A")
             return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
-        def query_edge_trigger(self):
-            self.calls.append("query_edge_trigger")
+        def query_trigger_edge(self):
+            self.calls.append("query_trigger_edge")
             return DummyState()
 
         def query_system_error(self):
@@ -1970,9 +1970,9 @@ def test_edge_trigger_cli_queries_edge_trigger_then_checks_error(monkeypatch, ca
     scope = DummyScope()
     monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
 
-    assert cli.main(["edge-trigger", "--resource", "USB0::FAKE::INSTR", "--query"]) == 0
+    assert cli.main(["trigger-edge", "--resource", "USB0::FAKE::INSTR", "--query"]) == 0
 
-    assert scope.calls == ["query_idn", "query_edge_trigger", "query_system_error"]
+    assert scope.calls == ["query_idn", "query_trigger_edge", "query_system_error"]
     out = capsys.readouterr().out
     assert "Planned query: edge trigger source, level, and slope" in out
     assert "Command: :TRIGger:EDGE:SOURce?" in out
@@ -1983,7 +1983,7 @@ def test_edge_trigger_cli_queries_edge_trigger_then_checks_error(monkeypatch, ca
     assert "Slope: positive" in out
 
 
-def test_edge_trigger_cli_rejects_missing_configuration_args(monkeypatch, capsys):
+def test_trigger_edge_cli_rejects_missing_configuration_args(monkeypatch, capsys):
     class DummyBackend:
         backend = "backend"
         timeout = None
@@ -2009,9 +2009,9 @@ def test_edge_trigger_cli_rejects_missing_configuration_args(monkeypatch, capsys
     scope = DummyScope()
     monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda resource, visa_library=None: scope))
 
-    assert cli.main(["edge-trigger", "--resource", "USB0::FAKE::INSTR", "--source-channel", "1"]) == 1
+    assert cli.main(["trigger-edge", "--resource", "USB0::FAKE::INSTR", "--source-channel", "1"]) == 1
 
-    assert scope.calls == ["query_idn"]
+    assert scope.calls == []
     err = capsys.readouterr().err
     assert "requires --source-channel, --level, and --slope" in err
 

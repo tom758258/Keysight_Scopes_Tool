@@ -319,12 +319,12 @@ class KeysightScope:
 
         return self._timebase_controller().query_position()
 
-    def configure_edge_trigger(self, source_channel: int, level_volts: float, slope: str) -> None:
+    def configure_trigger_edge(self, source_channel: int, level_volts: float, slope: str) -> None:
         """Configure analog edge trigger source, level, and slope."""
 
         self._edge_trigger_controller().configure(source_channel, level_volts, slope)
 
-    def query_edge_trigger(self) -> EdgeTriggerState:
+    def query_trigger_edge(self) -> EdgeTriggerState:
         """Query analog edge trigger source, level, and slope."""
 
         return self._edge_trigger_controller().query()

@@ -64,7 +64,7 @@ DOMAIN_COMMANDS = {
     "annotation",
     "timebase-scale",
     "timebase-position",
-    "edge-trigger",
+    "trigger-edge",
     "trigger-pulse-width",
     "trigger-runt",
     "trigger-transition",
@@ -319,6 +319,7 @@ def parse_domain_command(
     job_dir: Path | None = None,
 ) -> argparse.Namespace:
     _validate_display_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_edge_worker_arguments(command, arguments)
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
@@ -370,6 +371,27 @@ def _validate_display_worker_arguments(command: str, arguments: dict[str, Any]) 
     for key in ("query", "on"):
         if key in arguments and arguments[key] is not True:
             raise KeysightScopeError(f"{command} argument {key} must be exactly true")
+
+
+def _normalize_trigger_edge_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-edge":
+        return arguments
+    allowed = {"query", "source_channel", "level", "slope"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for trigger-edge: {sorted(unknown)[0]}")
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError("trigger-edge argument query must be exactly true")
+        configure_keys = {"source_channel", "level", "slope"} & set(arguments)
+        if configure_keys:
+            raise KeysightScopeError(
+                "trigger-edge query cannot be combined with configure arguments"
+            )
+        return dict(arguments)
+    return dict(arguments)
 
 
 def _normalize_trigger_glitch_worker_arguments(

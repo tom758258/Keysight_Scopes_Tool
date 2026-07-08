@@ -27,6 +27,12 @@ Core owns runtime behavior:
   `:OPERegister:CONDition?`, classify DSO-X 2000X/3000X/4000X completion by
   the Operation Status Condition Run bit, and expose raw poll values for
   adapter JSON.
+- Analog-channel edge trigger helpers exposed through
+  `KeysightScope.configure_trigger_edge()` and
+  `KeysightScope.query_trigger_edge()`. This canonical API configures and
+  queries the existing `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*` SCPI
+  behavior for DSO analog channels only; external and digital/MSO edge trigger
+  expansion is not included.
 - Analog-channel pulse-width trigger helpers for the Keysight
   `:TRIGger:GLITch...` command family. This first slice configures and queries
   pulse-width trigger state only; it does not run, stop, single, force trigger,

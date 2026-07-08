@@ -860,7 +860,7 @@ def test_channel_timebase_trigger_json_results(capsys):
     assert timebase_payload["result"]["operation"] == "set"
     assert timebase_payload["result"]["position_seconds"] == 0.001
 
-    assert cli.main(["edge-trigger", "--simulate", "--json", "--source-channel", "1", "--level", "0.2", "--slope", "positive"]) == 0
+    assert cli.main(["trigger-edge", "--simulate", "--json", "--source-channel", "1", "--level", "0.2", "--slope", "positive"]) == 0
     trigger_payload = _json_stdout(capsys)
     assert trigger_payload["result"]["source_channel"] == 1
     assert trigger_payload["result"]["level_volts"] == 0.2

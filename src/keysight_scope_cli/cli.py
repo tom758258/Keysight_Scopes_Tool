@@ -901,7 +901,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     edge_trigger_parser = subparsers.add_parser(
-        "edge-trigger",
+        "trigger-edge",
         help="configure or query analog edge trigger settings",
     )
     _add_scope_connection_args(edge_trigger_parser)
@@ -1966,8 +1966,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_timebase_scale(args)
     if args.command == "timebase-position":
         return _cmd_timebase_position(args)
-    if args.command == "edge-trigger":
-        return _cmd_edge_trigger(args)
+    if args.command == "trigger-edge":
+        return _cmd_trigger_edge(args)
     if args.command == "trigger-pulse-width":
         return _cmd_trigger_glitch(args)
     if args.command == "trigger-runt":
@@ -2282,6 +2282,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             )
         if getattr(args, "off", False):
             raise ParameterValidationError("display-vectors set OFF is not supported.")
+    if getattr(args, "command", None) == "trigger-edge":
+        _validate_trigger_edge_args(args)
     if getattr(args, "command", None) == "trigger-pulse-width":
         _validate_trigger_glitch_args(args)
     if getattr(args, "command", None) == "trigger-runt":
@@ -2300,6 +2302,24 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_pattern_args(args)
     if getattr(args, "command", None) == "trigger-or":
         _validate_trigger_or_args(args)
+
+
+def _validate_trigger_edge_args(args: argparse.Namespace) -> None:
+    configure_values = (
+        getattr(args, "source_channel", None),
+        getattr(args, "level", None),
+        getattr(args, "slope", None),
+    )
+    if getattr(args, "edge_query", False):
+        if any(value is not None for value in configure_values):
+            raise ParameterValidationError(
+                "trigger-edge --query cannot be combined with configure options."
+            )
+        return
+    if not all(value is not None for value in configure_values):
+        raise ParameterValidationError(
+            "trigger-edge configure requires --source-channel, --level, and --slope."
+        )
 
 
 def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
@@ -2847,12 +2867,12 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         position = None if args.timebase_position_query else validate_timebase_position(args.timebase_position_value)
         planned = [timebase_position_query()] if args.timebase_position_query else [timebase_position_command(position)]
         return planned + [":SYSTem:ERRor?"], [], {"operation": "query" if args.timebase_position_query else "set", "command": planned[0], "position_seconds": position}
-    if command == "edge-trigger":
+    if command == "trigger-edge":
         if args.edge_query:
             commands = [edge_trigger_source_query(), edge_trigger_level_query(), edge_trigger_slope_query()]
             return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
         if args.source_channel is None or args.level is None or args.slope is None:
-            raise KeysightScopeError("edge-trigger configure requires --source-channel, --level, and --slope")
+            raise KeysightScopeError("trigger-edge configure requires --source-channel, --level, and --slope")
         channel = validate_analog_channel(args.source_channel, capabilities)
         slope = normalize_edge_slope(args.slope)
         commands = [trigger_mode_edge_command(), edge_trigger_source_command(channel), edge_trigger_level_command(args.level), edge_trigger_slope_command(slope)]
@@ -4722,7 +4742,7 @@ def _cmd_timebase_position(args: argparse.Namespace) -> int:
         return 1 if entry.is_error else 0
 
 
-def _cmd_edge_trigger(args: argparse.Namespace) -> int:
+def _cmd_trigger_edge(args: argparse.Namespace) -> int:
     resource = _require_resource(args)
     if resource is None:
         return 2
@@ -4745,7 +4765,7 @@ def _cmd_edge_trigger(args: argparse.Namespace) -> int:
                     "--query cannot be combined with --source-channel, --level, or --slope"
                 )
             print("Planned query: edge trigger source, level, and slope")
-            state = scope.query_edge_trigger()
+            state = scope.query_trigger_edge()
             _json_update_result(
                 operation="query",
                 commands=[edge_trigger_source_query(), edge_trigger_level_query(), edge_trigger_slope_query()],
@@ -4762,7 +4782,7 @@ def _cmd_edge_trigger(args: argparse.Namespace) -> int:
         else:
             if args.source_channel is None or args.level is None or args.slope is None:
                 raise KeysightScopeError(
-                    "edge-trigger requires --source-channel, --level, and --slope unless --query is used"
+                    "trigger-edge requires --source-channel, --level, and --slope unless --query is used"
                 )
             channel = validate_analog_channel(args.source_channel, scope.capabilities)
             level = validate_trigger_level(args.level)
@@ -4771,7 +4791,7 @@ def _cmd_edge_trigger(args: argparse.Namespace) -> int:
                 f"Planned change: edge trigger CH{channel}, level {level:.12g} V, "
                 f"slope {args.slope}"
             )
-            scope.configure_edge_trigger(channel, level, slope)
+            scope.configure_trigger_edge(channel, level, slope)
             _json_update_result(
                 operation="set",
                 commands=[trigger_mode_edge_command(), edge_trigger_source_command(channel), edge_trigger_level_command(level), edge_trigger_slope_command(slope)],
@@ -6833,7 +6853,7 @@ def _doctor_snapshot(scope: KeysightScope) -> dict[str, object]:
         "scale_seconds_per_division": scope.query_timebase_scale(),
         "position_seconds": scope.query_timebase_position(),
     }
-    trigger = scope.query_edge_trigger()
+    trigger = scope.query_trigger_edge()
     return {
         **_scope_backend_json(scope),
         "acquisition": {

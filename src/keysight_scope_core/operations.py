@@ -942,7 +942,7 @@ def doctor_snapshot(scope: KeysightScope) -> dict[str, object]:
         "scale_seconds_per_division": scope.query_timebase_scale(),
         "position_seconds": scope.query_timebase_position(),
     }
-    trigger = scope.query_edge_trigger()
+    trigger = scope.query_trigger_edge()
     return {
         **_scope_backend_json(scope),
         "acquisition": {"type": acquisition.type, "count": acquisition.count},

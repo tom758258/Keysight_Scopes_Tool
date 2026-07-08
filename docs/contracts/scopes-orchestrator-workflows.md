@@ -41,6 +41,8 @@ keysight-scopes send-command --port 8765 --command sample-rate --arguments-json 
 keysight-scopes send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command record-length --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command force-trigger --arguments-json "{}" --json
+keysight-scopes send-command --port 8765 --command trigger-edge --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command trigger-edge --arguments-json "{\"source_channel\":1,\"level\":0.5,\"slope\":\"positive\"}" --json
 keysight-scopes send-command --port 8765 --command trigger-pulse-width --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command trigger-pulse-width --arguments-json "{\"channel\":1,\"polarity\":\"positive\",\"qualifier\":\"less_than\",\"time_seconds\":0.000001}" --json
 keysight-scopes send-command --port 8765 --command trigger-runt --arguments-json "{\"query\":true}" --json

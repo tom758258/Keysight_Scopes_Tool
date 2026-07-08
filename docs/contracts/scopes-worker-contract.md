@@ -134,7 +134,7 @@ Worker `/command` supports the existing Scopes capability surface:
 - `display-label`, `display-clear`, `display-persistence`,
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
-- `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
+- `trigger-edge`, `trigger-pulse-width`, `trigger-runt`,
   `trigger-transition`, `trigger-delay`, `trigger-setup-hold`,
   `trigger-edge-burst`, `trigger-tv`, `trigger-pattern`, `trigger-or`,
   `trigger-holdoff`, `cursor`, `autoscale`
@@ -215,6 +215,43 @@ form:
 ```json
 {"command": "force-trigger", "arguments": {}}
 ```
+
+`trigger-edge` is accepted only as the canonical Edge trigger command. It uses
+the underlying Keysight `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*` SCPI family:
+
+```json
+{"command": "trigger-edge", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "trigger-edge",
+  "arguments": {
+    "source_channel": 1,
+    "level": 0.5,
+    "slope": "positive"
+  }
+}
+```
+
+Configure mode changes trigger settings and is DSO analog-channel-only. It
+sends `:TRIGger:MODE EDGE`, `:TRIGger:EDGE:SOURce`,
+`:TRIGger:EDGE:LEVel`, and `:TRIGger:EDGE:SLOPe`. Slopes are `positive`,
+`negative`, `either`, and `alternate`; trigger level is a finite volts value.
+External trigger sources, digital/MSO sources, trigger coupling/reject, and
+broader trigger-tree expansion are not included.
+
+The worker accepts only `query`, `source_channel`, `level`, and `slope` for
+this command. Query mode must use `query: true` without configure keys.
+Configure mode requires `source_channel`, `level`, and `slope`. The legacy
+`edge-trigger` command name is not accepted. The worker rejects aliases and
+unknown fields such as `channel`, `source`, `source_ch`, `trigger_source`,
+`level_volts`, `trigger_level`, `edge_slope`, and `mode` before enqueue,
+artifact creation, simulator/VISA open, or SCPI. Worker support has
+hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
+2000X/3000X/4024A/4034A, MSO/digital, external source, actual signal-trigger
+behavior, and broader trigger-tree validation have not been run for this
+cleanup package.
 
 `trigger-pulse-width` is accepted only as the canonical Pulse Width trigger
 command. It uses the underlying Keysight `:TRIGger:GLITch...` SCPI family:
@@ -873,10 +910,10 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`trigger-pulse-width`, `trigger-runt`, `trigger-transition`, `trigger-delay`,
-`trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`, `trigger-pattern`,
-`trigger-or`, `display-clear`, `display-persistence`, `display-intensity`, and
-`display-vectors` do not create command artifacts.
+`trigger-edge`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
+`trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
+`trigger-pattern`, `trigger-or`, `display-clear`, `display-persistence`,
+`display-intensity`, and `display-vectors` do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
 includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.

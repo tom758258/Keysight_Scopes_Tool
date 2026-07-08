@@ -281,6 +281,7 @@ def test_worker_request_rejects_non_object_arguments():
         ("display-vectors", {"query": True}),
         ("display-vectors", {"on": True}),
         ("annotation", {"slot": 1, "query": True}),
+        ("trigger-edge", {"query": True}),
         ("trigger-delay", {"query": True}),
         ("trigger-setup-hold", {"query": True}),
         ("trigger-edge-burst", {"query": True}),

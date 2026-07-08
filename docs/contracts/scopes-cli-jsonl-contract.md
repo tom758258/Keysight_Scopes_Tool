@@ -166,7 +166,7 @@ Control and setup:
   `TRAN`.
 - `timebase-*`: `operation`, `command`, and `seconds_per_division` or
   `position_seconds`.
-- `edge-trigger`: `operation`, `commands`, `source_channel`, `level_volts`,
+- `trigger-edge`: `operation`, `commands`, `source_channel`, `level_volts`,
   `slope`.
 - `trigger-pulse-width`: `operation` and `commands`. Configure results include
   `channel`, `source`, `polarity`, `qualifier`, optional `time_seconds`,
