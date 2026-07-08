@@ -68,6 +68,7 @@ DOMAIN_COMMANDS = {
     "trigger-pulse-width",
     "trigger-runt",
     "trigger-transition",
+    "trigger-delay",
     "trigger-pattern",
     "trigger-or",
     "trigger-holdoff",
@@ -318,6 +319,7 @@ def parse_domain_command(
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_delay_worker_arguments(command, arguments)
     arguments = _normalize_trigger_pattern_worker_arguments(command, arguments)
     arguments = _normalize_trigger_or_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
@@ -447,6 +449,28 @@ def _normalize_trigger_transition_worker_arguments(
     elif qualifier == "less_than":
         normalized["qualifier"] = "less-than"
     return normalized
+
+
+def _normalize_trigger_delay_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-delay":
+        return arguments
+    allowed = {
+        "query",
+        "arm_channel",
+        "arm_slope",
+        "trigger_channel",
+        "trigger_slope",
+        "time_seconds",
+        "count",
+    }
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for trigger-delay: {sorted(unknown)[0]}")
+    if "query" in arguments and arguments["query"] is not True:
+        raise KeysightScopeError("trigger-delay argument query must be exactly true")
+    return dict(arguments)
 
 
 def _normalize_trigger_pattern_worker_arguments(

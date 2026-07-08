@@ -88,6 +88,8 @@ Current implemented scope:
 - Configure or query analog-channel transition trigger settings with
   `:TRIGger:MODE TRANsition`, `:TRIGger:TRANsition:*`, and shared
   `:TRIGger:LEVel:LOW/HIGH` threshold commands.
+- Configure or query DSO analog-channel Edge Then Edge / Delay trigger
+  settings with `:TRIGger:MODE DELay` and `:TRIGger:DELay:*`.
 - Configure or query DSO analog ASCII pattern trigger settings with
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`,
   `:TRIGger:PATTern "<pattern>"`, and
@@ -779,6 +781,47 @@ Worker usage:
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-transition --arguments-json "{\"query\":true}" --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-transition --arguments-json "{\"channel\":1,\"slope\":\"positive\",\"qualifier\":\"greater_than\",\"time_seconds\":0.000005,\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
+```
+
+Configure or query analog-channel Edge Then Edge / Delay trigger settings with
+the canonical `trigger-delay` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-delay --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --arm-channel 1 --arm-slope positive --trigger-channel 2 --trigger-slope negative --time-seconds 1e-6 --count 2 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-delay --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-delay --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-delay --simulate --json --query
+```
+
+`trigger-delay` v1 configures and queries the Keysight Edge Then Edge / Delay
+trigger using `:TRIGger:MODE DELay` and the `:TRIGger:DELay:*` SCPI family.
+Configure mode is state-changing and DSO analog-channel-only: it sets an
+analog arm source channel, arm slope, delay time, Nth trigger edge count,
+analog trigger source channel, and trigger slope. Public slope values are only
+`positive` and `negative`; aliases such as `pos`, `neg`, `rising`, `falling`,
+`either`, and `alternate` are rejected. `--time-seconds` must be from `4e-9`
+through `10.0`, and `--count` must be an integer at least `1`.
+
+Query mode reads `:TRIGger:MODE?`,
+`:TRIGger:DELay:ARM:SOURce?`, `:TRIGger:DELay:ARM:SLOPe?`,
+`:TRIGger:DELay:TDELay:TIME?`,
+`:TRIGger:DELay:TRIGger:COUNt?`,
+`:TRIGger:DELay:TRIGger:SOURce?`, and
+`:TRIGger:DELay:TRIGger:SLOPe?`. It preserves raw readbacks and tolerates
+digital or unknown source state; configure mode does not accept digital,
+external, level-volts, threshold, source-alias, or generic trigger-tree
+arguments. Every live or simulated command performs one `:SYSTem:ERRor?`
+post-check. This slice has hardware-free CLI, Core, simulator, and worker
+validation only; no live hardware validation, LAN validation, worker live
+validation, DSO-X 2000X/3000X/4024A/4034A live validation, or WebUI runtime
+validation is implied. It does not add run, stop, single, force-trigger,
+wait-trigger, or capture integration.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-delay --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-delay --arguments-json "{\"arm_channel\":1,\"arm_slope\":\"positive\",\"trigger_channel\":2,\"trigger_slope\":\"negative\",\"time_seconds\":0.000001,\"count\":2}" --json
 ```
 
 Configure or query DSO analog ASCII pattern trigger settings with the canonical

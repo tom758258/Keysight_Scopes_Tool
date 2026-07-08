@@ -47,6 +47,8 @@ keysight-scopes send-command --port 8765 --command trigger-runt --arguments-json
 keysight-scopes send-command --port 8765 --command trigger-runt --arguments-json "{\"channel\":1,\"polarity\":\"either\",\"qualifier\":\"none\",\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
 keysight-scopes send-command --port 8765 --command trigger-transition --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command trigger-transition --arguments-json "{\"channel\":1,\"slope\":\"positive\",\"qualifier\":\"greater_than\",\"time_seconds\":0.000005,\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
+keysight-scopes send-command --port 8765 --command trigger-delay --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command trigger-delay --arguments-json "{\"arm_channel\":1,\"arm_slope\":\"positive\",\"trigger_channel\":2,\"trigger_slope\":\"negative\",\"time_seconds\":0.000001,\"count\":2}" --json
 keysight-scopes send-command --port 8765 --command trigger-pattern --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command trigger-pattern --arguments-json "{\"pattern\":\"XXX1\"}" --json
 keysight-scopes send-command --port 8765 --command trigger-or --arguments-json "{\"query\":true}" --json

@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.simulator_backend import (
@@ -262,6 +262,26 @@ def test_simulator_transition_less_than_roundtrip():
     assert backend.query(":TRIGger:TRANsition:QUALifier?") == "LESS"
     assert backend.query(":TRIGger:LEVel:LOW? CHANnel1") == "-2.50000000E-01"
     assert backend.query(":TRIGger:LEVel:HIGH? CHANnel1") == "7.50000000E-01"
+
+
+def test_simulator_delay_trigger_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE DELay")
+    backend.write(":TRIGger:DELay:ARM:SOURce CHANnel1")
+    backend.write(":TRIGger:DELay:ARM:SLOPe POSitive")
+    backend.write(":TRIGger:DELay:TDELay:TIME 1e-6")
+    backend.write(":TRIGger:DELay:TRIGger:COUNt 2")
+    backend.write(":TRIGger:DELay:TRIGger:SOURce CHANnel2")
+    backend.write(":TRIGger:DELay:TRIGger:SLOPe NEGative")
+
+    assert backend.query(":TRIGger:MODE?") == "DEL"
+    assert backend.query(":TRIGger:DELay:ARM:SOURce?") == "CHAN1"
+    assert backend.query(":TRIGger:DELay:ARM:SLOPe?") == "POS"
+    assert backend.query(":TRIGger:DELay:TDELay:TIME?") == "1.00000000E-06"
+    assert backend.query(":TRIGger:DELay:TRIGger:COUNt?") == "2"
+    assert backend.query(":TRIGger:DELay:TRIGger:SOURce?") == "CHAN2"
+    assert backend.query(":TRIGger:DELay:TRIGger:SLOPe?") == "NEG"
 
 
 def test_simulator_channel_advanced_settings_round_trip():

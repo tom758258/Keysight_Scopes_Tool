@@ -1,4 +1,4 @@
-﻿"""Keysight InfiniiVision oscilloscope core runtime."""
+"""Keysight InfiniiVision oscilloscope core runtime."""
 
 from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import (
@@ -49,6 +49,8 @@ from .scope import KeysightScope
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
 from .trigger import (
+    DelayTriggerController,
+    DelayTriggerState,
     EdgeTriggerController,
     EdgeTriggerState,
     GlitchTriggerController,
@@ -71,6 +73,8 @@ __all__ = [
     "DisplayController",
     "AnnotationState",
     "DisplayPersistence",
+    "DelayTriggerController",
+    "DelayTriggerState",
     "EdgeTriggerController",
     "EdgeTriggerState",
     "GlitchTriggerController",

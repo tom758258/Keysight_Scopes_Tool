@@ -13,6 +13,8 @@ names are intended for package consumers and tests:
 - `DisplayController`
 - `AnnotationState`
 - `DisplayPersistence`
+- `DelayTriggerController`
+- `DelayTriggerState`
 - `EdgeTriggerController`
 - `EdgeTriggerState`
 - `GlitchTriggerController`

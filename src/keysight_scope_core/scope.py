@@ -24,6 +24,8 @@ from .screenshot import ScreenshotCapture, ScreenshotController
 from .status import SystemErrorEntry, parse_system_error
 from .timebase import TimebaseController
 from .trigger import (
+    DelayTriggerController,
+    DelayTriggerState,
     EdgeTriggerController,
     EdgeTriggerState,
     GlitchTriggerController,
@@ -401,6 +403,32 @@ class KeysightScope:
 
         return self._transition_trigger_controller().query()
 
+    def configure_delay_trigger(
+        self,
+        *,
+        arm_channel: int,
+        arm_slope: str,
+        trigger_channel: int,
+        trigger_slope: str,
+        time_seconds: float,
+        count: int,
+    ) -> None:
+        """Configure analog Edge Then Edge / Delay trigger settings."""
+
+        self._delay_trigger_controller().configure(
+            arm_channel=arm_channel,
+            arm_slope=arm_slope,
+            trigger_channel=trigger_channel,
+            trigger_slope=trigger_slope,
+            time_seconds=time_seconds,
+            count=count,
+        )
+
+    def query_delay_trigger(self) -> DelayTriggerState:
+        """Query delay trigger settings."""
+
+        return self._delay_trigger_controller().query()
+
     def configure_pattern_trigger(self, pattern: str) -> PatternTriggerState:
         """Configure DSO ASCII pattern trigger settings."""
 
@@ -659,6 +687,13 @@ class KeysightScope:
                 "Transition trigger operations require known capabilities; call query_idn() first."
             )
         return TransitionTriggerController(self.scpi, self.capabilities)
+
+    def _delay_trigger_controller(self) -> DelayTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Delay trigger operations require known capabilities; call query_idn() first."
+            )
+        return DelayTriggerController(self.scpi, self.capabilities)
 
     def _pattern_trigger_controller(self) -> PatternTriggerController:
         if self.capabilities is None:

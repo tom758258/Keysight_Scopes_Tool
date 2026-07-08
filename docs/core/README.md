@@ -40,6 +40,14 @@ Core owns runtime behavior:
   families. This v1 slice configures and queries transition trigger state only;
   it does not run, stop, single, force trigger, wait for trigger, or capture
   waveform data.
+- DSO analog-channel Edge Then Edge / Delay trigger helpers for the Keysight
+  `:TRIGger:DELay...` command family. This `trigger-delay v1` slice
+  configures analog arm and trigger source channels, positive/negative arm and
+  trigger slopes, delay time, and Nth trigger edge count. Query mode preserves
+  raw readbacks and tolerates digital or unknown source state. It is
+  hardware-free only so far; no live hardware validation has been run, and it
+  does not add run, stop, single, force trigger, wait-trigger, capture, or
+  WebUI runtime behavior.
 - DSO analog ASCII pattern trigger helpers for the Keysight
   `:TRIGger:PATTern...` command family. This v1 slice configures
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`, raw `0/1/X`

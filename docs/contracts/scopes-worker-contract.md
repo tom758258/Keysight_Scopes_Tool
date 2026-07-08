@@ -135,8 +135,8 @@ Worker `/command` supports the existing Scopes capability surface:
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
-  `trigger-transition`, `trigger-pattern`, `trigger-or`, `trigger-holdoff`, `cursor`,
-  `autoscale`
+  `trigger-transition`, `trigger-delay`, `trigger-pattern`, `trigger-or`,
+  `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -355,6 +355,45 @@ must use `query: true` without configure keys. Configure mode requires
 level must be less than high level. The worker does not accept digital/MSO or
 external source configuration, and it does not accept aliases such as
 `transition-trigger`, `trigger-rise-fall`, or `trigger-rise-time`.
+
+`trigger-delay` is accepted only as the canonical Edge Then Edge / Delay
+trigger command. It uses the Keysight `:TRIGger:DELay...` SCPI family:
+
+```json
+{"command": "trigger-delay", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "trigger-delay",
+  "arguments": {
+    "arm_channel": 1,
+    "arm_slope": "positive",
+    "trigger_channel": 2,
+    "trigger_slope": "negative",
+    "time_seconds": 0.000001,
+    "count": 2
+  }
+}
+```
+
+Configure mode changes trigger settings and is DSO analog-channel-only. It
+sends `:TRIGger:MODE DELay`, arm source/slope, delay time, Nth trigger edge
+count, trigger source, and trigger slope. Slopes are `positive` or `negative`;
+`time_seconds` must be from `4e-9` through `10.0`; `count` must be an integer
+at least `1`. Query mode must use `query: true` without configure keys and
+reads mode, arm source/slope, delay time, count, trigger source, and trigger
+slope. Query result JSON preserves raw readbacks and tolerates digital or
+unknown source state.
+
+The worker accepts only `query`, `arm_channel`, `arm_slope`,
+`trigger_channel`, `trigger_slope`, `time_seconds`, and `count` for this v1
+command. It rejects `arm_source`, `trigger_source`, `digital`, `level_volts`,
+`arm_level_volts`, `trigger_level_volts`, digital/MSO threshold fields,
+external source configuration, aliases such as `edge-then-edge`, and generic
+trigger-tree arguments. Worker support has hardware-free validation only; live
+CLI, worker live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A, digital/MSO, and
+broader trigger-tree validation have not been run.
 
 `trigger-pattern` is accepted only as the canonical Pattern trigger command.
 It uses the DSO analog ASCII entered-pattern `:TRIGger:PATTern...` SCPI
@@ -672,7 +711,7 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
+`trigger-pulse-width`, `trigger-runt`, `trigger-transition`, `trigger-delay`,
 `trigger-pattern`, `trigger-or`, `display-clear`, `display-persistence`,
 `display-intensity`, and `display-vectors` do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured

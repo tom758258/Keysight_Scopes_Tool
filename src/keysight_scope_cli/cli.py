@@ -200,6 +200,8 @@ from keysight_scope_core.timebase import (
 )
 from keysight_scope_core.trigger import (
     TriggerWaitConfig,
+    delay_trigger_configure_commands,
+    delay_trigger_query_commands,
     edge_trigger_level_command,
     edge_trigger_level_query,
     edge_trigger_slope_command,
@@ -210,6 +212,7 @@ from keysight_scope_core.trigger import (
     glitch_trigger_configure_commands,
     glitch_trigger_query_commands,
     normalize_edge_slope,
+    normalize_delay_slope,
     normalize_glitch_qualifier,
     normalize_runt_qualifier,
     normalize_transition_qualifier,
@@ -227,6 +230,8 @@ from keysight_scope_core.trigger import (
     transition_trigger_configure_commands,
     transition_trigger_query_commands,
     trigger_mode_edge_command,
+    validate_delay_trigger_count,
+    validate_delay_trigger_time,
     trigger_high_level_query,
     trigger_low_level_query,
     validate_or_trigger_pattern,
@@ -1064,6 +1069,54 @@ def _build_parser() -> argparse.ArgumentParser:
         help="upper transition threshold in volts",
     )
 
+    delay_trigger_parser = subparsers.add_parser(
+        "trigger-delay",
+        help="configure or query analog edge-then-edge delay trigger settings",
+    )
+    _add_scope_connection_args(delay_trigger_parser)
+    delay_trigger_parser.add_argument(
+        "--query",
+        dest="delay_query",
+        action="store_true",
+        help="query delay trigger state",
+    )
+    delay_trigger_parser.add_argument(
+        "--arm-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the delay trigger arm source",
+    )
+    delay_trigger_parser.add_argument(
+        "--arm-slope",
+        choices=("positive", "negative"),
+        default=None,
+        help="delay trigger arm slope",
+    )
+    delay_trigger_parser.add_argument(
+        "--trigger-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the delay trigger source",
+    )
+    delay_trigger_parser.add_argument(
+        "--trigger-slope",
+        choices=("positive", "negative"),
+        default=None,
+        help="delay trigger slope",
+    )
+    delay_trigger_parser.add_argument(
+        "--time-seconds",
+        type=_positive_float,
+        default=None,
+        help="delay trigger time in seconds",
+    )
+    delay_trigger_parser.add_argument(
+        "--count",
+        type=_positive_int,
+        default=None,
+        help="Nth trigger edge count",
+    )
+
     pattern_trigger_parser = subparsers.add_parser(
         "trigger-pattern",
         help="configure or query DSO ASCII pattern trigger settings",
@@ -1775,6 +1828,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_runt(args)
     if args.command == "trigger-transition":
         return _cmd_trigger_transition(args)
+    if args.command == "trigger-delay":
+        return _cmd_trigger_delay(args)
     if args.command == "trigger-pattern":
         return _cmd_trigger_pattern(args)
     if args.command == "trigger-or":
@@ -2081,6 +2136,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_runt_args(args)
     if getattr(args, "command", None) == "trigger-transition":
         _validate_trigger_transition_args(args)
+    if getattr(args, "command", None) == "trigger-delay":
+        _validate_trigger_delay_args(args)
     if getattr(args, "command", None) == "trigger-pattern":
         _validate_trigger_pattern_args(args)
     if getattr(args, "command", None) == "trigger-or":
@@ -2222,6 +2279,44 @@ def _validate_trigger_transition_args(args: argparse.Namespace) -> None:
         raise ParameterValidationError(
             "trigger-transition --low-level-volts must be less than --high-level-volts."
         )
+
+
+def _validate_trigger_delay_args(args: argparse.Namespace) -> None:
+    set_values = (
+        getattr(args, "arm_channel", None),
+        getattr(args, "arm_slope", None),
+        getattr(args, "trigger_channel", None),
+        getattr(args, "trigger_slope", None),
+        getattr(args, "time_seconds", None),
+        getattr(args, "count", None),
+    )
+    if getattr(args, "delay_query", False):
+        if any(value is not None for value in set_values):
+            raise ParameterValidationError(
+                "trigger-delay --query cannot be combined with configure options."
+            )
+        return
+
+    if (
+        args.arm_channel is None
+        or args.arm_slope is None
+        or args.trigger_channel is None
+        or args.trigger_slope is None
+        or args.time_seconds is None
+        or args.count is None
+    ):
+        raise ParameterValidationError(
+            "trigger-delay configure requires --arm-channel, --arm-slope, "
+            "--trigger-channel, --trigger-slope, --time-seconds, and --count."
+        )
+
+    capabilities = capabilities_for_model(args.model)
+    validate_analog_channel(args.arm_channel, capabilities)
+    validate_analog_channel(args.trigger_channel, capabilities)
+    normalize_delay_slope(args.arm_slope)
+    normalize_delay_slope(args.trigger_slope)
+    validate_delay_trigger_time(args.time_seconds)
+    validate_delay_trigger_count(args.count)
 
 
 def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
@@ -2578,6 +2673,33 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "time_seconds": args.time_seconds,
             "low_level_volts": args.low_level_volts,
             "high_level_volts": args.high_level_volts,
+            "state_changing": True,
+        }
+        return commands + [":SYSTem:ERRor?"], [], result
+    if command == "trigger-delay":
+        if args.delay_query:
+            commands = delay_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        commands = delay_trigger_configure_commands(
+            arm_channel=args.arm_channel,
+            arm_slope=args.arm_slope,
+            trigger_channel=args.trigger_channel,
+            trigger_slope=args.trigger_slope,
+            time_seconds=args.time_seconds,
+            count=args.count,
+            capabilities=capabilities,
+        )
+        result: dict[str, object] = {
+            "operation": "set",
+            "commands": commands,
+            "arm_channel": args.arm_channel,
+            "arm_source": f"CHANnel{args.arm_channel}",
+            "arm_slope": args.arm_slope,
+            "trigger_channel": args.trigger_channel,
+            "trigger_source": f"CHANnel{args.trigger_channel}",
+            "trigger_slope": args.trigger_slope,
+            "time_seconds": args.time_seconds,
+            "count": args.count,
             "state_changing": True,
         }
         return commands + [":SYSTem:ERRor?"], [], result
@@ -4577,6 +4699,95 @@ def _cmd_trigger_transition(args: argparse.Namespace) -> int:
                 time_seconds=args.time_seconds,
                 low_level_volts=args.low_level_volts,
                 high_level_volts=args.high_level_volts,
+                state_changing=True,
+            )
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_delay(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.delay_query:
+            commands = delay_trigger_query_commands()
+            print("Planned query: delay trigger state")
+            state = scope.query_delay_trigger()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or state.raw['mode']}")
+            print(f"Arm source: {state.arm_source}")
+            if state.arm_channel is not None:
+                print(f"Arm channel: CH{state.arm_channel}")
+            if state.arm_digital is not None:
+                print(f"Arm digital: D{state.arm_digital}")
+            print(f"Arm slope: {state.arm_slope or state.raw['arm_slope']}")
+            print(f"Trigger source: {state.trigger_source}")
+            if state.trigger_channel is not None:
+                print(f"Trigger channel: CH{state.trigger_channel}")
+            if state.trigger_digital is not None:
+                print(f"Trigger digital: D{state.trigger_digital}")
+            print(f"Trigger slope: {state.trigger_slope or state.raw['trigger_slope']}")
+            if state.time_seconds is None:
+                print(f"Time s: {state.raw['time']}")
+            else:
+                print(f"Time s: {state.time_seconds:.12g}")
+            if state.count is None:
+                print(f"Count: {state.raw['count']}")
+            else:
+                print(f"Count: {state.count}")
+        else:
+            commands = delay_trigger_configure_commands(
+                arm_channel=args.arm_channel,
+                arm_slope=args.arm_slope,
+                trigger_channel=args.trigger_channel,
+                trigger_slope=args.trigger_slope,
+                time_seconds=args.time_seconds,
+                count=args.count,
+                capabilities=scope.capabilities,
+            )
+            print(
+                f"Planned change: delay trigger arm CH{args.arm_channel} {args.arm_slope}, "
+                f"trigger CH{args.trigger_channel} {args.trigger_slope}"
+            )
+            scope.configure_delay_trigger(
+                arm_channel=args.arm_channel,
+                arm_slope=args.arm_slope,
+                trigger_channel=args.trigger_channel,
+                trigger_slope=args.trigger_slope,
+                time_seconds=args.time_seconds,
+                count=args.count,
+            )
+            _json_update_result(
+                operation="set",
+                commands=commands,
+                arm_channel=args.arm_channel,
+                arm_source=f"CHANnel{args.arm_channel}",
+                arm_slope=args.arm_slope,
+                trigger_channel=args.trigger_channel,
+                trigger_source=f"CHANnel{args.trigger_channel}",
+                trigger_slope=args.trigger_slope,
+                time_seconds=args.time_seconds,
+                count=args.count,
                 state_changing=True,
             )
             for command in commands:

@@ -126,6 +126,18 @@ _TRANSITION_QUALIFIER_READBACKS = {
     "LESSTHAN": "less-than",
 }
 
+_DELAY_SLOPE_COMMANDS = {
+    "positive": "POSitive",
+    "negative": "NEGative",
+}
+
+_DELAY_SLOPE_READBACKS = {
+    "POS": "positive",
+    "POSITIVE": "positive",
+    "NEG": "negative",
+    "NEGATIVE": "negative",
+}
+
 _PATTERN_FORMAT_READBACKS = {
     "ASC": "ascii",
     "ASCII": "ascii",
@@ -243,6 +255,44 @@ class TransitionTriggerState:
             "time_seconds": self.time_seconds,
             "low_level_volts": self.low_level_volts,
             "high_level_volts": self.high_level_volts,
+            "raw": dict(self.raw),
+        }
+
+
+@dataclass(frozen=True)
+class DelayTriggerState:
+    """Readback state for Edge Then Edge / Delay trigger settings."""
+
+    mode: str | None
+    arm_source: str
+    arm_source_kind: str | None
+    arm_channel: int | None
+    arm_digital: int | None
+    arm_slope: str | None
+    trigger_source: str
+    trigger_source_kind: str | None
+    trigger_channel: int | None
+    trigger_digital: int | None
+    trigger_slope: str | None
+    time_seconds: float | None
+    count: int | None
+    raw: dict[str, str]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "arm_source": self.arm_source,
+            "arm_source_kind": self.arm_source_kind,
+            "arm_channel": self.arm_channel,
+            "arm_digital": self.arm_digital,
+            "arm_slope": self.arm_slope,
+            "trigger_source": self.trigger_source,
+            "trigger_source_kind": self.trigger_source_kind,
+            "trigger_channel": self.trigger_channel,
+            "trigger_digital": self.trigger_digital,
+            "trigger_slope": self.trigger_slope,
+            "time_seconds": self.time_seconds,
+            "count": self.count,
             "raw": dict(self.raw),
         }
 
@@ -563,6 +613,71 @@ class TransitionTriggerController:
         )
 
 
+class DelayTriggerController:
+    """Controls for analog Edge Then Edge / Delay trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        arm_channel: int,
+        arm_slope: str,
+        trigger_channel: int,
+        trigger_slope: str,
+        time_seconds: float,
+        count: int,
+    ) -> None:
+        """Configure analog-channel delay trigger settings."""
+
+        commands = delay_trigger_configure_commands(
+            arm_channel=arm_channel,
+            arm_slope=arm_slope,
+            trigger_channel=trigger_channel,
+            trigger_slope=trigger_slope,
+            time_seconds=time_seconds,
+            count=count,
+            capabilities=self.capabilities,
+        )
+        for command in commands:
+            self.scpi.write(command)
+
+    def query(self) -> DelayTriggerState:
+        """Query delay trigger state without changing acquisition state."""
+
+        raw = {
+            "mode": self.scpi.query(trigger_mode_query()),
+            "arm_source": self.scpi.query(delay_trigger_arm_source_query()),
+            "arm_slope": self.scpi.query(delay_trigger_arm_slope_query()),
+            "time": self.scpi.query(delay_trigger_time_query()),
+            "count": self.scpi.query(delay_trigger_count_query()),
+            "trigger_source": self.scpi.query(delay_trigger_trigger_source_query()),
+            "trigger_slope": self.scpi.query(delay_trigger_trigger_slope_query()),
+        }
+        arm_source_kind, arm_channel, arm_digital = parse_delay_source(raw["arm_source"])
+        trigger_source_kind, trigger_channel, trigger_digital = parse_delay_source(
+            raw["trigger_source"]
+        )
+        return DelayTriggerState(
+            mode=parse_trigger_mode(raw["mode"]),
+            arm_source=raw["arm_source"].strip(),
+            arm_source_kind=arm_source_kind,
+            arm_channel=arm_channel,
+            arm_digital=arm_digital,
+            arm_slope=parse_delay_slope_readback(raw["arm_slope"]),
+            trigger_source=raw["trigger_source"].strip(),
+            trigger_source_kind=trigger_source_kind,
+            trigger_channel=trigger_channel,
+            trigger_digital=trigger_digital,
+            trigger_slope=parse_delay_slope_readback(raw["trigger_slope"]),
+            time_seconds=parse_optional_trigger_float(raw["time"], "delay time"),
+            count=parse_delay_count_readback(raw["count"]),
+            raw=raw,
+        )
+
+
 class PatternTriggerController:
     """Controls for DSO ASCII pattern trigger settings."""
 
@@ -755,6 +870,18 @@ def normalize_transition_qualifier(qualifier: str) -> str:
         ) from exc
 
 
+def normalize_delay_slope(slope: str) -> str:
+    """Normalize a public delay slope value into a SCPI argument."""
+
+    normalized = slope.strip().lower()
+    try:
+        return _DELAY_SLOPE_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "delay trigger slope must be one of: positive, negative."
+        ) from exc
+
+
 def trigger_mode_edge_command() -> str:
     """Build the SCPI command that selects edge trigger mode."""
 
@@ -777,6 +904,12 @@ def trigger_mode_transition_command() -> str:
     """Build the SCPI command that selects transition trigger mode."""
 
     return ":TRIGger:MODE TRANsition"
+
+
+def trigger_mode_delay_command() -> str:
+    """Build the SCPI command that selects delay trigger mode."""
+
+    return ":TRIGger:MODE DELay"
 
 
 def trigger_mode_pattern_command() -> str:
@@ -1253,6 +1386,152 @@ def transition_trigger_configure_commands(
     ]
 
 
+def delay_trigger_arm_source_command(channel: int) -> str:
+    """Build the SCPI command for delay trigger arm source."""
+
+    return f":TRIGger:DELay:ARM:SOURce CHANnel{channel}"
+
+
+def delay_trigger_arm_source_query() -> str:
+    """Build the SCPI query for delay trigger arm source."""
+
+    return ":TRIGger:DELay:ARM:SOURce?"
+
+
+def delay_trigger_arm_slope_command(slope_command: str) -> str:
+    """Build the SCPI command for delay trigger arm slope."""
+
+    return f":TRIGger:DELay:ARM:SLOPe {slope_command}"
+
+
+def delay_trigger_arm_slope_query() -> str:
+    """Build the SCPI query for delay trigger arm slope."""
+
+    return ":TRIGger:DELay:ARM:SLOPe?"
+
+
+def delay_trigger_time_command(time_seconds: float) -> str:
+    """Build the SCPI command for delay trigger time."""
+
+    return f":TRIGger:DELay:TDELay:TIME {_format_scpi_float(time_seconds)}"
+
+
+def delay_trigger_time_query() -> str:
+    """Build the SCPI query for delay trigger time."""
+
+    return ":TRIGger:DELay:TDELay:TIME?"
+
+
+def delay_trigger_count_command(count: int) -> str:
+    """Build the SCPI command for delay trigger count."""
+
+    return f":TRIGger:DELay:TRIGger:COUNt {count}"
+
+
+def delay_trigger_count_query() -> str:
+    """Build the SCPI query for delay trigger count."""
+
+    return ":TRIGger:DELay:TRIGger:COUNt?"
+
+
+def delay_trigger_trigger_source_command(channel: int) -> str:
+    """Build the SCPI command for delay trigger source."""
+
+    return f":TRIGger:DELay:TRIGger:SOURce CHANnel{channel}"
+
+
+def delay_trigger_trigger_source_query() -> str:
+    """Build the SCPI query for delay trigger source."""
+
+    return ":TRIGger:DELay:TRIGger:SOURce?"
+
+
+def delay_trigger_trigger_slope_command(slope_command: str) -> str:
+    """Build the SCPI command for delay trigger slope."""
+
+    return f":TRIGger:DELay:TRIGger:SLOPe {slope_command}"
+
+
+def delay_trigger_trigger_slope_query() -> str:
+    """Build the SCPI query for delay trigger slope."""
+
+    return ":TRIGger:DELay:TRIGger:SLOPe?"
+
+
+def delay_trigger_query_commands() -> list[str]:
+    """Return the delay trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        delay_trigger_arm_source_query(),
+        delay_trigger_arm_slope_query(),
+        delay_trigger_time_query(),
+        delay_trigger_count_query(),
+        delay_trigger_trigger_source_query(),
+        delay_trigger_trigger_slope_query(),
+    ]
+
+
+def delay_trigger_configure_commands(
+    *,
+    arm_channel: int,
+    arm_slope: str,
+    trigger_channel: int,
+    trigger_slope: str,
+    time_seconds: float,
+    count: int,
+    capabilities: ScopeCapabilities,
+) -> list[str]:
+    """Return the analog delay trigger configure SCPI sequence."""
+
+    arm_channel = validate_analog_channel(arm_channel, capabilities)
+    trigger_channel = validate_analog_channel(trigger_channel, capabilities)
+    arm_slope_command = normalize_delay_slope(arm_slope)
+    trigger_slope_command = normalize_delay_slope(trigger_slope)
+    delay_time = validate_delay_trigger_time(time_seconds)
+    delay_count = validate_delay_trigger_count(count)
+
+    return [
+        trigger_mode_delay_command(),
+        delay_trigger_arm_source_command(arm_channel),
+        delay_trigger_arm_slope_command(arm_slope_command),
+        delay_trigger_time_command(delay_time),
+        delay_trigger_count_command(delay_count),
+        delay_trigger_trigger_source_command(trigger_channel),
+        delay_trigger_trigger_slope_command(trigger_slope_command),
+    ]
+
+
+def validate_delay_trigger_time(seconds: float) -> float:
+    """Validate the delay trigger time range from the manual."""
+
+    try:
+        value = float(seconds)
+    except (TypeError, ValueError) as exc:
+        raise ParameterValidationError(
+            "delay trigger time must be a number of seconds."
+        ) from exc
+    if not math.isfinite(value):
+        raise ParameterValidationError(
+            "delay trigger time must be a finite number of seconds."
+        )
+    if value < 4e-9 or value > 10.0:
+        raise ParameterValidationError(
+            "delay trigger time_seconds must be between 4e-9 and 10.0 seconds."
+        )
+    return value
+
+
+def validate_delay_trigger_count(count: int) -> int:
+    """Validate the delay trigger Nth edge count."""
+
+    if isinstance(count, bool) or not isinstance(count, int):
+        raise ParameterValidationError("delay trigger count must be an integer.")
+    if count < 1:
+        raise ParameterValidationError("delay trigger count must be at least 1.")
+    return count
+
+
 def pattern_trigger_format_command() -> str:
     """Build the SCPI command for ASCII pattern format."""
 
@@ -1421,6 +1700,8 @@ def parse_trigger_mode(raw: str) -> str | None:
         return "runt"
     if normalized in {"TRAN", "TRANSITION"}:
         return "transition"
+    if normalized in {"DEL", "DELAY"}:
+        return "delay"
     if normalized in {"PATT", "PATTERN"}:
         return "pattern"
     if normalized in {"OR"}:
@@ -1513,6 +1794,48 @@ def parse_transition_qualifier_readback(raw: str) -> str | None:
     """Parse a transition qualifier readback when recognized."""
 
     return _TRANSITION_QUALIFIER_READBACKS.get(raw.strip().upper())
+
+
+def parse_delay_source(raw: str) -> tuple[str | None, int | None, int | None]:
+    """Parse a delay trigger source while preserving unsupported raw states."""
+
+    normalized = raw.strip().upper()
+    if normalized.startswith("CHANNEL"):
+        suffix = normalized.removeprefix("CHANNEL")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("CHAN"):
+        suffix = normalized.removeprefix("CHAN")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("DIGITAL"):
+        suffix = normalized.removeprefix("DIGITAL")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    if normalized.startswith("DIG"):
+        suffix = normalized.removeprefix("DIG")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    return None, None, None
+
+
+def parse_delay_slope_readback(raw: str) -> str | None:
+    """Parse a delay trigger slope readback when recognized."""
+
+    return _DELAY_SLOPE_READBACKS.get(raw.strip().upper())
+
+
+def parse_delay_count_readback(raw: str) -> int | None:
+    """Parse a delay trigger count readback."""
+
+    text = raw.strip()
+    if not text or text.upper() == "NONE":
+        return None
+    try:
+        value = int(text)
+    except ValueError as exc:
+        raise TriggerResponseError(
+            f"Could not parse trigger delay count response: {raw!r}"
+        ) from exc
+    if value < 1:
+        raise TriggerResponseError(f"Could not parse trigger delay count response: {raw!r}")
+    return value
 
 
 def parse_pattern_format_readback(raw: str) -> str | None:
