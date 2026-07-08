@@ -274,6 +274,26 @@ class PatternTriggerState:
 
 
 @dataclass(frozen=True)
+class OrTriggerState:
+    """Readback state for DSO analog OR trigger settings."""
+
+    mode: str | None
+    raw_mode: str
+    pattern: str | None
+    raw_pattern: str
+    raw: dict[str, str]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "raw_mode": self.raw_mode,
+            "pattern": self.pattern,
+            "raw_pattern": self.raw_pattern,
+            "raw": dict(self.raw),
+        }
+
+
+@dataclass(frozen=True)
 class TriggerWaitConfig:
     """Controls for explicit triggered capture waiting."""
 
@@ -598,6 +618,47 @@ class PatternTriggerController:
         )
 
 
+class OrTriggerController:
+    """Controls for DSO analog OR trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(self, pattern: str) -> OrTriggerState:
+        """Configure DSO analog OR trigger settings."""
+
+        commands = or_trigger_configure_commands(
+            pattern=pattern,
+            capabilities=self.capabilities,
+        )
+        for command in commands:
+            self.scpi.write(command)
+        normalized = validate_or_trigger_pattern(pattern, self.capabilities)
+        return OrTriggerState(
+            mode="or",
+            raw_mode="OR",
+            pattern=normalized,
+            raw_pattern=normalized,
+            raw={"mode": "OR", "pattern": normalized},
+        )
+
+    def query(self) -> OrTriggerState:
+        """Query OR trigger state without changing acquisition state."""
+
+        raw = {
+            "mode": self.scpi.query(trigger_mode_query()),
+            "pattern": self.scpi.query(or_trigger_pattern_query()),
+        }
+        return OrTriggerState(
+            mode=parse_trigger_mode(raw["mode"]),
+            raw_mode=raw["mode"],
+            pattern=parse_or_trigger_pattern_response(raw["pattern"]),
+            raw_pattern=raw["pattern"],
+            raw=raw,
+        )
+
+
 def validate_trigger_level(level_volts: float) -> float:
     """Validate a trigger level before sending it to the instrument."""
 
@@ -722,6 +783,12 @@ def trigger_mode_pattern_command() -> str:
     """Build the SCPI command that selects pattern trigger mode."""
 
     return ":TRIGger:MODE PATTern"
+
+
+def trigger_mode_or_command() -> str:
+    """Build the SCPI command that selects OR trigger mode."""
+
+    return ":TRIGger:MODE OR"
 
 
 def trigger_mode_query() -> str:
@@ -1269,6 +1336,61 @@ def validate_pattern_trigger_pattern(pattern: str, capabilities: ScopeCapabiliti
     return normalized
 
 
+def or_trigger_pattern_command(pattern: str) -> str:
+    """Build the SCPI command for the raw OR trigger edge mask."""
+
+    return f':TRIGger:OR "{pattern}"'
+
+
+def or_trigger_pattern_query() -> str:
+    """Build the SCPI query for OR trigger state."""
+
+    return ":TRIGger:OR?"
+
+
+def or_trigger_query_commands() -> list[str]:
+    """Return the OR trigger query SCPI sequence."""
+
+    return [
+        trigger_mode_query(),
+        or_trigger_pattern_query(),
+    ]
+
+
+def or_trigger_configure_commands(
+    *,
+    pattern: str,
+    capabilities: ScopeCapabilities,
+) -> list[str]:
+    """Return the DSO analog OR trigger configure SCPI sequence."""
+
+    normalized = validate_or_trigger_pattern(pattern, capabilities)
+    return [
+        trigger_mode_or_command(),
+        or_trigger_pattern_command(normalized),
+    ]
+
+
+def validate_or_trigger_pattern(pattern: str, capabilities: ScopeCapabilities) -> str:
+    """Validate and normalize a v1 DSO analog OR trigger edge mask."""
+
+    if not isinstance(pattern, str):
+        raise ParameterValidationError("OR trigger pattern must be a string.")
+    if pattern.lower().startswith("0x"):
+        raise ParameterValidationError("OR trigger pattern does not accept hex strings.")
+    normalized = pattern.upper()
+    if not normalized:
+        raise ParameterValidationError("OR trigger pattern must not be empty.")
+    if any(char not in {"R", "F", "E", "X"} for char in normalized):
+        raise ParameterValidationError("OR trigger pattern may contain only R, F, E, and X.")
+    if len(normalized) != capabilities.analog_channels:
+        raise ParameterValidationError(
+            "OR trigger pattern length must match the model analog channel count "
+            f"({capabilities.analog_channels})."
+        )
+    return normalized
+
+
 def parse_edge_trigger_source(raw: str) -> int:
     """Parse an edge trigger source readback into an analog channel number."""
 
@@ -1301,6 +1423,8 @@ def parse_trigger_mode(raw: str) -> str | None:
         return "transition"
     if normalized in {"PATT", "PATTERN"}:
         return "pattern"
+    if normalized in {"OR"}:
+        return "or"
     if normalized in {"EDGE"}:
         return "edge"
     return None
@@ -1413,6 +1537,15 @@ def parse_pattern_trigger_response(raw: str) -> tuple[str | None, str | None, st
     edge_source = parts[1].strip() if len(parts) > 1 else None
     edge = parts[2].strip() if len(parts) > 2 else None
     return pattern, edge_source, edge
+
+
+def parse_or_trigger_pattern_response(raw: str) -> str | None:
+    """Parse common OR trigger pattern readbacks without destroying unusual values."""
+
+    pattern = _strip_optional_quotes(raw.strip()).upper()
+    if pattern and all(char in {"R", "F", "E", "X"} for char in pattern):
+        return pattern
+    return None
 
 
 def parse_edge_slope(raw: str) -> str:

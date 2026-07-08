@@ -46,6 +46,13 @@ Core owns runtime behavior:
   patterns, and `:TRIGger:PATTern:QUALifier ENTered`; query mode preserves
   raw pattern, edge source, and edge readbacks. It is hardware-free only so
   far; no live hardware validation has been run.
+- DSO analog-only OR trigger helpers for the Keysight `:TRIGger:OR` command
+  family. This v1 slice configures `:TRIGger:MODE OR` and raw `R/F/E/X` edge
+  masks, and queries `:TRIGger:MODE?` plus `:TRIGger:OR?`. Pattern order
+  follows Keysight OR trigger bit assignment: CH4, CH3, CH2, CH1 on
+  4-channel DSO models and CH2, CH1 on 2-channel DSO models. MSO/digital OR
+  trigger mapping is not implemented. It is hardware-free only so far; no live
+  hardware validation has been run.
 - Model capability profiles for the runtime-supported feature surface.
   DSO-X 3000X and 4000X profiles enable 50 ohm channel impedance support;
   DSO-X 2000X profiles keep channel impedance guarded to one-meg only.

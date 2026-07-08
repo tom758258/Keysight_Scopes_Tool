@@ -215,6 +215,8 @@ from keysight_scope_core.trigger import (
     normalize_transition_qualifier,
     normalize_transition_slope,
     operation_condition_query,
+    or_trigger_configure_commands,
+    or_trigger_query_commands,
     pattern_trigger_configure_commands,
     pattern_trigger_query_commands,
     runt_trigger_configure_commands,
@@ -227,6 +229,7 @@ from keysight_scope_core.trigger import (
     trigger_mode_edge_command,
     trigger_high_level_query,
     trigger_low_level_query,
+    validate_or_trigger_pattern,
     validate_pattern_trigger_pattern,
     validate_trigger_level,
     validate_trigger_time,
@@ -1079,6 +1082,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="raw ASCII pattern using only 0, 1, and X",
     )
 
+    or_trigger_parser = subparsers.add_parser(
+        "trigger-or",
+        help="configure or query DSO analog OR trigger settings",
+    )
+    _add_scope_connection_args(or_trigger_parser)
+    or_trigger_parser.add_argument(
+        "--query",
+        dest="or_query",
+        action="store_true",
+        help="query OR trigger state",
+    )
+    or_trigger_parser.add_argument(
+        "--pattern",
+        dest="pattern",
+        default=None,
+        help="raw OR trigger edge pattern using only R, F, E, and X",
+    )
+
     cursor_parser = subparsers.add_parser(
         "cursor",
         help="query, hide, or configure manual marker cursors",
@@ -1756,6 +1777,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_transition(args)
     if args.command == "trigger-pattern":
         return _cmd_trigger_pattern(args)
+    if args.command == "trigger-or":
+        return _cmd_trigger_or(args)
     if args.command == "cursor":
         return _cmd_cursor(args)
     if args.command == "trigger-holdoff":
@@ -2060,6 +2083,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_transition_args(args)
     if getattr(args, "command", None) == "trigger-pattern":
         _validate_trigger_pattern_args(args)
+    if getattr(args, "command", None) == "trigger-or":
+        _validate_trigger_or_args(args)
 
 
 def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
@@ -2209,6 +2234,18 @@ def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
     if args.pattern is None:
         raise ParameterValidationError("trigger-pattern configure requires --pattern.")
     validate_pattern_trigger_pattern(args.pattern, capabilities_for_model(args.model))
+
+
+def _validate_trigger_or_args(args: argparse.Namespace) -> None:
+    if getattr(args, "or_query", False):
+        if args.pattern is not None:
+            raise ParameterValidationError(
+                "trigger-or --query cannot be combined with --pattern."
+            )
+        return
+    if args.pattern is None:
+        raise ParameterValidationError("trigger-or configure requires --pattern.")
+    validate_or_trigger_pattern(args.pattern, capabilities_for_model(args.model))
 
 
 def _json_error(exc: KeysightScopeError) -> dict[str, object]:
@@ -2560,6 +2597,23 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "format": "ascii",
             "pattern": normalized,
             "qualifier": "entered",
+            "state_changing": True,
+        }
+    if command == "trigger-or":
+        if args.or_query:
+            commands = or_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        normalized = validate_or_trigger_pattern(args.pattern, capabilities)
+        commands = or_trigger_configure_commands(
+            pattern=args.pattern,
+            capabilities=capabilities,
+        )
+        return commands + [":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "commands": commands,
+            "mode": "or",
+            "pattern": normalized,
+            "raw_pattern": normalized,
             "state_changing": True,
         }
     if command == "cursor":
@@ -4580,6 +4634,56 @@ def _cmd_trigger_pattern(args: argparse.Namespace) -> int:
                 format=state.format,
                 pattern=state.pattern,
                 qualifier=state.qualifier,
+                state_changing=True,
+            )
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_or(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.or_query:
+            commands = or_trigger_query_commands()
+            print("Planned query: OR trigger state")
+            state = scope.query_or_trigger()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"Mode: {state.mode or state.raw_mode}")
+            print(f"Pattern: {state.pattern if state.pattern is not None else state.raw_pattern}")
+        else:
+            commands = or_trigger_configure_commands(
+                pattern=args.pattern,
+                capabilities=scope.capabilities,
+            )
+            state = scope.configure_or_trigger(args.pattern)
+            print(f"Planned change: OR trigger {state.pattern}")
+            _json_update_result(
+                operation="set",
+                commands=commands,
+                mode=state.mode,
+                pattern=state.pattern,
+                raw_pattern=state.raw_pattern,
                 state_changing=True,
             )
             for command in commands:

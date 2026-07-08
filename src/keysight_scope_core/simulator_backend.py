@@ -177,6 +177,7 @@ class SimulatorBackend:
     pattern_qualifier: str = "ENTered"
     pattern_edge_source: str = "NONE"
     pattern_edge: str = "POS"
+    or_pattern: str = "XXXX"
     trigger_holdoff: float = 100e-9
     marker_mode: str = "OFF"
     marker_source: int = 1
@@ -354,6 +355,8 @@ class SimulatorBackend:
             self.pattern_qualifier = value
         elif upper.startswith(":TRIGGER:PATTERN "):
             self.pattern = _parse_scpi_string_arg(command.split(" ", 1)[1]).upper()
+        elif upper.startswith(":TRIGGER:OR "):
+            self.or_pattern = _parse_scpi_string_arg(command.split(" ", 1)[1]).upper()
         elif upper.startswith(":TRIGGER:HOLDOFF "):
             self.trigger_holdoff = _parse_scpi_number(command.split(" ", 1)[1])
         elif upper.startswith(":TRIGGER:HOLDOFF:RANDOM "):
@@ -501,6 +504,8 @@ class SimulatorBackend:
             return f'"{self.pattern}",{self.pattern_edge_source},{self.pattern_edge}'
         if upper == ":TRIGGER:PATTERN:QUALIFIER?":
             return _abbreviate_pattern_qualifier(self.pattern_qualifier)
+        if upper == ":TRIGGER:OR?":
+            return f'"{self.or_pattern}"'
         if upper.startswith(":TRIGGER:LEVEL:LOW?"):
             if self.trigger_mode.strip().upper().startswith("TRAN"):
                 return f"{self.transition_low_level:.8E}"
@@ -1469,6 +1474,8 @@ def _abbreviate_trigger_mode(value: str) -> str:
         return "TRAN"
     if upper.startswith("PATT"):
         return "PATT"
+    if upper == "OR":
+        return "OR"
     if upper.startswith("EDGE"):
         return "EDGE"
     return upper

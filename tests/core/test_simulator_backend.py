@@ -123,6 +123,24 @@ def test_simulator_pattern_trigger_roundtrip():
     assert backend.query(":TRIGger:PATTern:QUALifier?") == "ENT"
 
 
+def test_simulator_or_trigger_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE OR")
+    backend.write(':TRIGger:OR "XXXR"')
+
+    assert backend.query(":TRIGger:MODE?") == "OR"
+    assert backend.query(":TRIGger:OR?") == '"XXXR"'
+
+
+def test_simulator_or_trigger_accepts_unquoted_write():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:OR XXFR")
+
+    assert backend.query(":TRIGger:OR?") == '"XXFR"'
+
+
 def test_simulator_glitch_greater_than_with_level_roundtrip():
     backend = SimulatorBackend()
 

@@ -28,6 +28,8 @@ from .trigger import (
     EdgeTriggerState,
     GlitchTriggerController,
     GlitchTriggerState,
+    OrTriggerController,
+    OrTriggerState,
     PatternTriggerController,
     PatternTriggerState,
     RuntTriggerController,
@@ -409,6 +411,16 @@ class KeysightScope:
 
         return self._pattern_trigger_controller().query()
 
+    def configure_or_trigger(self, pattern: str) -> OrTriggerState:
+        """Configure DSO analog OR trigger settings."""
+
+        return self._or_trigger_controller().configure(pattern)
+
+    def query_or_trigger(self) -> OrTriggerState:
+        """Query OR trigger settings."""
+
+        return self._or_trigger_controller().query()
+
     def capture_waveform_byte(self, channel: int, points: int = 1000) -> WaveformCapture:
         """Capture one analog channel using BYTE waveform format."""
 
@@ -654,6 +666,13 @@ class KeysightScope:
                 "Pattern trigger operations require known capabilities; call query_idn() first."
             )
         return PatternTriggerController(self.scpi, self.capabilities)
+
+    def _or_trigger_controller(self) -> OrTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "OR trigger operations require known capabilities; call query_idn() first."
+            )
+        return OrTriggerController(self.scpi, self.capabilities)
 
     def _waveform_controller(self) -> WaveformController:
         if self.capabilities is None:

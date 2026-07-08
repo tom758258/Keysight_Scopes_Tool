@@ -190,6 +190,19 @@ Control and setup:
   `slope`, `qualifier`, `time_seconds`, `low_level_volts`,
   `high_level_volts`, and preserved `raw` readbacks. Query mode reads LOW/HIGH
   levels only when the source readback safely parses as an analog channel.
+- `trigger-pattern`: `operation` and `commands`. Configure results include
+  `mode: "pattern"`, `format: "ascii"`, `pattern`, `qualifier: "entered"`, and
+  `state_changing: true`. Query results include normalized `mode`, `format`,
+  `pattern`, `qualifier`, optional `edge_source_raw`, optional `edge_raw`,
+  `raw_pattern_response`, and preserved `raw` readbacks.
+- `trigger-or`: `operation` and `commands`. Configure results include
+  `mode: "or"`, uppercase `pattern`, `raw_pattern`, and
+  `state_changing: true`. Query results include normalized `mode`, `raw_mode`,
+  normalized uppercase `pattern` when the OR readback is a common valid quoted
+  or unquoted `R/F/E/X` string, `raw_pattern`, and preserved `raw` readbacks.
+  The v1 mapping is DSO analog-only: pattern positions are CH4, CH3, CH2, CH1
+  on 4-channel DSO models and CH2, CH1 on 2-channel DSO models. MSO/digital OR
+  trigger mapping is not implemented.
 - `trigger-holdoff`: `operation`, `command`, optional `commands`, `seconds`.
 - `cursor`: `operation`, `commands`, `source_channel`, `x1_seconds`,
   `x2_seconds`, optional `y1_volts`, `y2_volts`, `auto_timebase`,

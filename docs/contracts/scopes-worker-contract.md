@@ -135,7 +135,7 @@ Worker `/command` supports the existing Scopes capability surface:
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
-  `trigger-transition`, `trigger-pattern`, `trigger-holdoff`, `cursor`,
+  `trigger-transition`, `trigger-pattern`, `trigger-or`, `trigger-holdoff`, `cursor`,
   `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
@@ -392,6 +392,43 @@ trigger-tree behavior. Worker support has hardware-free validation only; live
 CLI, worker live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A, MSO/digital, and
 broader trigger-tree validation have not been run.
 
+`trigger-or` is accepted only as the canonical OR trigger command. It uses the
+DSO analog-only `:TRIGger:OR` SCPI surface:
+
+```json
+{"command": "trigger-or", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-or", "arguments": {"pattern": "XXXR"}}
+```
+
+Configure mode changes trigger settings and sends `:TRIGger:MODE OR` and
+`:TRIGger:OR "<pattern>"`. The pattern is a raw edge string using only `R`,
+`F`, `E`, and `X`; lowercase input is normalized by the CLI/Core path. Empty
+strings, whitespace, commas, quotes, digits `0`/`1`, `0x...`, and other
+characters are rejected before enqueue, artifact creation, VISA open, or SCPI.
+Pattern length must match the selected model profile analog channel count.
+
+For DSO analog-only mapping, string order follows Keysight OR trigger bit
+assignment: CH4, CH3, CH2, CH1 on 4-channel DSO models and CH2, CH1 on
+2-channel DSO models. Examples: `XXXR` means CH1 rising only on a 4-channel
+DSO, `XXFR` means CH1 rising OR CH2 falling on a 4-channel DSO, `EEEE` means
+any analog channel either edge on a 4-channel DSO, and `XR` means CH1 rising
+only on a 2-channel DSO.
+
+Query mode must use `query: true` without configure keys and reads
+`:TRIGger:MODE?` and `:TRIGger:OR?`. Result JSON preserves raw mode and raw OR
+readbacks, normalizes common quoted or unquoted valid OR patterns, and does not
+fail solely because the current trigger mode is not OR.
+
+The worker does not accept `mask`, `channels`, alias fields, source/level,
+format, edge, qualifier, timing, digital/MSO, or generic trigger-tree arguments
+for this v1 command. It does not accept aliases such as `or-trigger` or
+`trigger-or-mask`. Worker support has hardware-free validation only; live CLI,
+worker live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A, MSO/digital, and
+broader trigger-tree validation have not been run.
+
 ### Advanced Channel Commands
 
 The worker supports the same one-shot advanced analog channel commands as the
@@ -636,7 +673,7 @@ recorded as absolute paths. Default worker outputs are:
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
 `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
-`trigger-pattern`, `display-clear`, `display-persistence`,
+`trigger-pattern`, `trigger-or`, `display-clear`, `display-persistence`,
 `display-intensity`, and `display-vectors` do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that

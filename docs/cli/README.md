@@ -92,6 +92,10 @@ Current implemented scope:
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`,
   `:TRIGger:PATTern "<pattern>"`, and
   `:TRIGger:PATTern:QUALifier ENTered`.
+- Configure or query DSO analog-only OR trigger settings with
+  `:TRIGger:MODE OR` and `:TRIGger:OR "<pattern>"`. Pattern order follows
+  Keysight OR trigger bit assignment: CH4, CH3, CH2, CH1 on 4-channel DSO
+  models and CH2, CH1 on 2-channel DSO models.
 - Enable, disable, or query display labels with `:DISPlay:LABel`; clear
   waveform display data with `:DISPlay:CLEar`; set/query display persistence,
   waveform intensity, and vector display with `:DISPlay:PERSistence`,
@@ -817,6 +821,50 @@ Worker usage:
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-pattern --arguments-json "{\"query\":true}" --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-pattern --arguments-json "{\"pattern\":\"XXX1\"}" --json
+```
+
+Configure or query DSO analog-only OR trigger settings with the canonical
+`trigger-or` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-or --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --pattern XXXR --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-or --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-or --dry-run --json --pattern XXXR
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-or --simulate --json --query
+```
+
+`trigger-or` v1 configures and queries the Keysight OR trigger using the DSO
+analog-only `:TRIGger:OR` surface. Configure mode is state-changing and sends
+`:TRIGger:MODE OR` followed by `:TRIGger:OR "<pattern>"`. The pattern is a raw
+edge string using only `R` for rising edge, `F` for falling edge, `E` for
+either edge, and `X` for don't care; lowercase input is normalized to
+uppercase. The CLI rejects empty strings, whitespace, commas, quotes, digits
+`0`/`1`, `0x...`, and other characters before opening an instrument. Pattern
+length must match the selected model profile analog channel count.
+
+For DSO analog-only mapping, string order follows Keysight OR trigger bit
+assignment. On 4-channel DSO models, positions are CH4, CH3, CH2, CH1, so CH1
+rising only is `XXXR`, CH1 rising OR CH2 falling is `XXFR`, and any analog
+channel either edge is `EEEE`. On 2-channel DSO models, positions are CH2,
+CH1, so CH1 rising only is `XR`.
+
+Query mode reads `:TRIGger:MODE?` and `:TRIGger:OR?`. JSON preserves
+`raw_mode` and `raw_pattern`, normalizes common quoted or unquoted valid
+readbacks to uppercase `pattern`, and tolerates non-OR current trigger mode
+without failing solely because the mode is not OR.
+
+This v1 slice does not implement MSO/digital OR trigger mapping, aliases,
+generic trigger-tree behavior, run, stop, single, force trigger, wait for a
+trigger, capture waveform data, or WebUI runtime behavior. Hardware-free
+Core/CLI/simulator/worker tests cover this command. No live hardware
+validation was run. Worker support is hardware-free only until separately
+live-tested.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-or --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-or --arguments-json "{\"pattern\":\"XXXR\"}" --json
 ```
 
 Query read-only measurements:
