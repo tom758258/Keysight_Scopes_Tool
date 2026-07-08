@@ -11,6 +11,9 @@ from keysight_scope_core.trigger import (
     OPERATION_CONDITION_RUN_MASK,
     OPERATION_CONDITION_WAIT_TRIG_MASK,
     RuntTriggerController,
+    TriggerHfRejectController,
+    TriggerNoiseRejectController,
+    TriggerSweepController,
     TriggerWaitConfig,
     classify_operation_condition,
     edge_trigger_level_command,
@@ -33,6 +36,8 @@ from keysight_scope_core.trigger import (
     parse_glitch_range,
     parse_glitch_source,
     parse_operation_condition,
+    parse_trigger_reject_bool,
+    parse_trigger_sweep,
     parse_runt_source,
     parse_trigger_float,
     runt_trigger_configure_commands,
@@ -41,6 +46,13 @@ from keysight_scope_core.trigger import (
     trigger_mode_edge_command,
     trigger_mode_glitch_command,
     trigger_mode_runt_command,
+    trigger_hf_reject_command,
+    trigger_hf_reject_query,
+    trigger_noise_reject_command,
+    trigger_noise_reject_query,
+    trigger_sweep_command,
+    trigger_sweep_query,
+    normalize_trigger_sweep,
     validate_trigger_level,
 )
 
@@ -201,6 +213,104 @@ def test_edge_trigger_controller_rejects_invalid_channel_before_scpi():
 
     with pytest.raises(ParameterValidationError):
         controller.configure(source_channel=3, level_volts=0.0, slope="positive")
+
+    assert backend.history == []
+
+
+def test_trigger_sweep_commands_use_keysight_syntax():
+    assert trigger_sweep_command("auto") == ":TRIGger:SWEep AUTO"
+    assert trigger_sweep_command("normal") == ":TRIGger:SWEep NORMal"
+    assert trigger_sweep_query() == ":TRIGger:SWEep?"
+
+
+def test_normalize_trigger_sweep_accepts_public_values():
+    assert normalize_trigger_sweep("auto") == "AUTO"
+    assert normalize_trigger_sweep("normal") == "NORMal"
+
+
+@pytest.mark.parametrize(
+    "raw, expected",
+    [("AUTO", "auto"), ("NORM", "normal"), ("NORMal", "normal")],
+)
+def test_parse_trigger_sweep(raw, expected):
+    assert parse_trigger_sweep(raw) == expected
+
+
+def test_trigger_sweep_rejects_invalid_mode_before_scpi():
+    backend = FakeBackend()
+    controller = TriggerSweepController(SCPIClient(backend))
+
+    with pytest.raises(ParameterValidationError):
+        controller.configure("single")
+
+    assert backend.history == []
+
+
+def test_trigger_sweep_controller_configures_and_queries_state():
+    backend = FakeBackend(responses={":TRIGger:SWEep?": "NORM"})
+    controller = TriggerSweepController(SCPIClient(backend))
+
+    controller.configure("normal")
+    state = controller.query()
+
+    assert state.mode == "normal"
+    assert state.raw_value == "NORM"
+    assert state.to_json() == {"mode": "normal", "raw_value": "NORM"}
+    assert backend.history == [":TRIGger:SWEep NORMal", ":TRIGger:SWEep?"]
+
+
+def test_trigger_reject_commands_use_keysight_syntax():
+    assert trigger_noise_reject_command(True) == ":TRIGger:NREJect ON"
+    assert trigger_noise_reject_command(False) == ":TRIGger:NREJect OFF"
+    assert trigger_noise_reject_query() == ":TRIGger:NREJect?"
+    assert trigger_hf_reject_command(True) == ":TRIGger:HFReject ON"
+    assert trigger_hf_reject_command(False) == ":TRIGger:HFReject OFF"
+    assert trigger_hf_reject_query() == ":TRIGger:HFReject?"
+
+
+@pytest.mark.parametrize("raw, expected", [("1", True), ("0", False)])
+def test_parse_trigger_reject_bool(raw, expected):
+    assert parse_trigger_reject_bool(raw) is expected
+
+
+@pytest.mark.parametrize("raw", ["ON", "OFF", "true", ""])
+def test_parse_trigger_reject_bool_rejects_unexpected_readback(raw):
+    with pytest.raises(TriggerResponseError):
+        parse_trigger_reject_bool(raw)
+
+
+@pytest.mark.parametrize(
+    "controller_class, command, query",
+    [
+        (TriggerNoiseRejectController, ":TRIGger:NREJect ON", ":TRIGger:NREJect?"),
+        (TriggerHfRejectController, ":TRIGger:HFReject ON", ":TRIGger:HFReject?"),
+    ],
+)
+def test_trigger_reject_controllers_configure_and_query_state(
+    controller_class, command, query
+):
+    backend = FakeBackend(responses={query: "1"})
+    controller = controller_class(SCPIClient(backend))
+
+    controller.configure(True)
+    state = controller.query()
+
+    assert state.enabled is True
+    assert state.raw_value == "1"
+    assert state.to_json() == {"enabled": True, "raw_value": "1"}
+    assert backend.history == [command, query]
+
+
+@pytest.mark.parametrize(
+    "controller_class",
+    [TriggerNoiseRejectController, TriggerHfRejectController],
+)
+def test_trigger_reject_controllers_reject_non_bool_before_scpi(controller_class):
+    backend = FakeBackend()
+    controller = controller_class(SCPIClient(backend))
+
+    with pytest.raises(ParameterValidationError):
+        controller.configure("true")
 
     assert backend.history == []
 

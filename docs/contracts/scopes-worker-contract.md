@@ -137,6 +137,7 @@ Worker `/command` supports the existing Scopes capability surface:
 - `trigger-edge`, `trigger-pulse-width`, `trigger-runt`,
   `trigger-transition`, `trigger-delay`, `trigger-setup-hold`,
   `trigger-edge-burst`, `trigger-tv`, `trigger-pattern`, `trigger-or`,
+  `trigger-sweep`, `trigger-noise-reject`, `trigger-hf-reject`,
   `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
@@ -252,6 +253,68 @@ hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
 2000X/3000X/4024A/4034A, MSO/digital, external source, actual signal-trigger
 behavior, and broader trigger-tree validation have not been run for this
 cleanup package.
+
+`trigger-sweep`, `trigger-noise-reject`, and `trigger-hf-reject` are accepted
+only as canonical common trigger general setting commands:
+
+```json
+{"command": "trigger-sweep", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-sweep", "arguments": {"mode": "auto"}}
+```
+
+```json
+{"command": "trigger-sweep", "arguments": {"mode": "normal"}}
+```
+
+```json
+{"command": "trigger-noise-reject", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-noise-reject", "arguments": {"enabled": true}}
+```
+
+```json
+{"command": "trigger-noise-reject", "arguments": {"enabled": false}}
+```
+
+```json
+{"command": "trigger-hf-reject", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-hf-reject", "arguments": {"enabled": true}}
+```
+
+```json
+{"command": "trigger-hf-reject", "arguments": {"enabled": false}}
+```
+
+`trigger-sweep` uses `:TRIGger:SWEep` and accepts only `query` or `mode`.
+`mode` is `auto` or `normal`. `trigger-noise-reject` uses
+`:TRIGger:NREJect`; `trigger-hf-reject` uses `:TRIGger:HFReject`. Both reject
+filter commands accept only `query` or `enabled`; `enabled` must be JSON
+boolean `true` or `false`.
+
+For all three commands, `query` must be exactly JSON `true`, not `false`,
+`"true"`, or `1`. Query mode cannot be combined with configure keys. Unknown
+keys, missing configure keys, partial configure, aliases, and invalid values
+are rejected before enqueue, artifact creation, simulator/VISA open, or SCPI.
+Rejected `trigger-sweep` alias keys include `sweep`, `sweep_mode`, and
+`trigger_sweep`. Rejected `trigger-noise-reject` alias keys include
+`noise_reject`, `nreject`, `nrej`, `state`, `on`, and `enable`. Rejected
+`trigger-hf-reject` alias keys include `hf_reject`, `hfreject`,
+`high_frequency_reject`, `state`, `on`, and `enable`.
+
+This v1 worker support is hardware-free only. Live CLI, worker live, LAN,
+WebUI runtime, DSO-X 2000X/3000X/4024A/4034A live validation, generic trigger
+settings, trigger holdoff changes, external/MSO/digital trigger behavior, and
+run/stop/single/force/wait/capture workflow integration have not been run or
+implemented. Phase 10 `trigger-edge` live validation remains pending and is
+not abandoned; previous trigger pack live validation status is unchanged.
 
 `trigger-pulse-width` is accepted only as the canonical Pulse Width trigger
 command. It uses the underlying Keysight `:TRIGger:GLITch...` SCPI family:
@@ -912,7 +975,8 @@ recorded as absolute paths. Default worker outputs are:
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
 `trigger-edge`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
 `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
-`trigger-pattern`, `trigger-or`, `display-clear`, `display-persistence`,
+`trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,
+`trigger-hf-reject`, `display-clear`, `display-persistence`,
 `display-intensity`, and `display-vectors` do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that

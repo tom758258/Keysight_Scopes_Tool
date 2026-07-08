@@ -226,6 +226,7 @@ from keysight_scope_core.trigger import (
     or_trigger_query_commands,
     pattern_trigger_configure_commands,
     pattern_trigger_query_commands,
+    normalize_trigger_sweep,
     runt_trigger_configure_commands,
     runt_trigger_high_level_query,
     runt_trigger_low_level_query,
@@ -236,6 +237,12 @@ from keysight_scope_core.trigger import (
     transition_trigger_configure_commands,
     transition_trigger_query_commands,
     trigger_mode_edge_command,
+    trigger_hf_reject_command,
+    trigger_hf_reject_query,
+    trigger_noise_reject_command,
+    trigger_noise_reject_query,
+    trigger_sweep_command,
+    trigger_sweep_query,
     tv_trigger_configure_commands,
     tv_trigger_query_commands,
     validate_delay_trigger_count,
@@ -928,6 +935,63 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("positive", "negative", "either", "alternate"),
         default=None,
         help="edge trigger slope",
+    )
+
+    trigger_sweep_parser = subparsers.add_parser(
+        "trigger-sweep",
+        allow_abbrev=False,
+        help="configure or query common trigger sweep mode",
+    )
+    _add_scope_connection_args(trigger_sweep_parser)
+    trigger_sweep_parser.add_argument(
+        "--query",
+        dest="trigger_sweep_query",
+        action="store_true",
+        help="query trigger sweep mode",
+    )
+    trigger_sweep_parser.add_argument(
+        "--mode",
+        choices=("auto", "normal"),
+        default=None,
+        help="trigger sweep mode",
+    )
+
+    trigger_noise_reject_parser = subparsers.add_parser(
+        "trigger-noise-reject",
+        allow_abbrev=False,
+        help="configure or query common trigger noise reject",
+    )
+    _add_scope_connection_args(trigger_noise_reject_parser)
+    trigger_noise_reject_parser.add_argument(
+        "--query",
+        dest="trigger_noise_reject_query",
+        action="store_true",
+        help="query trigger noise reject",
+    )
+    trigger_noise_reject_parser.add_argument(
+        "--enabled",
+        type=_strict_bool_arg,
+        default=None,
+        help="true to enable noise reject, false to disable it",
+    )
+
+    trigger_hf_reject_parser = subparsers.add_parser(
+        "trigger-hf-reject",
+        allow_abbrev=False,
+        help="configure or query common trigger high-frequency reject",
+    )
+    _add_scope_connection_args(trigger_hf_reject_parser)
+    trigger_hf_reject_parser.add_argument(
+        "--query",
+        dest="trigger_hf_reject_query",
+        action="store_true",
+        help="query trigger high-frequency reject",
+    )
+    trigger_hf_reject_parser.add_argument(
+        "--enabled",
+        type=_strict_bool_arg,
+        default=None,
+        help="true to enable high-frequency reject, false to disable it",
     )
 
     glitch_trigger_parser = subparsers.add_parser(
@@ -1968,6 +2032,12 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_timebase_position(args)
     if args.command == "trigger-edge":
         return _cmd_trigger_edge(args)
+    if args.command in {
+        "trigger-sweep",
+        "trigger-noise-reject",
+        "trigger-hf-reject",
+    }:
+        return _cmd_trigger_common(args)
     if args.command == "trigger-pulse-width":
         return _cmd_trigger_glitch(args)
     if args.command == "trigger-runt":
@@ -2284,6 +2354,12 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             raise ParameterValidationError("display-vectors set OFF is not supported.")
     if getattr(args, "command", None) == "trigger-edge":
         _validate_trigger_edge_args(args)
+    if getattr(args, "command", None) == "trigger-sweep":
+        _validate_trigger_sweep_args(args)
+    if getattr(args, "command", None) == "trigger-noise-reject":
+        _validate_trigger_reject_args(args, "trigger-noise-reject")
+    if getattr(args, "command", None) == "trigger-hf-reject":
+        _validate_trigger_reject_args(args, "trigger-hf-reject")
     if getattr(args, "command", None) == "trigger-pulse-width":
         _validate_trigger_glitch_args(args)
     if getattr(args, "command", None) == "trigger-runt":
@@ -2320,6 +2396,36 @@ def _validate_trigger_edge_args(args: argparse.Namespace) -> None:
         raise ParameterValidationError(
             "trigger-edge configure requires --source-channel, --level, and --slope."
         )
+
+
+def _validate_trigger_sweep_args(args: argparse.Namespace) -> None:
+    if getattr(args, "trigger_sweep_query", False):
+        if getattr(args, "mode", None) is not None:
+            raise ParameterValidationError(
+                "trigger-sweep --query cannot be combined with configure options."
+            )
+        return
+    if getattr(args, "mode", None) is None:
+        raise ParameterValidationError("trigger-sweep configure requires --mode.")
+    normalize_trigger_sweep(args.mode)
+
+
+def _validate_trigger_reject_args(args: argparse.Namespace, command: str) -> None:
+    query_attr = (
+        "trigger_noise_reject_query"
+        if command == "trigger-noise-reject"
+        else "trigger_hf_reject_query"
+    )
+    if getattr(args, query_attr, False):
+        if getattr(args, "enabled", None) is not None:
+            raise ParameterValidationError(
+                f"{command} --query cannot be combined with configure options."
+            )
+        return
+    if getattr(args, "enabled", None) is None:
+        raise ParameterValidationError(f"{command} configure requires --enabled.")
+    if not isinstance(args.enabled, bool):
+        raise ParameterValidationError(f"{command} --enabled must be true or false.")
 
 
 def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
@@ -2877,6 +2983,48 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         slope = normalize_edge_slope(args.slope)
         commands = [trigger_mode_edge_command(), edge_trigger_source_command(channel), edge_trigger_level_command(args.level), edge_trigger_slope_command(slope)]
         return commands + [":SYSTem:ERRor?"], [], {"operation": "set", "commands": commands, "source_channel": channel, "level_volts": args.level, "slope": slope}
+    if command == "trigger-sweep":
+        if args.trigger_sweep_query:
+            command_text = trigger_sweep_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        command_text = trigger_sweep_command(args.mode)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "configure",
+            "command": command_text,
+            "mode": args.mode,
+            "state_changing": True,
+        }
+    if command == "trigger-noise-reject":
+        if args.trigger_noise_reject_query:
+            command_text = trigger_noise_reject_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        command_text = trigger_noise_reject_command(args.enabled)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "configure",
+            "command": command_text,
+            "enabled": args.enabled,
+            "state_changing": True,
+        }
+    if command == "trigger-hf-reject":
+        if args.trigger_hf_reject_query:
+            command_text = trigger_hf_reject_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        command_text = trigger_hf_reject_command(args.enabled)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "configure",
+            "command": command_text,
+            "enabled": args.enabled,
+            "state_changing": True,
+        }
     if command == "trigger-pulse-width":
         if args.glitch_query:
             commands = glitch_trigger_query_commands()
@@ -4803,6 +4951,87 @@ def _cmd_trigger_edge(args: argparse.Namespace) -> int:
             print(f"Command: {edge_trigger_source_command(channel)}")
             print(f"Command: {edge_trigger_level_command(level)}")
             print(f"Command: {edge_trigger_slope_command(slope)}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_common(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.command == "trigger-sweep":
+            if args.trigger_sweep_query:
+                command = trigger_sweep_query()
+                print("Planned query: trigger sweep mode")
+                state = scope.query_trigger_sweep()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+                print(f"Mode: {state.mode}")
+            else:
+                command = trigger_sweep_command(args.mode)
+                print(f"Planned change: trigger sweep {args.mode}")
+                scope.configure_trigger_sweep(args.mode)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    mode=args.mode,
+                    state_changing=True,
+                )
+                print(f"Command: {command}")
+        elif args.command == "trigger-noise-reject":
+            if args.trigger_noise_reject_query:
+                command = trigger_noise_reject_query()
+                print("Planned query: trigger noise reject")
+                state = scope.query_trigger_noise_reject()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+                print(f"Enabled: {state.enabled}")
+            else:
+                command = trigger_noise_reject_command(args.enabled)
+                print(f"Planned change: trigger noise reject {args.enabled}")
+                scope.configure_trigger_noise_reject(args.enabled)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    enabled=args.enabled,
+                    state_changing=True,
+                )
+                print(f"Command: {command}")
+        else:
+            if args.trigger_hf_reject_query:
+                command = trigger_hf_reject_query()
+                print("Planned query: trigger high-frequency reject")
+                state = scope.query_trigger_hf_reject()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+                print(f"Enabled: {state.enabled}")
+            else:
+                command = trigger_hf_reject_command(args.enabled)
+                print(f"Planned change: trigger high-frequency reject {args.enabled}")
+                scope.configure_trigger_hf_reject(args.enabled)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    enabled=args.enabled,
+                    state_changing=True,
+                )
+                print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)
@@ -7244,6 +7473,14 @@ def _holdoff_seconds_arg(value: str) -> float:
         return validate_trigger_holdoff(parsed)
     except KeysightScopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
+
+
+def _strict_bool_arg(value: str) -> bool:
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise argparse.ArgumentTypeError("must be true or false")
 
 
 def _setup_slot_arg(value: str) -> int:

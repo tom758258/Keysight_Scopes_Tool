@@ -93,6 +93,41 @@ def test_simulator_state_queries_reflect_channel_timebase_and_trigger_writes():
     assert backend.query(":TRIGger:EDGE:SLOPe?") == "NEGative"
 
 
+def test_simulator_trigger_common_roundtrip():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:SWEep AUTO")
+    assert backend.query(":TRIGger:SWEep?") == "AUTO"
+
+    backend.write(":TRIGger:SWEep NORMal")
+    assert backend.query(":TRIGger:SWEep?") == "NORM"
+
+    backend.write(":TRIGger:NREJect ON")
+    assert backend.query(":TRIGger:NREJect?") == "1"
+    backend.write(":TRIGger:NREJect OFF")
+    assert backend.query(":TRIGger:NREJect?") == "0"
+
+    backend.write(":TRIGger:HFReject ON")
+    assert backend.query(":TRIGger:HFReject?") == "1"
+    backend.write(":TRIGger:HFReject OFF")
+    assert backend.query(":TRIGger:HFReject?") == "0"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ":TRIGger:SWEep SINGle",
+        ":TRIGger:NREJect TRUE",
+        ":TRIGger:HFReject TRUE",
+    ],
+)
+def test_simulator_trigger_common_rejects_invalid_writes(command):
+    backend = SimulatorBackend()
+
+    with pytest.raises(SimulatorBackendError):
+        backend.write(command)
+
+
 def test_simulator_glitch_less_than_roundtrip():
     backend = SimulatorBackend()
 

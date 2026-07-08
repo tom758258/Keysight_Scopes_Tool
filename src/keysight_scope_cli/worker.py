@@ -74,6 +74,9 @@ DOMAIN_COMMANDS = {
     "trigger-tv",
     "trigger-pattern",
     "trigger-or",
+    "trigger-sweep",
+    "trigger-noise-reject",
+    "trigger-hf-reject",
     "trigger-holdoff",
     "cursor",
     "autoscale",
@@ -329,6 +332,7 @@ def parse_domain_command(
     arguments = _normalize_trigger_tv_worker_arguments(command, arguments)
     arguments = _normalize_trigger_pattern_worker_arguments(command, arguments)
     arguments = _normalize_trigger_or_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_common_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
     if runtime.mode == "simulate":
         argv += ["--simulate", "--model", runtime.model]
@@ -594,6 +598,53 @@ def _normalize_trigger_or_worker_arguments(
     if "query" in arguments and arguments["query"] is not True:
         raise KeysightScopeError("trigger-or argument query must be exactly true")
     return dict(arguments)
+
+
+def _normalize_trigger_common_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command == "trigger-sweep":
+        allowed = {"query", "mode"}
+        unknown = set(arguments) - allowed
+        if unknown:
+            raise KeysightScopeError(
+                f"unknown argument for trigger-sweep: {sorted(unknown)[0]}"
+            )
+        if "query" in arguments:
+            if arguments["query"] is not True:
+                raise KeysightScopeError(
+                    "trigger-sweep argument query must be exactly true"
+                )
+            if "mode" in arguments:
+                raise KeysightScopeError(
+                    "trigger-sweep query cannot be combined with configure arguments"
+                )
+            return dict(arguments)
+        return dict(arguments)
+
+    if command not in {"trigger-noise-reject", "trigger-hf-reject"}:
+        return arguments
+
+    allowed = {"query", "enabled"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for {command}: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(f"{command} argument query must be exactly true")
+        if "enabled" in arguments:
+            raise KeysightScopeError(
+                f"{command} query cannot be combined with configure arguments"
+            )
+        return dict(arguments)
+    normalized = dict(arguments)
+    if "enabled" in normalized:
+        if not isinstance(normalized["enabled"], bool):
+            raise KeysightScopeError(f"{command} argument enabled must be a boolean")
+        normalized["enabled"] = "true" if normalized["enabled"] else "false"
+    return normalized
 
 
 def arguments_to_argv(arguments: dict[str, Any]) -> list[str]:

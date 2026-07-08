@@ -250,6 +250,17 @@ _TV_POLARITY_READBACKS = {
     "NEGATIVE": "negative",
 }
 
+_TRIGGER_SWEEP_COMMANDS = {
+    "auto": "AUTO",
+    "normal": "NORMal",
+}
+
+_TRIGGER_SWEEP_READBACKS = {
+    "AUTO": "auto",
+    "NORM": "normal",
+    "NORMAL": "normal",
+}
+
 _PATTERN_FORMAT_READBACKS = {
     "ASC": "ascii",
     "ASCII": "ascii",
@@ -273,6 +284,28 @@ class EdgeTriggerState:
     source_channel: int
     level_volts: float
     slope: str
+
+
+@dataclass(frozen=True)
+class TriggerSweepState:
+    """Readback state for trigger sweep mode."""
+
+    mode: str
+    raw_value: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"mode": self.mode, "raw_value": self.raw_value}
+
+
+@dataclass(frozen=True)
+class TriggerRejectState:
+    """Readback state for trigger reject filters."""
+
+    enabled: bool
+    raw_value: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"enabled": self.enabled, "raw_value": self.raw_value}
 
 
 @dataclass(frozen=True)
@@ -634,6 +667,54 @@ class EdgeTriggerController:
         level_volts = parse_trigger_float(self.scpi.query(edge_trigger_level_query()), "level")
         slope = parse_edge_slope(self.scpi.query(edge_trigger_slope_query()))
         return EdgeTriggerState(source_channel=source_channel, level_volts=level_volts, slope=slope)
+
+
+class TriggerSweepController:
+    """Controls for common trigger sweep mode."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, mode: str) -> None:
+        self.scpi.write(trigger_sweep_command(mode))
+
+    def query(self) -> TriggerSweepState:
+        raw = self.scpi.query(trigger_sweep_query())
+        return TriggerSweepState(mode=parse_trigger_sweep(raw), raw_value=raw.strip())
+
+
+class TriggerNoiseRejectController:
+    """Controls for common trigger noise reject."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, enabled: bool) -> None:
+        self.scpi.write(trigger_noise_reject_command(enabled))
+
+    def query(self) -> TriggerRejectState:
+        raw = self.scpi.query(trigger_noise_reject_query())
+        return TriggerRejectState(
+            enabled=parse_trigger_reject_bool(raw),
+            raw_value=raw.strip(),
+        )
+
+
+class TriggerHfRejectController:
+    """Controls for common trigger high-frequency reject."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, enabled: bool) -> None:
+        self.scpi.write(trigger_hf_reject_command(enabled))
+
+    def query(self) -> TriggerRejectState:
+        raw = self.scpi.query(trigger_hf_reject_query())
+        return TriggerRejectState(
+            enabled=parse_trigger_reject_bool(raw),
+            raw_value=raw.strip(),
+        )
 
 
 class GlitchTriggerController:
@@ -1465,6 +1546,42 @@ def trigger_mode_query() -> str:
     """Build the SCPI query for trigger mode."""
 
     return ":TRIGger:MODE?"
+
+
+def trigger_sweep_command(mode: str) -> str:
+    """Build the SCPI command for trigger sweep mode."""
+
+    return f":TRIGger:SWEep {normalize_trigger_sweep(mode)}"
+
+
+def trigger_sweep_query() -> str:
+    """Build the SCPI query for trigger sweep mode."""
+
+    return ":TRIGger:SWEep?"
+
+
+def trigger_noise_reject_command(enabled: bool) -> str:
+    """Build the SCPI command for trigger noise reject."""
+
+    return f":TRIGger:NREJect {_trigger_bool_token(enabled)}"
+
+
+def trigger_noise_reject_query() -> str:
+    """Build the SCPI query for trigger noise reject."""
+
+    return ":TRIGger:NREJect?"
+
+
+def trigger_hf_reject_command(enabled: bool) -> str:
+    """Build the SCPI command for trigger high-frequency reject."""
+
+    return f":TRIGger:HFReject {_trigger_bool_token(enabled)}"
+
+
+def trigger_hf_reject_query() -> str:
+    """Build the SCPI query for trigger high-frequency reject."""
+
+    return ":TRIGger:HFReject?"
 
 
 def single_command() -> str:
@@ -2626,6 +2743,39 @@ def validate_or_trigger_pattern(pattern: str, capabilities: ScopeCapabilities) -
     return normalized
 
 
+def normalize_trigger_sweep(mode: str) -> str:
+    """Normalize a public trigger sweep value into a SCPI argument."""
+
+    try:
+        return _TRIGGER_SWEEP_COMMANDS[mode.strip().lower()]
+    except (AttributeError, KeyError) as exc:
+        raise ParameterValidationError(
+            "trigger sweep mode must be one of: auto, normal."
+        ) from exc
+
+
+def parse_trigger_sweep(raw: str) -> str:
+    """Parse a trigger sweep readback."""
+
+    try:
+        return _TRIGGER_SWEEP_READBACKS[raw.strip().upper()]
+    except KeyError as exc:
+        raise TriggerResponseError(
+            f"Could not parse trigger sweep response: {raw!r}"
+        ) from exc
+
+
+def parse_trigger_reject_bool(raw: str) -> bool:
+    """Parse a trigger reject query readback."""
+
+    text = raw.strip()
+    if text == "1":
+        return True
+    if text == "0":
+        return False
+    raise TriggerResponseError(f"Could not parse trigger reject response: {raw!r}")
+
+
 def parse_edge_trigger_source(raw: str) -> int:
     """Parse an edge trigger source readback into an analog channel number."""
 
@@ -3035,6 +3185,12 @@ def _parse_channel_source(suffix: str) -> str | None:
 
 def _parse_digital_source(suffix: str) -> str | None:
     return "digital" if _parse_digital_suffix(suffix) is not None else None
+
+
+def _trigger_bool_token(enabled: bool) -> str:
+    if not isinstance(enabled, bool):
+        raise ParameterValidationError("trigger reject enabled value must be a boolean.")
+    return "ON" if enabled else "OFF"
 
 
 def _split_pattern_response(raw: str) -> list[str]:

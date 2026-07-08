@@ -33,6 +33,20 @@ Core owns runtime behavior:
   queries the existing `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*` SCPI
   behavior for DSO analog channels only; external and digital/MSO edge trigger
   expansion is not included.
+- Common trigger general setting helpers exposed through
+  `KeysightScope.configure_trigger_sweep()`,
+  `KeysightScope.query_trigger_sweep()`,
+  `KeysightScope.configure_trigger_noise_reject()`,
+  `KeysightScope.query_trigger_noise_reject()`,
+  `KeysightScope.configure_trigger_hf_reject()`, and
+  `KeysightScope.query_trigger_hf_reject()`. This `trigger-sweep`,
+  `trigger-noise-reject`, and `trigger-hf-reject` v1 slice uses only
+  `:TRIGger:SWEep`, `:TRIGger:NREJect`, and `:TRIGger:HFReject`. Query mode
+  preserves raw readbacks while normalizing sweep to `auto` or `normal` and
+  reject filters to booleans. It is hardware-free only so far; no live
+  hardware validation has been run, and it does not add holdoff, generic
+  trigger settings, run, stop, single, force-trigger, wait-trigger, capture, or
+  WebUI runtime behavior.
 - Analog-channel pulse-width trigger helpers for the Keysight
   `:TRIGger:GLITch...` command family. This first slice configures and queries
   pulse-width trigger state only; it does not run, stop, single, force trigger,

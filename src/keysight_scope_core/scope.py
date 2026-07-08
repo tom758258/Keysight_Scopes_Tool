@@ -42,6 +42,11 @@ from .trigger import (
     SetupHoldTriggerState,
     TransitionTriggerController,
     TransitionTriggerState,
+    TriggerHfRejectController,
+    TriggerNoiseRejectController,
+    TriggerRejectState,
+    TriggerSweepController,
+    TriggerSweepState,
     TvTriggerController,
     TvTriggerState,
 )
@@ -328,6 +333,36 @@ class KeysightScope:
         """Query analog edge trigger source, level, and slope."""
 
         return self._edge_trigger_controller().query()
+
+    def configure_trigger_sweep(self, mode: str) -> None:
+        """Configure common trigger sweep mode."""
+
+        self._trigger_sweep_controller().configure(mode)
+
+    def query_trigger_sweep(self) -> TriggerSweepState:
+        """Query common trigger sweep mode."""
+
+        return self._trigger_sweep_controller().query()
+
+    def configure_trigger_noise_reject(self, enabled: bool) -> None:
+        """Configure common trigger noise reject."""
+
+        self._trigger_noise_reject_controller().configure(enabled)
+
+    def query_trigger_noise_reject(self) -> TriggerRejectState:
+        """Query common trigger noise reject."""
+
+        return self._trigger_noise_reject_controller().query()
+
+    def configure_trigger_hf_reject(self, enabled: bool) -> None:
+        """Configure common trigger high-frequency reject."""
+
+        self._trigger_hf_reject_controller().configure(enabled)
+
+    def query_trigger_hf_reject(self) -> TriggerRejectState:
+        """Query common trigger high-frequency reject."""
+
+        return self._trigger_hf_reject_controller().query()
 
     def configure_glitch_trigger(
         self,
@@ -744,6 +779,30 @@ class KeysightScope:
                 "Edge trigger operations require known capabilities; call query_idn() first."
             )
         return EdgeTriggerController(self.scpi, self.capabilities)
+
+    def _trigger_sweep_controller(self) -> TriggerSweepController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Trigger sweep operations require known capabilities; "
+                "call query_idn() first."
+            )
+        return TriggerSweepController(self.scpi)
+
+    def _trigger_noise_reject_controller(self) -> TriggerNoiseRejectController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Trigger noise reject operations require known capabilities; "
+                "call query_idn() first."
+            )
+        return TriggerNoiseRejectController(self.scpi)
+
+    def _trigger_hf_reject_controller(self) -> TriggerHfRejectController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Trigger high-frequency reject operations require known capabilities; "
+                "call query_idn() first."
+            )
+        return TriggerHfRejectController(self.scpi)
 
     def _glitch_trigger_controller(self) -> GlitchTriggerController:
         if self.capabilities is None:

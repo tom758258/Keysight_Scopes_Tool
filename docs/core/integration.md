@@ -31,6 +31,11 @@ names are intended for package consumers and tests:
 - `SetupHoldTriggerState`
 - `TransitionTriggerController`
 - `TransitionTriggerState`
+- `TriggerHfRejectController`
+- `TriggerNoiseRejectController`
+- `TriggerRejectState`
+- `TriggerSweepController`
+- `TriggerSweepState`
 - `IDN`
 - `KeysightScope`
 - `MeasurementController`

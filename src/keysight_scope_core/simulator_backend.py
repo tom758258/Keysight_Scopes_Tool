@@ -145,6 +145,9 @@ class SimulatorBackend:
     run_state: str = "stopped"
     timebase_scale: float = 1e-3
     timebase_position: float = 0.0
+    trigger_sweep: str = "AUTO"
+    trigger_noise_reject: bool = False
+    trigger_hf_reject: bool = False
     trigger_source: int = 1
     trigger_mode: str = "EDGE"
     trigger_level: float = 0.0
@@ -291,6 +294,15 @@ class SimulatorBackend:
             self.timebase_scale = float(command.rsplit(" ", 1)[1])
         elif upper.startswith(":TIMEBASE:POSITION "):
             self.timebase_position = float(command.rsplit(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:SWEEP "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"AUTO", "NORMAL"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.trigger_sweep = value
+        elif upper.startswith(":TRIGGER:NREJECT "):
+            self.trigger_noise_reject = _parse_scpi_bool_write(command)
+        elif upper.startswith(":TRIGGER:HFREJECT "):
+            self.trigger_hf_reject = _parse_scpi_bool_write(command)
         elif upper.startswith(":TRIGGER:MODE "):
             self.trigger_mode = command.rsplit(" ", 1)[1]
         elif upper.startswith(":TRIGGER:EDGE:SOURCE CHANNEL"):
@@ -578,6 +590,12 @@ class SimulatorBackend:
             return f"{self.timebase_scale:.12g}"
         if upper == ":TIMEBASE:POSITION?":
             return f"{self.timebase_position:.12g}"
+        if upper == ":TRIGGER:SWEEP?":
+            return "NORM" if self.trigger_sweep.upper().startswith("NORM") else "AUTO"
+        if upper == ":TRIGGER:NREJECT?":
+            return "1" if self.trigger_noise_reject else "0"
+        if upper == ":TRIGGER:HFREJECT?":
+            return "1" if self.trigger_hf_reject else "0"
         if upper == ":TRIGGER:MODE?":
             return _abbreviate_trigger_mode(self.trigger_mode)
         if upper == ":TRIGGER:EDGE:SOURCE?":
@@ -1641,6 +1659,15 @@ def _parse_positive_scpi_number(value: str) -> float:
     if not math.isfinite(parsed) or parsed <= 0:
         raise SimulatorBackendError("SCPI numeric parameter must be positive and finite.")
     return parsed
+
+
+def _parse_scpi_bool_write(command: str) -> bool:
+    value = command.rsplit(" ", 1)[1].strip().upper()
+    if value in {"1", "ON"}:
+        return True
+    if value in {"0", "OFF"}:
+        return False
+    raise SimulatorBackendError(f"Unsupported simulator write: {command}")
 
 
 def _abbreviate_trigger_mode(value: str) -> str:

@@ -80,6 +80,9 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
+- Configure or query common trigger sweep, noise reject, and high-frequency
+  reject settings with `:TRIGger:SWEep`, `:TRIGger:NREJect`, and
+  `:TRIGger:HFReject`.
 - Configure or query analog-channel pulse-width trigger settings with
   `:TRIGger:MODE GLITch` and `:TRIGger:GLITch:*`.
 - Configure or query analog-channel runt trigger settings with
@@ -696,6 +699,60 @@ Worker usage:
 Worker JSON for `trigger-edge` accepts only `query`, `source_channel`,
 `level`, and `slope`. Aliases and unknown fields are rejected before enqueue,
 artifact creation, simulator/VISA session open, or SCPI.
+
+Configure or query common trigger general settings:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-sweep --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-sweep --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --mode auto --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-sweep --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --mode normal --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-noise-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-noise-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --enabled true --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-noise-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --enabled false --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-hf-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-hf-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --enabled true --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-hf-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --enabled false --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-sweep --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-noise-reject --simulate --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-hf-reject --simulate --json --model DSOX4024A --enabled true
+```
+
+`trigger-sweep` uses `:TRIGger:SWEep` and accepts only `--mode auto` or
+`--mode normal`. Query mode sends `:TRIGger:SWEep?` and reports normalized
+`mode` plus `raw_value` in JSON. `trigger-noise-reject` uses
+`:TRIGger:NREJect`; `trigger-hf-reject` uses `:TRIGger:HFReject`. Both reject
+commands accept only `--enabled true` or `--enabled false`; query mode
+normalizes `0`/`1` readback to boolean `enabled` and preserves `raw_value`.
+Each command rejects `--query` combined with configure options and rejects
+missing configure options when not querying.
+
+These commands are explicit one-shot state changes or queries. They do not
+change trigger holdoff, do not add generic trigger settings APIs, do not run,
+stop, single, force trigger, wait for trigger, capture waveform data, or change
+WebUI runtime behavior. This v1 package has hardware-free CLI/Core/simulator
+and worker validation only; live CLI, worker live, LAN, WebUI runtime, DSO-X
+2000X/3000X/4024A/4034A live validation, and prior trigger pack live status
+changes have not been run or made. Phase 10 `trigger-edge` live validation
+remains pending and is not abandoned.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-sweep --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-sweep --arguments-json "{\"mode\":\"normal\"}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-noise-reject --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-noise-reject --arguments-json "{\"enabled\":false}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-hf-reject --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-hf-reject --arguments-json "{\"enabled\":true}" --json
+```
+
+Worker JSON for `trigger-sweep` accepts only `query` or `mode`. Worker JSON for
+`trigger-noise-reject` and `trigger-hf-reject` accepts only `query` or
+`enabled`. `query` must be exactly JSON `true`; `enabled` must be a JSON
+boolean. Unknown fields and aliases such as `sweep`, `sweep_mode`,
+`trigger_sweep`, `noise_reject`, `nreject`, `nrej`, `state`, `on`, `enable`,
+`hf_reject`, `hfreject`, and `high_frequency_reject` are rejected before
+enqueue, artifact creation, simulator/VISA session open, or SCPI.
 
 Configure or query Keysight pulse-width trigger settings with the canonical
 `trigger-pulse-width` command:
