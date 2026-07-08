@@ -284,6 +284,40 @@ def test_simulator_delay_trigger_roundtrip():
     assert backend.query(":TRIGger:DELay:TRIGger:SLOPe?") == "NEG"
 
 
+def test_simulator_edge_burst_trigger_roundtrip_with_level():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE EBURst")
+    backend.write(":TRIGger:EBURst:SOURce CHANnel1")
+    backend.write(":TRIGger:EBURst:SLOPe POSitive")
+    backend.write(":TRIGger:EBURst:COUNt 3")
+    backend.write(":TRIGger:EBURst:IDLE 1e-6")
+    backend.write(":TRIGger:EDGE:LEVel 0.5, CHANnel1")
+
+    assert backend.query(":TRIGger:MODE?") == "EBUR"
+    assert backend.query(":TRIGger:EBURst:SOURce?") == "CHAN1"
+    assert backend.query(":TRIGger:EBURst:SLOPe?") == "POS"
+    assert backend.query(":TRIGger:EBURst:COUNt?") == "3"
+    assert backend.query(":TRIGger:EBURst:IDLE?") == "1.00000000E-06"
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel1") == "0.5"
+
+
+def test_simulator_edge_burst_trigger_roundtrip_without_level():
+    backend = SimulatorBackend()
+
+    backend.write(":TRIGger:MODE EBURst")
+    backend.write(":TRIGger:EBURst:SOURce CHANnel2")
+    backend.write(":TRIGger:EBURst:SLOPe NEGative")
+    backend.write(":TRIGger:EBURst:COUNt 5")
+    backend.write(":TRIGger:EBURst:IDLE 1e-5")
+
+    assert backend.query(":TRIGger:EBURst:SOURce?") == "CHAN2"
+    assert backend.query(":TRIGger:EBURst:SLOPe?") == "NEG"
+    assert backend.query(":TRIGger:EBURst:COUNt?") == "5"
+    assert backend.query(":TRIGger:EBURst:IDLE?") == "1.00000000E-05"
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel2") == "0"
+
+
 def test_simulator_channel_advanced_settings_round_trip():
     backend = SimulatorBackend()
 

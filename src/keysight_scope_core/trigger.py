@@ -150,6 +150,18 @@ _SETUP_HOLD_SLOPE_READBACKS = {
     "NEGATIVE": "negative",
 }
 
+_EDGE_BURST_SLOPE_COMMANDS = {
+    "positive": "POSitive",
+    "negative": "NEGative",
+}
+
+_EDGE_BURST_SLOPE_READBACKS = {
+    "POS": "positive",
+    "POSITIVE": "positive",
+    "NEG": "negative",
+    "NEGATIVE": "negative",
+}
+
 _PATTERN_FORMAT_READBACKS = {
     "ASC": "ascii",
     "ASCII": "ascii",
@@ -344,6 +356,40 @@ class SetupHoldTriggerState:
             "setup_time_seconds": self.setup_time_seconds,
             "hold_time_seconds": self.hold_time_seconds,
             "raw": dict(self.raw),
+        }
+
+
+@dataclass(frozen=True)
+class EdgeBurstTriggerState:
+    """Readback state for Nth Edge Burst trigger settings."""
+
+    mode: str | None
+    source_channel: int | None
+    slope: str | None
+    count: int | None
+    idle_time: float | None
+    level_volts: float | None
+    raw_mode: str | None
+    raw_source: str | None
+    raw_slope: str | None
+    raw_count: str | None
+    raw_idle_time: str | None
+    raw_level: str | None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "mode": self.mode,
+            "source_channel": self.source_channel,
+            "slope": self.slope,
+            "count": self.count,
+            "idle_time": self.idle_time,
+            "level_volts": self.level_volts,
+            "raw_mode": self.raw_mode,
+            "raw_source": self.raw_source,
+            "raw_slope": self.raw_slope,
+            "raw_count": self.raw_count,
+            "raw_idle_time": self.raw_idle_time,
+            "raw_level": self.raw_level,
         }
 
 
@@ -811,6 +857,88 @@ class SetupHoldTriggerController:
         )
 
 
+class EdgeBurstTriggerController:
+    """Controls for DSO analog Nth Edge Burst trigger settings."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        source_channel: int,
+        slope: str,
+        count: int,
+        idle_time: float,
+        level_volts: float | None = None,
+    ) -> EdgeBurstTriggerState:
+        """Configure DSO analog Nth Edge Burst trigger settings."""
+
+        commands = edge_burst_trigger_configure_commands(
+            source_channel=source_channel,
+            slope=slope,
+            count=count,
+            idle_time=idle_time,
+            capabilities=self.capabilities,
+            level_volts=level_volts,
+        )
+        for command in commands:
+            self.scpi.write(command)
+        normalized_channel = validate_analog_channel(source_channel, self.capabilities)
+        normalized_slope = parse_edge_burst_slope_readback(normalize_edge_burst_slope(slope))
+        normalized_count = validate_edge_burst_count(count)
+        normalized_idle = validate_edge_burst_idle_time(idle_time)
+        normalized_level = (
+            validate_trigger_level(level_volts) if level_volts is not None else None
+        )
+        return EdgeBurstTriggerState(
+            mode="edge-burst",
+            source_channel=normalized_channel,
+            slope=normalized_slope,
+            count=normalized_count,
+            idle_time=normalized_idle,
+            level_volts=normalized_level,
+            raw_mode="EBURst",
+            raw_source=f"CHANnel{normalized_channel}",
+            raw_slope=normalize_edge_burst_slope(slope),
+            raw_count=str(normalized_count),
+            raw_idle_time=_format_scpi_float(normalized_idle),
+            raw_level=_format_scpi_float(normalized_level)
+            if normalized_level is not None
+            else None,
+        )
+
+    def query(self) -> EdgeBurstTriggerState:
+        """Query Nth Edge Burst trigger state without changing acquisition state."""
+
+        raw_mode = self.scpi.query(trigger_mode_query())
+        raw_source = self.scpi.query(edge_burst_source_query())
+        raw_slope = self.scpi.query(edge_burst_slope_query())
+        raw_count = self.scpi.query(edge_burst_count_query())
+        raw_idle = self.scpi.query(edge_burst_idle_query())
+        source_kind, source_channel, _digital = parse_edge_burst_source(raw_source)
+        raw_level = None
+        level_volts = None
+        if source_kind == "channel" and source_channel is not None:
+            raw_level = self.scpi.query(edge_trigger_level_for_source_query(source_channel))
+            level_volts = parse_trigger_float(raw_level, "edge-burst level")
+        return EdgeBurstTriggerState(
+            mode=parse_trigger_mode(raw_mode),
+            source_channel=source_channel if source_kind == "channel" else None,
+            slope=parse_edge_burst_slope_readback(raw_slope),
+            count=parse_edge_burst_count_readback(raw_count),
+            idle_time=parse_optional_trigger_float(raw_idle, "edge-burst idle time"),
+            level_volts=level_volts,
+            raw_mode=raw_mode,
+            raw_source=raw_source,
+            raw_slope=raw_slope,
+            raw_count=raw_count,
+            raw_idle_time=raw_idle,
+            raw_level=raw_level,
+        )
+
+
 class PatternTriggerController:
     """Controls for DSO ASCII pattern trigger settings."""
 
@@ -1027,6 +1155,18 @@ def normalize_setup_hold_slope(slope: str) -> str:
         ) from exc
 
 
+def normalize_edge_burst_slope(slope: str) -> str:
+    """Normalize a public edge-burst slope value into a SCPI argument."""
+
+    normalized = slope.strip().lower()
+    try:
+        return _EDGE_BURST_SLOPE_COMMANDS[normalized]
+    except KeyError as exc:
+        raise ParameterValidationError(
+            "edge-burst trigger slope must be one of: positive, negative."
+        ) from exc
+
+
 def trigger_mode_edge_command() -> str:
     """Build the SCPI command that selects edge trigger mode."""
 
@@ -1061,6 +1201,12 @@ def trigger_mode_setup_hold_command() -> str:
     """Build the SCPI command that selects setup-hold trigger mode."""
 
     return ":TRIGger:MODE SHOLd"
+
+
+def trigger_mode_edge_burst_command() -> str:
+    """Build the SCPI command that selects Nth Edge Burst trigger mode."""
+
+    return ":TRIGger:MODE EBURst"
 
 
 def trigger_mode_pattern_command() -> str:
@@ -1115,6 +1261,18 @@ def edge_trigger_level_query() -> str:
     """Build the SCPI query for edge trigger level."""
 
     return ":TRIGger:EDGE:LEVel?"
+
+
+def edge_trigger_level_for_source_command(level_volts: float, channel: int) -> str:
+    """Build the SCPI command for an analog-source edge trigger level."""
+
+    return f":TRIGger:EDGE:LEVel {_format_scpi_float(level_volts)}, CHANnel{channel}"
+
+
+def edge_trigger_level_for_source_query(channel: int) -> str:
+    """Build the SCPI query for an analog-source edge trigger level."""
+
+    return f":TRIGger:EDGE:LEVel? CHANnel{channel}"
 
 
 def edge_trigger_slope_command(slope_command: str) -> str:
@@ -1811,6 +1969,139 @@ def validate_setup_hold_trigger_channel(
     return validate_analog_channel(channel, capabilities)
 
 
+def edge_burst_source_command(channel: int) -> str:
+    """Build the SCPI command for Nth Edge Burst trigger source."""
+
+    return f":TRIGger:EBURst:SOURce CHANnel{channel}"
+
+
+def edge_burst_source_query() -> str:
+    """Build the SCPI query for Nth Edge Burst trigger source."""
+
+    return ":TRIGger:EBURst:SOURce?"
+
+
+def edge_burst_slope_command(slope_scpi: str) -> str:
+    """Build the SCPI command for Nth Edge Burst trigger slope."""
+
+    return f":TRIGger:EBURst:SLOPe {slope_scpi}"
+
+
+def edge_burst_slope_query() -> str:
+    """Build the SCPI query for Nth Edge Burst trigger slope."""
+
+    return ":TRIGger:EBURst:SLOPe?"
+
+
+def edge_burst_count_command(count: int) -> str:
+    """Build the SCPI command for Nth Edge Burst trigger count."""
+
+    return f":TRIGger:EBURst:COUNt {count}"
+
+
+def edge_burst_count_query() -> str:
+    """Build the SCPI query for Nth Edge Burst trigger count."""
+
+    return ":TRIGger:EBURst:COUNt?"
+
+
+def edge_burst_idle_command(seconds: float) -> str:
+    """Build the SCPI command for Nth Edge Burst trigger idle time."""
+
+    return f":TRIGger:EBURst:IDLE {_format_scpi_float(seconds)}"
+
+
+def edge_burst_idle_query() -> str:
+    """Build the SCPI query for Nth Edge Burst trigger idle time."""
+
+    return ":TRIGger:EBURst:IDLE?"
+
+
+def edge_burst_trigger_query_commands(*, include_level_for_channel: int | None = None) -> list[str]:
+    """Return the Nth Edge Burst trigger query SCPI sequence."""
+
+    commands = [
+        trigger_mode_query(),
+        edge_burst_source_query(),
+        edge_burst_slope_query(),
+        edge_burst_count_query(),
+        edge_burst_idle_query(),
+    ]
+    if include_level_for_channel is not None:
+        commands.append(edge_trigger_level_for_source_query(include_level_for_channel))
+    return commands
+
+
+def edge_burst_trigger_configure_commands(
+    *,
+    source_channel: int,
+    slope: str,
+    count: int,
+    idle_time: float,
+    capabilities: ScopeCapabilities,
+    level_volts: float | None = None,
+) -> list[str]:
+    """Return the DSO analog Nth Edge Burst trigger configure SCPI sequence."""
+
+    channel = validate_edge_burst_source_channel(source_channel, capabilities)
+    slope_command = normalize_edge_burst_slope(slope)
+    count_value = validate_edge_burst_count(count)
+    idle_value = validate_edge_burst_idle_time(idle_time)
+    level = validate_trigger_level(level_volts) if level_volts is not None else None
+    commands = [
+        trigger_mode_edge_burst_command(),
+        edge_burst_source_command(channel),
+        edge_burst_slope_command(slope_command),
+        edge_burst_count_command(count_value),
+        edge_burst_idle_command(idle_value),
+    ]
+    if level is not None:
+        commands.append(edge_trigger_level_for_source_command(level, channel))
+    return commands
+
+
+def validate_edge_burst_count(count: int) -> int:
+    """Validate the Nth Edge Burst edge count."""
+
+    if isinstance(count, bool) or not isinstance(count, int):
+        raise ParameterValidationError("edge-burst trigger count must be an integer.")
+    if count < 1:
+        raise ParameterValidationError("edge-burst trigger count must be at least 1.")
+    return count
+
+
+def validate_edge_burst_idle_time(seconds: float) -> float:
+    """Validate the documented Nth Edge Burst idle time range."""
+
+    try:
+        value = float(seconds)
+    except (TypeError, ValueError) as exc:
+        raise ParameterValidationError(
+            "edge-burst trigger idle_time must be a number of seconds."
+        ) from exc
+    if not math.isfinite(value):
+        raise ParameterValidationError(
+            "edge-burst trigger idle_time must be a finite number of seconds."
+        )
+    if value < 1e-8 or value > 10.0:
+        raise ParameterValidationError(
+            "edge-burst trigger idle_time must be between 1e-8 and 10.0 seconds."
+        )
+    return value
+
+
+def validate_edge_burst_source_channel(
+    channel: int, capabilities: ScopeCapabilities
+) -> int:
+    """Validate edge-burst DSO analog channel input."""
+
+    if isinstance(channel, bool) or not isinstance(channel, int):
+        raise ParameterValidationError(
+            "edge-burst trigger source_channel must be an integer analog channel."
+        )
+    return validate_analog_channel(channel, capabilities)
+
+
 def pattern_trigger_format_command() -> str:
     """Build the SCPI command for ASCII pattern format."""
 
@@ -1983,6 +2274,8 @@ def parse_trigger_mode(raw: str) -> str | None:
         return "delay"
     if normalized in {"SHOL", "SHOLD"}:
         return "setup-hold"
+    if normalized in {"EBUR", "EBURST"}:
+        return "edge-burst"
     if normalized in {"PATT", "PATTERN"}:
         return "pattern"
     if normalized in {"OR"}:
@@ -2125,6 +2418,52 @@ def parse_setup_hold_slope_readback(raw: str) -> str | None:
     """Parse a setup-hold trigger slope readback when recognized."""
 
     return _SETUP_HOLD_SLOPE_READBACKS.get(raw.strip().upper())
+
+
+def parse_edge_burst_source(raw: str) -> tuple[str | None, int | None, int | None]:
+    """Parse an edge-burst source while preserving unsupported raw states."""
+
+    normalized = raw.strip().upper()
+    if normalized in {"", "NONE"}:
+        return "none", None, None
+    if normalized.startswith("CHANNEL"):
+        suffix = normalized.removeprefix("CHANNEL")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("CHAN"):
+        suffix = normalized.removeprefix("CHAN")
+        return _parse_channel_source(suffix), _parse_channel_suffix(suffix), None
+    if normalized.startswith("DIGITAL"):
+        suffix = normalized.removeprefix("DIGITAL")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    if normalized.startswith("DIG"):
+        suffix = normalized.removeprefix("DIG")
+        return _parse_digital_source(suffix), None, _parse_digital_suffix(suffix)
+    return None, None, None
+
+
+def parse_edge_burst_slope_readback(raw: str) -> str | None:
+    """Parse an edge-burst trigger slope readback when recognized."""
+
+    return _EDGE_BURST_SLOPE_READBACKS.get(raw.strip().upper())
+
+
+def parse_edge_burst_count_readback(raw: str) -> int | None:
+    """Parse an edge-burst trigger count readback."""
+
+    text = raw.strip()
+    if not text or text.upper() == "NONE":
+        return None
+    try:
+        value = int(text)
+    except ValueError as exc:
+        raise TriggerResponseError(
+            f"Could not parse edge-burst trigger count response: {raw!r}"
+        ) from exc
+    if value < 1:
+        raise TriggerResponseError(
+            f"Could not parse edge-burst trigger count response: {raw!r}"
+        )
+    return value
 
 
 def parse_delay_count_readback(raw: str) -> int | None:

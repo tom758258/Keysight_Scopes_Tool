@@ -136,7 +136,8 @@ Worker `/command` supports the existing Scopes capability surface:
 - `timebase-scale`, `timebase-position`
 - `edge-trigger`, `trigger-pulse-width`, `trigger-runt`,
   `trigger-transition`, `trigger-delay`, `trigger-setup-hold`,
-  `trigger-pattern`, `trigger-or`, `trigger-holdoff`, `cursor`, `autoscale`
+  `trigger-edge-burst`, `trigger-pattern`, `trigger-or`, `trigger-holdoff`,
+  `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -436,6 +437,64 @@ arguments before enqueue, artifact creation, VISA open, or SCPI. Worker support
 has hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
 2000X/3000X/4024A/4034A, MSO/digital, actual signal-trigger behavior, and
 broader trigger-tree validation have not been run.
+
+`trigger-edge-burst` is accepted only as the canonical Nth Edge Burst trigger
+command. It uses the Keysight `:TRIGger:EBURst...` SCPI family plus optional
+source-qualified analog `:TRIGger:EDGE:LEVel`:
+
+```json
+{"command": "trigger-edge-burst", "arguments": {"query": true}}
+```
+
+```json
+{
+  "command": "trigger-edge-burst",
+  "arguments": {
+    "source_channel": 1,
+    "slope": "positive",
+    "count": 3,
+    "idle_time": 0.000001
+  }
+}
+```
+
+```json
+{
+  "command": "trigger-edge-burst",
+  "arguments": {
+    "source_channel": 1,
+    "slope": "positive",
+    "count": 3,
+    "idle_time": 0.000001,
+    "level_volts": 0.5
+  }
+}
+```
+
+Configure mode changes trigger settings and is DSO analog-channel-only. It
+sends `:TRIGger:MODE EBURst`, `:TRIGger:EBURst:SOURce`,
+`:TRIGger:EBURst:SLOPe`, `:TRIGger:EBURst:COUNt`, and
+`:TRIGger:EBURst:IDLE`. When `level_volts` is supplied, it then sends
+`:TRIGger:EDGE:LEVel <level>, CHANnel<n>` for the selected analog source.
+Slopes are `positive` or `negative`; `count` must be an integer at least `1`;
+`idle_time` must be finite and from `1e-8` through `10.0` seconds.
+
+Query mode must use `query: true` without configure keys and reads mode,
+source, slope, count, and idle time. It reads analog edge level only when the
+source readback safely parses as analog. Query result JSON preserves raw
+readbacks and tolerates digital, `NONE`, or unknown source state.
+
+The worker accepts only `query`, `source_channel`, `slope`, `count`,
+`idle_time`, and `level_volts` for this v1 command. It rejects partial
+configure, `query` values other than exactly `true`, `query` combined with
+configure keys, unknown keys even when false or null, `channel`, `source`,
+`edge_count`, `idle_time_seconds`, `time_seconds`, `trigger_level`, `level`,
+digital/MSO or external source configuration, and generic trigger-tree
+arguments before enqueue, artifact creation, VISA open, or SCPI. Worker support
+has hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
+2000X/3000X/4024A/4034A, MSO/digital source validation, actual signal-trigger
+behavior, broader trigger-tree validation, and capture/wait-trigger/run/stop/
+single workflow integration have not been run or implemented.
 
 `trigger-pattern` is accepted only as the canonical Pattern trigger command.
 It uses the DSO analog ASCII entered-pattern `:TRIGger:PATTern...` SCPI
@@ -754,9 +813,9 @@ recorded as absolute paths. Default worker outputs are:
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
 `trigger-pulse-width`, `trigger-runt`, `trigger-transition`, `trigger-delay`,
-`trigger-setup-hold`, `trigger-pattern`, `trigger-or`, `display-clear`,
-`display-persistence`, `display-intensity`, and `display-vectors` do not create
-command artifacts.
+`trigger-setup-hold`, `trigger-edge-burst`, `trigger-pattern`, `trigger-or`,
+`display-clear`, `display-persistence`, `display-intensity`, and
+`display-vectors` do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
 includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.

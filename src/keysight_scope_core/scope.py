@@ -26,6 +26,8 @@ from .timebase import TimebaseController
 from .trigger import (
     DelayTriggerController,
     DelayTriggerState,
+    EdgeBurstTriggerController,
+    EdgeBurstTriggerState,
     EdgeTriggerController,
     EdgeTriggerState,
     GlitchTriggerController,
@@ -455,6 +457,30 @@ class KeysightScope:
 
         return self._setup_hold_trigger_controller().query()
 
+    def configure_edge_burst_trigger(
+        self,
+        *,
+        source_channel: int,
+        slope: str,
+        count: int,
+        idle_time: float,
+        level_volts: float | None = None,
+    ) -> EdgeBurstTriggerState:
+        """Configure DSO analog Nth Edge Burst trigger settings."""
+
+        return self._edge_burst_trigger_controller().configure(
+            source_channel=source_channel,
+            slope=slope,
+            count=count,
+            idle_time=idle_time,
+            level_volts=level_volts,
+        )
+
+    def query_edge_burst_trigger(self) -> EdgeBurstTriggerState:
+        """Query Nth Edge Burst trigger settings."""
+
+        return self._edge_burst_trigger_controller().query()
+
     def configure_pattern_trigger(self, pattern: str) -> PatternTriggerState:
         """Configure DSO ASCII pattern trigger settings."""
 
@@ -727,6 +753,13 @@ class KeysightScope:
                 "Setup-hold trigger operations require known capabilities; call query_idn() first."
             )
         return SetupHoldTriggerController(self.scpi, self.capabilities)
+
+    def _edge_burst_trigger_controller(self) -> EdgeBurstTriggerController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Edge-burst trigger operations require known capabilities; call query_idn() first."
+            )
+        return EdgeBurstTriggerController(self.scpi, self.capabilities)
 
     def _pattern_trigger_controller(self) -> PatternTriggerController:
         if self.capabilities is None:

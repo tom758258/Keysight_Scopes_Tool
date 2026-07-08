@@ -199,6 +199,14 @@ Control and setup:
   setup/hold time raw and parsed fields, and preserved `raw` readbacks. The v1
   configure surface is DSO analog-channel-only; query tolerates digital or
   unknown source readback by leaving parsed analog channels null.
+- `trigger-edge-burst`: `operation` and `commands`. Configure results include
+  `mode: "edge-burst"`, `source_channel`, `source`, `slope`, `count`,
+  `idle_time`, optional `level_volts`, and `state_changing: true`. Query
+  results include normalized `mode`, nullable `source_channel`, nullable
+  `slope`, nullable `count`, nullable `idle_time`, nullable `level_volts`, and
+  preserved `raw_mode`, `raw_source`, `raw_slope`, `raw_count`,
+  `raw_idle_time`, and `raw_level` readbacks. Query mode reads analog edge
+  level only when the source readback safely parses as an analog channel.
 - `trigger-pattern`: `operation` and `commands`. Configure results include
   `mode: "pattern"`, `format: "ascii"`, `pattern`, `qualifier: "entered"`, and
   `state_changing: true`. Query results include normalized `mode`, `format`,

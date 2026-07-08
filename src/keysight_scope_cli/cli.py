@@ -202,6 +202,8 @@ from keysight_scope_core.trigger import (
     TriggerWaitConfig,
     delay_trigger_configure_commands,
     delay_trigger_query_commands,
+    edge_burst_trigger_configure_commands,
+    edge_burst_trigger_query_commands,
     edge_trigger_level_command,
     edge_trigger_level_query,
     edge_trigger_slope_command,
@@ -212,6 +214,7 @@ from keysight_scope_core.trigger import (
     glitch_trigger_configure_commands,
     glitch_trigger_query_commands,
     normalize_edge_slope,
+    normalize_edge_burst_slope,
     normalize_delay_slope,
     normalize_glitch_qualifier,
     normalize_runt_qualifier,
@@ -235,6 +238,8 @@ from keysight_scope_core.trigger import (
     trigger_mode_edge_command,
     validate_delay_trigger_count,
     validate_delay_trigger_time,
+    validate_edge_burst_count,
+    validate_edge_burst_idle_time,
     trigger_high_level_query,
     trigger_low_level_query,
     validate_or_trigger_pattern,
@@ -1162,6 +1167,49 @@ def _build_parser() -> argparse.ArgumentParser:
         help="hold time in seconds",
     )
 
+    edge_burst_trigger_parser = subparsers.add_parser(
+        "trigger-edge-burst",
+        allow_abbrev=False,
+        help="configure or query DSO analog Nth Edge Burst trigger settings",
+    )
+    _add_scope_connection_args(edge_burst_trigger_parser)
+    edge_burst_trigger_parser.add_argument(
+        "--query",
+        dest="edge_burst_query",
+        action="store_true",
+        help="query Nth Edge Burst trigger state",
+    )
+    edge_burst_trigger_parser.add_argument(
+        "--source-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the Nth Edge Burst trigger source",
+    )
+    edge_burst_trigger_parser.add_argument(
+        "--slope",
+        choices=("positive", "negative"),
+        default=None,
+        help="Nth Edge Burst trigger slope",
+    )
+    edge_burst_trigger_parser.add_argument(
+        "--count",
+        type=_positive_int,
+        default=None,
+        help="Nth Edge Burst edge count",
+    )
+    edge_burst_trigger_parser.add_argument(
+        "--idle-time",
+        type=float,
+        default=None,
+        help="Nth Edge Burst idle time in seconds",
+    )
+    edge_burst_trigger_parser.add_argument(
+        "--level-volts",
+        type=_trigger_level_float,
+        default=None,
+        help="optional analog edge level in volts",
+    )
+
     pattern_trigger_parser = subparsers.add_parser(
         "trigger-pattern",
         help="configure or query DSO ASCII pattern trigger settings",
@@ -1877,6 +1925,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_delay(args)
     if args.command == "trigger-setup-hold":
         return _cmd_trigger_setup_hold(args)
+    if args.command == "trigger-edge-burst":
+        return _cmd_trigger_edge_burst(args)
     if args.command == "trigger-pattern":
         return _cmd_trigger_pattern(args)
     if args.command == "trigger-or":
@@ -2187,6 +2237,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_delay_args(args)
     if getattr(args, "command", None) == "trigger-setup-hold":
         _validate_trigger_setup_hold_args(args)
+    if getattr(args, "command", None) == "trigger-edge-burst":
+        _validate_trigger_edge_burst_args(args)
     if getattr(args, "command", None) == "trigger-pattern":
         _validate_trigger_pattern_args(args)
     if getattr(args, "command", None) == "trigger-or":
@@ -2401,6 +2453,41 @@ def _validate_trigger_setup_hold_args(args: argparse.Namespace) -> None:
     normalize_setup_hold_slope(args.slope)
     validate_setup_hold_trigger_time(args.setup_time, "setup")
     validate_setup_hold_trigger_time(args.hold_time, "hold")
+
+
+def _validate_trigger_edge_burst_args(args: argparse.Namespace) -> None:
+    set_values = (
+        getattr(args, "source_channel", None),
+        getattr(args, "slope", None),
+        getattr(args, "count", None),
+        getattr(args, "idle_time", None),
+        getattr(args, "level_volts", None),
+    )
+    if getattr(args, "edge_burst_query", False):
+        if any(value is not None for value in set_values):
+            raise ParameterValidationError(
+                "trigger-edge-burst --query cannot be combined with configure options."
+            )
+        return
+
+    if (
+        args.source_channel is None
+        or args.slope is None
+        or args.count is None
+        or args.idle_time is None
+    ):
+        raise ParameterValidationError(
+            "trigger-edge-burst configure requires --source-channel, --slope, "
+            "--count, and --idle-time."
+        )
+
+    capabilities = capabilities_for_model(args.model)
+    validate_analog_channel(args.source_channel, capabilities)
+    normalize_edge_burst_slope(args.slope)
+    validate_edge_burst_count(args.count)
+    validate_edge_burst_idle_time(args.idle_time)
+    if args.level_volts is not None:
+        validate_trigger_level(args.level_volts)
 
 
 def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
@@ -2814,6 +2901,32 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "hold_time_seconds": args.hold_time,
             "state_changing": True,
         }
+        return commands + [":SYSTem:ERRor?"], [], result
+    if command == "trigger-edge-burst":
+        if args.edge_burst_query:
+            commands = edge_burst_trigger_query_commands()
+            return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
+        commands = edge_burst_trigger_configure_commands(
+            source_channel=args.source_channel,
+            slope=args.slope,
+            count=args.count,
+            idle_time=args.idle_time,
+            capabilities=capabilities,
+            level_volts=args.level_volts,
+        )
+        result: dict[str, object] = {
+            "operation": "configure",
+            "mode": "edge-burst",
+            "commands": commands,
+            "source_channel": args.source_channel,
+            "source": f"CHANnel{args.source_channel}",
+            "slope": args.slope,
+            "count": args.count,
+            "idle_time": args.idle_time,
+            "state_changing": True,
+        }
+        if args.level_volts is not None:
+            result["level_volts"] = args.level_volts
         return commands + [":SYSTem:ERRor?"], [], result
     if command == "trigger-pattern":
         if args.pattern_query:
@@ -4991,6 +5104,83 @@ def _cmd_trigger_setup_hold(args: argparse.Namespace) -> int:
                 raw=state.raw,
                 state_changing=True,
             )
+            for command in commands:
+                print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_edge_burst(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.edge_burst_query:
+            commands = edge_burst_trigger_query_commands()
+            print("Planned query: Nth Edge Burst trigger state")
+            state = scope.query_edge_burst_trigger()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            if state.raw_level is not None:
+                print(f"Command: :TRIGger:EDGE:LEVel? CHANnel{state.source_channel}")
+            print(f"Mode: {state.mode or state.raw_mode}")
+            print(f"Source: {state.raw_source}")
+            if state.source_channel is not None:
+                print(f"Source channel: CH{state.source_channel}")
+            print(f"Slope: {state.slope or state.raw_slope}")
+            print(f"Count: {state.count if state.count is not None else state.raw_count}")
+            if state.idle_time is None:
+                print(f"Idle time s: {state.raw_idle_time}")
+            else:
+                print(f"Idle time s: {state.idle_time:.12g}")
+            if state.level_volts is not None:
+                print(f"Level V: {state.level_volts:.12g}")
+        else:
+            commands = edge_burst_trigger_configure_commands(
+                source_channel=args.source_channel,
+                slope=args.slope,
+                count=args.count,
+                idle_time=args.idle_time,
+                capabilities=scope.capabilities,
+                level_volts=args.level_volts,
+            )
+            print(
+                f"Planned change: Nth Edge Burst trigger CH{args.source_channel}, "
+                f"{args.slope}, count {args.count}"
+            )
+            state = scope.configure_edge_burst_trigger(
+                source_channel=args.source_channel,
+                slope=args.slope,
+                count=args.count,
+                idle_time=args.idle_time,
+                level_volts=args.level_volts,
+            )
+            result = state.to_json()
+            result.update(
+                {
+                    "operation": "configure",
+                    "commands": commands,
+                    "source": state.raw_source,
+                    "state_changing": True,
+                }
+            )
+            _json_update_result(**result)
             for command in commands:
                 print(f"Command: {command}")
 

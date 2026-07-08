@@ -148,6 +148,7 @@ class SimulatorBackend:
     trigger_source: int = 1
     trigger_mode: str = "EDGE"
     trigger_level: float = 0.0
+    trigger_levels: dict[int, float] = field(default_factory=dict)
     trigger_slope: str = "POSitive"
     glitch_source_channel: int | None = 1
     glitch_source_raw: str = "CHANnel1"
@@ -187,6 +188,11 @@ class SimulatorBackend:
     setup_hold_slope: str = "POSitive"
     setup_hold_setup_time: float = 1e-9
     setup_hold_hold_time: float = 1e-9
+    edge_burst_source_channel: int | None = 1
+    edge_burst_source_raw: str = "CHANnel1"
+    edge_burst_slope: str = "POSitive"
+    edge_burst_count: int = 3
+    edge_burst_idle_time: float = 1e-6
     pattern_format: str = "ASCii"
     pattern: str = "XXXX"
     pattern_qualifier: str = "ENTered"
@@ -286,7 +292,14 @@ class SimulatorBackend:
                 int(command.rsplit("CHANnel", 1)[1])
             )
         elif upper.startswith(":TRIGGER:EDGE:LEVEL "):
-            self.trigger_level = float(command.rsplit(" ", 1)[1])
+            value_text = command.split(" ", 1)[1]
+            if "," in value_text:
+                value, channel = _parse_glitch_level_write(command)
+                channel = self._validate_channel(channel)
+                self.trigger_levels[channel] = value
+                self.trigger_level = value
+            else:
+                self.trigger_level = float(value_text)
         elif upper.startswith(":TRIGGER:EDGE:SLOPE "):
             self.trigger_slope = command.rsplit(" ", 1)[1]
         elif upper.startswith(":TRIGGER:GLITCH:SOURCE CHANNEL"):
@@ -403,6 +416,22 @@ class SimulatorBackend:
             self.setup_hold_setup_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
         elif upper.startswith(":TRIGGER:SHOLD:TIME:HOLD "):
             self.setup_hold_hold_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
+        elif upper.startswith(":TRIGGER:EBURST:SOURCE CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.edge_burst_source_channel = channel
+            self.edge_burst_source_raw = f"CHANnel{channel}"
+        elif upper.startswith(":TRIGGER:EBURST:SLOPE "):
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"POSITIVE", "NEGATIVE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.edge_burst_slope = value
+        elif upper.startswith(":TRIGGER:EBURST:COUNT "):
+            value = int(command.rsplit(" ", 1)[1])
+            if value < 1:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.edge_burst_count = value
+        elif upper.startswith(":TRIGGER:EBURST:IDLE "):
+            self.edge_burst_idle_time = _parse_positive_scpi_number(command.split(" ", 1)[1])
         elif upper == ":TRIGGER:PATTERN:FORMAT ASCII":
             self.pattern_format = "ASCii"
         elif upper.startswith(":TRIGGER:PATTERN:QUALIFIER "):
@@ -517,6 +546,9 @@ class SimulatorBackend:
             return f"CHANnel{self.trigger_source}"
         if upper == ":TRIGGER:EDGE:LEVEL?":
             return f"{self.trigger_level:.12g}"
+        if upper.startswith(":TRIGGER:EDGE:LEVEL? CHANNEL"):
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            return f"{self.trigger_levels.get(channel, self.trigger_level):.12g}"
         if upper == ":TRIGGER:EDGE:SLOPE?":
             return self.trigger_slope
         if upper == ":TRIGGER:GLITCH:SOURCE?":
@@ -585,6 +617,16 @@ class SimulatorBackend:
             return f"{self.setup_hold_setup_time:.8E}"
         if upper == ":TRIGGER:SHOLD:TIME:HOLD?":
             return f"{self.setup_hold_hold_time:.8E}"
+        if upper == ":TRIGGER:EBURST:SOURCE?":
+            if self.edge_burst_source_channel is None:
+                return self.edge_burst_source_raw
+            return f"CHAN{self.edge_burst_source_channel}"
+        if upper == ":TRIGGER:EBURST:SLOPE?":
+            return _abbreviate_transition_slope(self.edge_burst_slope)
+        if upper == ":TRIGGER:EBURST:COUNT?":
+            return str(self.edge_burst_count)
+        if upper == ":TRIGGER:EBURST:IDLE?":
+            return f"{self.edge_burst_idle_time:.8E}"
         if upper == ":TRIGGER:PATTERN:FORMAT?":
             return _abbreviate_pattern_format(self.pattern_format)
         if upper == ":TRIGGER:PATTERN?":
@@ -1563,6 +1605,8 @@ def _abbreviate_trigger_mode(value: str) -> str:
         return "DEL"
     if upper.startswith("SHOL"):
         return "SHOL"
+    if upper.startswith("EBUR"):
+        return "EBUR"
     if upper.startswith("PATT"):
         return "PATT"
     if upper == "OR":

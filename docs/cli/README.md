@@ -92,6 +92,9 @@ Current implemented scope:
   settings with `:TRIGger:MODE DELay` and `:TRIGger:DELay:*`.
 - Configure or query DSO analog-channel setup-hold trigger settings with
   `:TRIGger:MODE SHOLd` and `:TRIGger:SHOLd:*`.
+- Configure or query DSO analog-channel Nth Edge Burst trigger settings with
+  `:TRIGger:MODE EBURst`, `:TRIGger:EBURst:*`, and optional source-qualified
+  `:TRIGger:EDGE:LEVel`.
 - Configure or query DSO analog ASCII pattern trigger settings with
   `:TRIGger:MODE PATTern`, `:TRIGger:PATTern:FORMat ASCii`,
   `:TRIGger:PATTern "<pattern>"`, and
@@ -876,6 +879,50 @@ Worker JSON uses canonical keys `setup_time` and `hold_time`, matching the CLI
 `--setup-time` and `--hold-time` options. Worker live, LAN, WebUI,
 2000X/3000X/4024A live validation, and DSO-X 4034A USB CLI live validation have
 not been run for `trigger-setup-hold`.
+
+Configure or query DSO analog-channel Nth Edge Burst trigger settings with the
+canonical `trigger-edge-burst` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --slope positive --count 3 --idle-time 1e-6 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --slope positive --count 3 --idle-time 1e-6 --level-volts 0.5 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --simulate --json --query
+```
+
+`trigger-edge-burst` v1 configures and queries the Keysight Nth Edge Burst
+trigger using `:TRIGger:MODE EBURst`,
+`:TRIGger:EBURst:SOURce`, `:TRIGger:EBURst:SLOPe`,
+`:TRIGger:EBURst:COUNt`, and `:TRIGger:EBURst:IDLE`.
+Configure mode is state-changing and DSO analog-channel-only: it accepts
+`--source-channel`, `--slope positive|negative`, `--count`, `--idle-time`, and
+optional `--level-volts`. When `--level-volts` is provided, the command sends
+`:TRIGger:EDGE:LEVel <level>, CHANnel<n>` after the EBURst fields; when it is
+omitted, no level write is sent.
+
+Query mode reads EBURst mode/source/slope/count/idle fields. It reads analog
+edge level only when the source readback safely parses as analog `CHAN<n>` or
+`CHANnel<n>`. Digital, `NONE`, and unknown source readbacks are preserved in
+raw fields and do not fail query solely because the current source is outside
+this v1 configure surface.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"source_channel\":1,\"slope\":\"positive\",\"count\":3,\"idle_time\":0.000001}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"source_channel\":1,\"slope\":\"positive\",\"count\":3,\"idle_time\":0.000001,\"level_volts\":0.5}" --json
+```
+
+Worker support has hardware-free validation only. It accepts only `query`,
+`source_channel`, `slope`, `count`, `idle_time`, and optional `level_volts`;
+aliases such as `channel`, `source`, `edge_count`, `idle_time_seconds`,
+`time_seconds`, `trigger_level`, and `level` are not accepted. Live CLI, worker
+live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A live validation, MSO/digital
+source validation, actual signal-trigger behavior, broader trigger-tree
+behavior, and capture/wait-trigger/run/stop/single workflow integration have
+not been run or implemented for `trigger-edge-burst`.
 
 Configure or query DSO analog ASCII pattern trigger settings with the canonical
 `trigger-pattern` command:

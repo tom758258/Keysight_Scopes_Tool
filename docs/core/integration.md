@@ -15,6 +15,8 @@ names are intended for package consumers and tests:
 - `DisplayPersistence`
 - `DelayTriggerController`
 - `DelayTriggerState`
+- `EdgeBurstTriggerController`
+- `EdgeBurstTriggerState`
 - `EdgeTriggerController`
 - `EdgeTriggerState`
 - `GlitchTriggerController`

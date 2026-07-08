@@ -51,6 +51,8 @@ from .timebase import TimebaseController
 from .trigger import (
     DelayTriggerController,
     DelayTriggerState,
+    EdgeBurstTriggerController,
+    EdgeBurstTriggerState,
     EdgeTriggerController,
     EdgeTriggerState,
     GlitchTriggerController,
@@ -77,6 +79,8 @@ __all__ = [
     "DisplayPersistence",
     "DelayTriggerController",
     "DelayTriggerState",
+    "EdgeBurstTriggerController",
+    "EdgeBurstTriggerState",
     "EdgeTriggerController",
     "EdgeTriggerState",
     "GlitchTriggerController",
