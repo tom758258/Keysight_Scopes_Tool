@@ -309,12 +309,13 @@ Rejected `trigger-sweep` alias keys include `sweep`, `sweep_mode`, and
 `trigger-hf-reject` alias keys include `hf_reject`, `hfreject`,
 `high_frequency_reject`, `state`, `on`, and `enable`.
 
-This v1 worker support is hardware-free only. Live CLI, worker live, LAN,
-WebUI runtime, DSO-X 2000X/3000X/4024A/4034A live validation, generic trigger
-settings, external/MSO/digital trigger behavior, and run/stop/single/force/
-wait/capture workflow integration have not been run or implemented. Phase 10
-`trigger-edge` live validation remains pending and is not abandoned; previous
-trigger pack live validation status is unchanged.
+This v1 worker support is hardware-free only. Live worker, LAN, WebUI runtime,
+DSO-X 2000X/3000X/4024A live validation, additional DSO-X 4034A live validation,
+generic trigger settings, external/MSO/digital trigger behavior, and
+run/stop/single/force/wait/capture workflow integration have not been run or
+implemented for this common trigger settings worker surface. Previous trigger
+pack live validation status is documented in Local validation notes and remains
+unchanged.
 
 `trigger-holdoff` is the canonical worker command for fixed trigger holdoff
 time v1. Query mode accepts only this shape:
