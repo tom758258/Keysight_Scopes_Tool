@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import math
 from pathlib import Path
 from queue import Full, Queue
 import sys
@@ -332,6 +333,7 @@ def parse_domain_command(
     arguments = _normalize_trigger_tv_worker_arguments(command, arguments)
     arguments = _normalize_trigger_pattern_worker_arguments(command, arguments)
     arguments = _normalize_trigger_or_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_holdoff_worker_arguments(command, arguments)
     arguments = _normalize_trigger_common_worker_arguments(command, arguments)
     argv = [command, *arguments_to_argv(arguments)]
     if runtime.mode == "simulate":
@@ -597,6 +599,39 @@ def _normalize_trigger_or_worker_arguments(
         raise KeysightScopeError(f"unknown argument for trigger-or: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
         raise KeysightScopeError("trigger-or argument query must be exactly true")
+    return dict(arguments)
+
+
+def _normalize_trigger_holdoff_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-holdoff":
+        return arguments
+    allowed = {"query", "seconds"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for trigger-holdoff: {sorted(unknown)[0]}"
+        )
+    if not arguments:
+        raise KeysightScopeError("trigger-holdoff requires query or seconds")
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "trigger-holdoff argument query must be exactly true"
+            )
+        if "seconds" in arguments:
+            raise KeysightScopeError(
+                "trigger-holdoff query cannot be combined with configure arguments"
+            )
+        return dict(arguments)
+    if set(arguments) != {"seconds"}:
+        raise KeysightScopeError("trigger-holdoff requires query or seconds")
+    seconds = arguments["seconds"]
+    if not isinstance(seconds, (int, float)) or isinstance(seconds, bool):
+        raise KeysightScopeError("trigger-holdoff argument seconds must be a JSON number")
+    if not math.isfinite(float(seconds)):
+        raise KeysightScopeError("trigger-holdoff argument seconds must be finite")
     return dict(arguments)
 
 

@@ -311,10 +311,52 @@ Rejected `trigger-sweep` alias keys include `sweep`, `sweep_mode`, and
 
 This v1 worker support is hardware-free only. Live CLI, worker live, LAN,
 WebUI runtime, DSO-X 2000X/3000X/4024A/4034A live validation, generic trigger
-settings, trigger holdoff changes, external/MSO/digital trigger behavior, and
-run/stop/single/force/wait/capture workflow integration have not been run or
-implemented. Phase 10 `trigger-edge` live validation remains pending and is
-not abandoned; previous trigger pack live validation status is unchanged.
+settings, external/MSO/digital trigger behavior, and run/stop/single/force/
+wait/capture workflow integration have not been run or implemented. Phase 10
+`trigger-edge` live validation remains pending and is not abandoned; previous
+trigger pack live validation status is unchanged.
+
+`trigger-holdoff` is the canonical worker command for fixed trigger holdoff
+time v1. Query mode accepts only this shape:
+
+```json
+{"command": "trigger-holdoff", "arguments": {"query": true}}
+```
+
+Configure mode accepts only this shape:
+
+```json
+{"command": "trigger-holdoff", "arguments": {"seconds": 0.000001}}
+```
+
+Configure mode disables random holdoff and sets a fixed holdoff time by sending:
+
+```text
+:TRIGger:HOLDoff:RANDom OFF
+:TRIGger:HOLDoff <seconds>
+```
+
+Query mode sends:
+
+```text
+:TRIGger:HOLDoff?
+```
+
+`seconds` must be a finite JSON number from `40e-9` through `10.0`. Worker JSON
+accepts only `query` and `seconds`; `query` must be exactly JSON `true`. Empty
+arguments, `query: false`, query plus configure keys, string seconds, boolean
+seconds, null seconds, unknown keys, and aliases are rejected before enqueue,
+artifact creation, simulator/VISA open, or SCPI. Rejected alias keys include
+`holdoff`, `holdoff_seconds`, `time_seconds`, `duration_seconds`, `value`,
+`enabled`, `state`, `mode`, `random`, `minimum`, `maximum`, `min`, `max`,
+`min_seconds`, `max_seconds`, `auto`, `on`, and `off`. Non-canonical command
+aliases such as `holdoff`, `trigger-hold-off`, `trigger_holdoff`,
+`trigger-holdoff-random`, `trigger-holdoff-minimum`, and
+`trigger-holdoff-maximum` are not accepted.
+
+Random holdoff, minimum/maximum holdoff commands, WebUI runtime behavior, live
+worker validation, LAN validation, and additional model validation are outside
+this fixed-holdoff worker contract unless documented separately.
 
 `trigger-pulse-width` is accepted only as the canonical Pulse Width trigger
 command. It uses the underlying Keysight `:TRIGger:GLITch...` SCPI family:

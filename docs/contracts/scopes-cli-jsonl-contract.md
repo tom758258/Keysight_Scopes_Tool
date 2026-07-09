@@ -237,7 +237,11 @@ Control and setup:
   The v1 mapping is DSO analog-only: pattern positions are CH4, CH3, CH2, CH1
   on 4-channel DSO models and CH2, CH1 on 2-channel DSO models. MSO/digital OR
   trigger mapping is not implemented.
-- `trigger-holdoff`: `operation`, `command`, optional `commands`, `seconds`.
+- `trigger-holdoff`: query results include `operation: "query"`, `command:
+  ":TRIGger:HOLDoff?"`, and `seconds`. Configure results include `operation:
+  "set"`, final fixed-holdoff `command`, `commands` with
+  `:TRIGger:HOLDoff:RANDom OFF` followed by `:TRIGger:HOLDoff <seconds>`, and
+  `seconds`.
 - `cursor`: `operation`, `commands`, `source_channel`, `x1_seconds`,
   `x2_seconds`, optional `y1_volts`, `y2_volts`, `auto_timebase`,
   `auto_vertical`, and `diagnostic`.

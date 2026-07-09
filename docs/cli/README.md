@@ -755,6 +755,27 @@ boolean. Unknown fields and aliases such as `sweep`, `sweep_mode`,
 `hf_reject`, `hfreject`, and `high_frequency_reject` are rejected before
 enqueue, artifact creation, simulator/VISA session open, or SCPI.
 
+Set or query fixed trigger holdoff:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-holdoff --query --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-holdoff --seconds 1e-6 --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-holdoff --dry-run --json --model DSOX4024A --seconds 1e-6
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-holdoff --simulate --json --model DSOX4024A --query
+```
+
+`trigger-holdoff --seconds` is an explicit state-changing command. It disables
+random holdoff with `:TRIGger:HOLDoff:RANDom OFF`, then sends
+`:TRIGger:HOLDoff <seconds>`. Query mode sends `:TRIGger:HOLDoff?`. The v1
+range is `40e-9` through `10.0` seconds. `doctor`, `smoke`, and
+`acquisition-check` never run `trigger-holdoff`.
+
+Worker JSON for `trigger-holdoff` accepts only `{"query": true}` or
+`{"seconds": 0.000001}`. Empty arguments, `query: false`, query combined with
+seconds, string/boolean/null seconds, unknown fields, and holdoff mode aliases
+are rejected before enqueue, artifact creation, simulator/VISA session open, or
+SCPI. Random holdoff and minimum/maximum holdoff commands are not implemented.
+
 Configure or query Keysight pulse-width trigger settings with the canonical
 `trigger-pulse-width` command:
 
@@ -1396,6 +1417,7 @@ Additional DSO-X 4024A controls:
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli cursor --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli cursor --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --x1 0 --x2 1e-3 --y1 0 --y2 0.5 --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-holdoff --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --json --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-holdoff --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --seconds 1e-6 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-stats --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --channel 1 --items vpp,frequency --mode all --reset --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli autoscale --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --source-channel 2 --log-scpi

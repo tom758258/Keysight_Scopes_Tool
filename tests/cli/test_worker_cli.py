@@ -15,6 +15,7 @@ import pytest
 
 from keysight_scope_cli import cli
 from keysight_scope_cli import worker
+from keysight_scope_core.advanced import trigger_holdoff_commands, trigger_holdoff_query
 from keysight_scope_core.acquisition import (
     acquisition_points_query,
     record_length_query,
@@ -243,6 +244,22 @@ def test_worker_request_rejects_unknown_top_level_field():
 def test_worker_request_rejects_unknown_command():
     with pytest.raises(KeysightScopeError, match="unknown command"):
         worker.validate_command_request({"command": "list-resources", "arguments": {}})
+
+
+@pytest.mark.parametrize(
+    "command",
+    (
+        "holdoff",
+        "trigger-hold-off",
+        "trigger_holdoff",
+        "trigger-holdoff-random",
+        "trigger-holdoff-minimum",
+        "trigger-holdoff-maximum",
+    ),
+)
+def test_worker_request_rejects_trigger_holdoff_command_aliases(command):
+    with pytest.raises(KeysightScopeError, match="unknown command"):
+        worker.validate_command_request({"command": command, "arguments": {}})
 
 
 def test_worker_request_rejects_non_object_arguments():
@@ -1024,6 +1041,76 @@ def test_worker_parse_rejects_invalid_channel_boolean_mutual_exclusions(
 
 
 @pytest.mark.parametrize(
+    ("arguments", "expected_argv"),
+    (
+        ({"query": True}, ["--query"]),
+        ({"seconds": 1e-6}, ["--seconds", "1e-06"]),
+    ),
+)
+def test_worker_parse_accepts_trigger_holdoff_arguments(arguments, expected_argv):
+    parsed = worker.parse_domain_command("trigger-holdoff", arguments, _runtime())
+
+    assert parsed.command == "trigger-holdoff"
+    normalized = worker._normalize_trigger_holdoff_worker_arguments(
+        "trigger-holdoff", arguments
+    )
+    assert worker.arguments_to_argv(normalized) == expected_argv
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    (
+        {},
+        {"query": False},
+        {"query": True, "seconds": 1e-6},
+        {"holdoff": 1e-6},
+        {"holdoff_seconds": 1e-6},
+        {"time_seconds": 1e-6},
+        {"random": True},
+        {"minimum": True},
+        {"maximum": True},
+        {"enabled": True},
+        {"mode": "fixed"},
+        {"seconds": "1e-6"},
+        {"seconds": True},
+        {"seconds": None},
+        {"seconds": 0},
+        {"seconds": 1e-9},
+        {"seconds": 11.0},
+        {"seconds": float("nan")},
+    ),
+)
+def test_worker_parse_rejects_invalid_trigger_holdoff_arguments(arguments):
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command("trigger-holdoff", arguments, _runtime())
+
+
+@pytest.mark.parametrize(
+    "body",
+    (
+        {"command": "trigger-holdoff", "arguments": {}},
+        {"command": "trigger-holdoff", "arguments": {"query": False}},
+        {"command": "trigger-holdoff", "arguments": {"seconds": "1e-6"}},
+        {"command": "trigger-holdoff", "arguments": {"seconds": 1e-9}},
+        {"command": "trigger-holdoff", "arguments": {"random": True}},
+    ),
+)
+def test_worker_trigger_holdoff_rejects_before_enqueue_or_artifacts(tmp_path, body):
+    runtime = _runtime(tmp_path)
+
+    with _worker_server(runtime):
+        status, payload = _post_command(runtime, body)
+
+    assert status == 400
+    assert payload["status"] == "error"
+    assert payload["command"] == "trigger-holdoff"
+    assert runtime.accepted == 0
+    assert runtime.queue.empty()
+    assert runtime.jobs == {}
+    assert not (tmp_path / runtime.run_id).exists()
+
+
+@pytest.mark.parametrize(
     "arguments",
     (
         {"channel": [1], "wait_trigger": True},
@@ -1463,6 +1550,44 @@ def test_worker_executes_trigger_and_acquisition_queries_in_simulator(
     if arguments.get("maximum"):
         assert result["result"]["query_kind"] == "maximum"
     assert job.result["scpi"]["sent"] == ["*IDN?", scpi_command, ":SYSTem:ERRor?"]
+
+
+@pytest.mark.parametrize(
+    ("arguments", "expected_sent", "expected_result"),
+    (
+        (
+            {"query": True},
+            ["*IDN?", trigger_holdoff_query(), ":SYSTem:ERRor?"],
+            {"operation": "query", "command": trigger_holdoff_query(), "seconds": 100e-9},
+        ),
+        (
+            {"seconds": 1e-6},
+            ["*IDN?", *trigger_holdoff_commands(1e-6), ":SYSTem:ERRor?"],
+            {
+                "operation": "set",
+                "command": trigger_holdoff_commands(1e-6)[-1],
+                "commands": trigger_holdoff_commands(1e-6),
+                "seconds": 1e-6,
+            },
+        ),
+    ),
+)
+def test_worker_executes_trigger_holdoff_in_simulator(
+    tmp_path, arguments, expected_sent, expected_result
+):
+    runtime = _runtime(tmp_path)
+
+    job, result = _execute_worker_job(
+        runtime, "trigger-holdoff", arguments, tmp_path / "trigger_holdoff"
+    )
+
+    assert result["state"] == "succeeded"
+    assert result["ok"] is True
+    assert result["exit_code"] == 0
+    assert result["files"] == []
+    for key, value in expected_result.items():
+        assert result["result"][key] == value
+    assert job.result["scpi"]["sent"] == expected_sent
 
 
 @pytest.mark.parametrize(
