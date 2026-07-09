@@ -73,10 +73,11 @@ Core owns runtime behavior:
   configures analog clock and data source channels, positive/negative clock
   slope, setup time, and hold time. Query mode preserves raw readbacks and
   tolerates digital or unknown source state, but configure mode intentionally
-  rejects MSO/digital, external, and unknown sources. It is hardware-free only
-  so far; DSO-X 4034A USB CLI live validation has not been run, and it does not
-  add threshold helpers, run, stop, single, force trigger, wait-trigger,
-  capture, or WebUI runtime behavior.
+  rejects MSO/digital, external, and unknown sources. Focused DSO-X 4034A USB
+  CLI live validation passed on 2026-07-08. Worker live, LAN, WebUI, other
+  DSO-X models, MSO/digital configuration, signal-trigger behavior, run, stop,
+  single, wait-trigger, capture, and broader trigger-tree behavior remain not
+  run or out of scope.
 - DSO analog-channel Nth Edge Burst trigger helpers for the Keysight
   `:TRIGger:EBURst...` command family. This `trigger-edge-burst v1` slice
   configures `:TRIGger:MODE EBURst`, analog source channel, positive/negative

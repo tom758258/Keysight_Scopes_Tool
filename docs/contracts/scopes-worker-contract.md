@@ -533,9 +533,10 @@ It rejects partial configure, `query` values other than exactly `true`,
 `query` combined with configure keys, unknown keys even when false or null,
 source aliases, threshold/level fields, digital/MSO or external source
 configuration, aliases such as `setup-hold-trigger`, and generic trigger-tree
-arguments before enqueue, artifact creation, VISA open, or SCPI. Worker support
-has hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
-2000X/3000X/4024A/4034A, MSO/digital, actual signal-trigger behavior, and
+arguments before enqueue, artifact creation, VISA open, or SCPI. Focused DSO-X
+4034A USB CLI live validation passed on 2026-07-08. Worker live, LAN, WebUI,
+DSO-X 2000X/3000X/4024A live validation, additional DSO-X 4034A live
+validation, MSO/digital source validation, actual signal-trigger behavior, and
 broader trigger-tree validation have not been run.
 
 `trigger-edge-burst` is accepted only as the canonical Nth Edge Burst trigger

@@ -952,9 +952,11 @@ Worker usage:
 ```
 
 Worker JSON uses canonical keys `setup_time` and `hold_time`, matching the CLI
-`--setup-time` and `--hold-time` options. Worker live, LAN, WebUI,
-2000X/3000X/4024A live validation, and DSO-X 4034A USB CLI live validation have
-not been run for `trigger-setup-hold`.
+`--setup-time` and `--hold-time` options. Focused DSO-X 4034A USB CLI live
+validation passed on 2026-07-08. Worker live, LAN, WebUI, DSO-X
+2000X/3000X/4024A live validation, additional DSO-X 4034A live validation,
+MSO/digital source validation, actual signal-trigger behavior, and broader
+trigger-tree validation have not been run for `trigger-setup-hold`.
 
 Configure or query DSO analog-channel Nth Edge Burst trigger settings with the
 canonical `trigger-edge-burst` command:
