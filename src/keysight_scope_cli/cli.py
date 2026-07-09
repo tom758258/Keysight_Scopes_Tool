@@ -336,6 +336,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_json_command(args)
 
     try:
+        if _resolve_cli_mode(args) == "dry_run":
+            return _run_text_dry_run_command(args)
         return _dispatch_command(args)
     except KeysightScopeError as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -2299,6 +2301,74 @@ def _execute_json_command(args: argparse.Namespace) -> tuple[dict[str, object], 
         _JSON_RECORD = None
 
 
+def _run_text_dry_run_command(args: argparse.Namespace) -> int:
+    payload = _dry_run_payload(args)
+    _print_text_dry_run_payload(payload)
+    return 0
+
+
+def _print_text_dry_run_payload(payload: dict[str, object]) -> None:
+    resource = payload.get("resource")
+    if resource is not None:
+        print(f"Resource: {resource}")
+
+    idn = payload.get("idn")
+    if isinstance(idn, dict):
+        model = idn.get("model")
+        series = idn.get("series")
+        if model is not None:
+            print(f"Model: {model}")
+        print(f"Series: {series or 'unknown'}")
+
+    result = payload.get("result")
+    if isinstance(result, dict):
+        _print_text_dry_run_summary(str(payload.get("command")), result)
+        commands = result.get("commands")
+    else:
+        commands = None
+
+    if not isinstance(commands, list):
+        scpi = payload.get("scpi")
+        if isinstance(scpi, dict):
+            commands = scpi.get("planned")
+
+    if isinstance(commands, list):
+        for command in commands:
+            print(f"Command: {command}")
+
+    files = payload.get("files")
+    if isinstance(files, list):
+        for file_info in files:
+            if isinstance(file_info, dict):
+                kind = file_info.get("kind")
+                path = file_info.get("path")
+                if kind is not None and path is not None:
+                    print(f"Planned file: {kind}: {path}")
+
+
+def _print_text_dry_run_summary(command: str, result: dict[str, object]) -> None:
+    operation = result.get("operation")
+    if command == "trigger-edge-burst":
+        if operation == "query":
+            print("Planned query: Nth Edge Burst trigger state")
+            return
+        source_channel = result.get("source_channel")
+        slope = result.get("slope")
+        count = result.get("count")
+        print(
+            f"Planned change: Nth Edge Burst trigger CH{source_channel}, "
+            f"{slope}, count {count}"
+        )
+        return
+
+    if operation == "query":
+        print(f"Planned query: {command}")
+    elif operation is not None:
+        print(f"Planned change: {command}")
+    else:
+        print(f"Planned command: {command}")
+
+
 def _safe_mode(args: argparse.Namespace) -> str:
     try:
         return _resolve_cli_mode(args)
@@ -3164,7 +3234,7 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         return commands + [":SYSTem:ERRor?"], [], result
     if command == "trigger-edge-burst":
         if args.edge_burst_query:
-            commands = edge_burst_trigger_query_commands()
+            commands = edge_burst_trigger_query_commands(include_level_for_channel=1)
             return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
         commands = edge_burst_trigger_configure_commands(
             source_channel=args.source_channel,

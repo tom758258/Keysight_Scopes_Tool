@@ -196,11 +196,12 @@ usable vendor backend.
 ## Agent-safe Automation
 
 Commands that accept instrument connections also accept `--json`, `--simulate`,
-`--dry-run`, `--model`, and `--live`. Use `--dry-run --json` to validate
-arguments and inspect planned SCPI without opening VISA or writing files. Use
-`--simulate --json` to run against the deterministic hardware-free simulator;
-capture workflows write fake output files for offline validation. JSON payloads
-include `schema_version: 1` and `timestamp_utc`.
+`--dry-run`, `--model`, and `--live`. Use `--dry-run` to validate arguments and
+inspect planned SCPI without opening VISA or writing files; add `--json` when
+automation needs the machine-readable payload. Use `--simulate --json` to run
+against the deterministic hardware-free simulator; capture workflows write fake
+output files for offline validation. JSON payloads include `schema_version: 1`
+and `timestamp_utc`.
 
 Simulator commands also accept presets, JSON scenarios, repeated signal
 overrides, and error injection options, but only with `--simulate`.
@@ -962,6 +963,7 @@ canonical `trigger-edge-burst` command:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --slope positive --count 3 --idle-time 1e-6 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --source-channel 1 --slope positive --count 3 --idle-time 1e-6 --level-volts 0.5 --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --dry-run --model DSOX4024A --query
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --dry-run --json --model DSOX4024A --query
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-burst --simulate --json --query
 ```
@@ -993,11 +995,12 @@ Worker usage:
 Worker support has hardware-free validation only. It accepts only `query`,
 `source_channel`, `slope`, `count`, `idle_time`, and optional `level_volts`;
 aliases such as `channel`, `source`, `edge_count`, `idle_time_seconds`,
-`time_seconds`, `trigger_level`, and `level` are not accepted. Live CLI, worker
-live, LAN, WebUI, DSO-X 2000X/3000X/4024A/4034A live validation, MSO/digital
-source validation, actual signal-trigger behavior, broader trigger-tree
-behavior, and capture/wait-trigger/run/stop/single workflow integration have
-not been run or implemented for `trigger-edge-burst`.
+`time_seconds`, `trigger_level`, and `level` are not accepted. Focused DSO-X
+4034A USB CLI live validation passed on 2026-07-09. Worker live, LAN, WebUI,
+DSO-X 2000X/3000X/4024A, additional DSO-X 4034A, MSO/digital source
+validation, actual signal-trigger behavior, broader trigger-tree behavior, and
+capture/wait-trigger/run/stop/single workflow integration have not been run or
+implemented for `trigger-edge-burst`.
 
 Configure or query DSO analog-channel basic TV / video trigger settings with
 the canonical `trigger-tv` command:

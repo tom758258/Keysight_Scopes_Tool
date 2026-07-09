@@ -11,6 +11,29 @@ def _json_stdout(capsys):
     return json.loads(captured.out)
 
 
+def test_trigger_setup_hold_query_dry_run_text_does_not_open_visa(capsys):
+    assert (
+        cli.main(
+            [
+                "trigger-setup-hold",
+                "--dry-run",
+                "--model",
+                "DSOX4034A",
+                "--query",
+            ]
+        )
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    assert "Resource: DRY::DSOX4034A::INSTR" in captured.out
+    assert "Command: :TRIGger:MODE?" in captured.out
+    assert "Command: :TRIGger:SHOLd:SOURce:CLOCk?" in captured.out
+    assert "Failed to open VISA resource" not in captured.out
+    assert "VI_ERROR_INV_RSRC_NAME" not in captured.out
+
+
 def test_trigger_setup_hold_query_dry_run_json(capsys):
     assert (
         cli.main(

@@ -83,10 +83,11 @@ Core owns runtime behavior:
   slope, edge count, idle time, and optional source-qualified analog
   `:TRIGger:EDGE:LEVel`. Query mode preserves raw source readbacks and
   tolerates digital, `NONE`, or unknown source state without querying analog
-  level unless the source safely parses as analog. It is hardware-free only so
-  far; no live hardware validation has been run, and it does not add MSO/digital
-  configuration, signal-trigger behavior, run, stop, single, wait-trigger,
-  capture, or broader trigger-tree behavior.
+  level unless the source safely parses as analog. Focused DSO-X 4034A USB CLI
+  live validation passed on 2026-07-09. Worker live, LAN, WebUI, other DSO-X
+  models, MSO/digital configuration, signal-trigger behavior, run, stop,
+  single, wait-trigger, capture, and broader trigger-tree behavior remain not
+  run or out of scope.
 - DSO analog-channel basic TV / video trigger helpers for the Keysight
   `:TRIGger:TV...` command family. This `trigger-tv v1` slice configures
   `:TRIGger:MODE TV`, analog source channel, basic standard
