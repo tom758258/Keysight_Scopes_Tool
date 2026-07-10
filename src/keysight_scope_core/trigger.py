@@ -102,6 +102,58 @@ _RUNT_QUALIFIER_READBACKS = {
     "NONE": "none",
 }
 
+
+_EDGE_COUPLING_COMMANDS = {
+    'ac': 'AC',
+    'dc': 'DC',
+    'lf-reject': 'LFReject',
+}
+
+_EDGE_COUPLING_READBACKS = {
+    'AC': 'ac',
+    'DC': 'dc',
+    'LFREJECT': 'lf-reject',
+    'LFR': 'lf-reject',
+}
+
+_EDGE_REJECT_COMMANDS = {
+    'off': 'OFF',
+    'lf-reject': 'LFReject',
+    'hf-reject': 'HFReject',
+}
+
+_EDGE_REJECT_READBACKS = {
+    'OFF': 'off',
+    'LFREJECT': 'lf-reject',
+    'LFR': 'lf-reject',
+    'HFREJECT': 'hf-reject',
+    'HFR': 'hf-reject',
+}
+
+
+def _validate_edge_coupling(coupling: str) -> None:
+    if coupling not in _EDGE_COUPLING_COMMANDS:
+        raise ParameterValidationError(
+            f'Invalid Edge Trigger coupling {coupling!r}. '
+            'Valid values are: ac, dc, lf-reject.'
+        )
+
+
+def _edge_coupling_token(coupling: str) -> str:
+    return _EDGE_COUPLING_COMMANDS[coupling]
+
+
+def _validate_edge_reject(reject: str) -> None:
+    if reject not in _EDGE_REJECT_COMMANDS:
+        raise ParameterValidationError(
+            f'Invalid Edge Trigger reject {reject!r}. '
+            'Valid values are: off, lf-reject, hf-reject.'
+        )
+
+
+def _edge_reject_token(reject: str) -> str:
+    return _EDGE_REJECT_COMMANDS[reject]
+
 _TRANSITION_SLOPE_COMMANDS = {
     "positive": "POSitive",
     "negative": "NEGative",
@@ -306,6 +358,30 @@ class TriggerRejectState:
 
     def to_json(self) -> dict[str, object]:
         return {"enabled": self.enabled, "raw_value": self.raw_value}
+
+
+
+
+@dataclass(frozen=True)
+class EdgeTriggerCouplingState:
+    """Readback state for Edge Trigger coupling."""
+
+    coupling: str
+    raw_value: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"coupling": self.coupling, "raw_value": self.raw_value}
+
+
+@dataclass(frozen=True)
+class EdgeTriggerRejectState:
+    """Readback state for Edge Trigger reject filter."""
+
+    reject: str
+    raw_value: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"reject": self.reject, "raw_value": self.raw_value}
 
 
 @dataclass(frozen=True)
@@ -713,6 +789,41 @@ class TriggerHfRejectController:
         raw = self.scpi.query(trigger_hf_reject_query())
         return TriggerRejectState(
             enabled=parse_trigger_reject_bool(raw),
+            raw_value=raw.strip(),
+        )
+
+
+
+class EdgeTriggerCouplingController:
+    """Controls for Edge Trigger coupling."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, coupling: str) -> None:
+        self.scpi.write(trigger_edge_coupling_command(coupling))
+
+    def query(self) -> EdgeTriggerCouplingState:
+        raw = self.scpi.query(trigger_edge_coupling_query())
+        return EdgeTriggerCouplingState(
+            coupling=normalize_trigger_edge_coupling(raw),
+            raw_value=raw.strip(),
+        )
+
+
+class EdgeTriggerRejectController:
+    """Controls for Edge Trigger reject filter."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, reject: str) -> None:
+        self.scpi.write(trigger_edge_reject_command(reject))
+
+    def query(self) -> EdgeTriggerRejectState:
+        raw = self.scpi.query(trigger_edge_reject_query())
+        return EdgeTriggerRejectState(
+            reject=normalize_trigger_edge_reject(raw),
             raw_value=raw.strip(),
         )
 
@@ -1582,6 +1693,51 @@ def trigger_hf_reject_query() -> str:
     """Build the SCPI query for trigger high-frequency reject."""
 
     return ":TRIGger:HFReject?"
+
+
+
+def trigger_edge_coupling_command(coupling: str) -> str:
+    """Build the SCPI command for Edge Trigger coupling."""
+
+    _validate_edge_coupling(coupling)
+    return f":TRIGger:EDGE:COUPling {_edge_coupling_token(coupling)}"
+
+
+def trigger_edge_coupling_query() -> str:
+    """Build the SCPI query for Edge Trigger coupling."""
+
+    return ":TRIGger:EDGE:COUPling?"
+
+
+def trigger_edge_reject_command(reject: str) -> str:
+    """Build the SCPI command for Edge Trigger reject filter."""
+
+    _validate_edge_reject(reject)
+    return f":TRIGger:EDGE:REJect {_edge_reject_token(reject)}"
+
+
+def trigger_edge_reject_query() -> str:
+    """Build the SCPI query for Edge Trigger reject filter."""
+
+    return ":TRIGger:EDGE:REJect?"
+
+
+def normalize_trigger_edge_coupling(raw: str) -> str:
+    """Normalize an Edge Trigger coupling readback to canonical form."""
+
+    text = raw.strip().upper()
+    if text in _EDGE_COUPLING_READBACKS:
+        return _EDGE_COUPLING_READBACKS[text]
+    raise TriggerResponseError(f"Could not parse Edge Trigger coupling response: {raw!r}")
+
+
+def normalize_trigger_edge_reject(raw: str) -> str:
+    """Normalize an Edge Trigger reject filter readback to canonical form."""
+
+    text = raw.strip().upper()
+    if text in _EDGE_REJECT_READBACKS:
+        return _EDGE_REJECT_READBACKS[text]
+    raise TriggerResponseError(f"Could not parse Edge Trigger reject response: {raw!r}")
 
 
 def single_command() -> str:

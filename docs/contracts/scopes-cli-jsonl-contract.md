@@ -177,6 +177,12 @@ Control and setup:
 - `trigger-hf-reject`: `operation` and `command`. Configure results include
   boolean `enabled` and `state_changing: true`. Query results include
   normalized boolean `enabled` and preserved `raw_value`.
+- `trigger-edge-coupling`: `operation` and `command`. Configure results include
+  `coupling` (`ac`, `dc`, or `lf-reject`). Query results include normalized
+  `coupling` and preserved `raw_value`.
+- `trigger-edge-reject`: `operation` and `command`. Configure results include
+  `reject` (`off`, `lf-reject`, or `hf-reject`). Query results include normalized
+  `reject` and preserved `raw_value`.
 - `trigger-pulse-width`: `operation` and `commands`. Configure results include
   `channel`, `source`, `polarity`, `qualifier`, optional `time_seconds`,
   optional `min_time_seconds`/`max_time_seconds`, optional `level_volts`, and

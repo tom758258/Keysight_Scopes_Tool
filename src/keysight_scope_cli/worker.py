@@ -78,6 +78,8 @@ DOMAIN_COMMANDS = {
     "trigger-sweep",
     "trigger-noise-reject",
     "trigger-hf-reject",
+    "trigger-edge-coupling",
+    "trigger-edge-reject",
     "trigger-holdoff",
     "cursor",
     "autoscale",
@@ -656,6 +658,80 @@ def _normalize_trigger_common_worker_arguments(
                 )
             return dict(arguments)
         return dict(arguments)
+
+    if command in {"trigger-noise-reject", "trigger-hf-reject"}:
+        allowed = {"query", "enabled"}
+        unknown = set(arguments) - allowed
+        if unknown:
+            raise KeysightScopeError(
+                f"unknown argument for {command}: {sorted(unknown)[0]}"
+            )
+        if "query" in arguments:
+            if arguments["query"] is not True:
+                raise KeysightScopeError(f"{command} argument query must be exactly true")
+            if "enabled" in arguments:
+                raise KeysightScopeError(
+                    f"{command} query cannot be combined with configure arguments"
+                )
+            return dict(arguments)
+        normalized = dict(arguments)
+        if "enabled" in normalized:
+            if not isinstance(normalized["enabled"], bool):
+                raise KeysightScopeError(f"{command} argument enabled must be a boolean")
+            normalized["enabled"] = "true" if normalized["enabled"] else "false"
+        return normalized
+
+    if command == "trigger-edge-coupling":
+        allowed = {"query", "coupling"}
+        unknown = set(arguments) - allowed
+        if unknown:
+            raise KeysightScopeError(
+                f"unknown argument for trigger-edge-coupling: {sorted(unknown)[0]}"
+            )
+        if "query" in arguments:
+            if arguments["query"] is not True:
+                raise KeysightScopeError("trigger-edge-coupling argument query must be exactly true")
+            if "coupling" in arguments:
+                raise KeysightScopeError(
+                    "trigger-edge-coupling query cannot be combined with configure arguments"
+                )
+            return dict(arguments)
+        if "coupling" not in arguments:
+            raise KeysightScopeError("trigger-edge-coupling configure requires coupling")
+        coupling = arguments["coupling"]
+        if not isinstance(coupling, str):
+            raise KeysightScopeError("trigger-edge-coupling argument coupling must be a string")
+        if coupling not in {"ac", "dc", "lf-reject"}:
+            raise KeysightScopeError(
+                "trigger-edge-coupling argument coupling must be one of: ac, dc, lf-reject"
+            )
+        return {"coupling": coupling}
+
+    if command == "trigger-edge-reject":
+        allowed = {"query", "reject"}
+        unknown = set(arguments) - allowed
+        if unknown:
+            raise KeysightScopeError(
+                f"unknown argument for trigger-edge-reject: {sorted(unknown)[0]}"
+            )
+        if "query" in arguments:
+            if arguments["query"] is not True:
+                raise KeysightScopeError("trigger-edge-reject argument query must be exactly true")
+            if "reject" in arguments:
+                raise KeysightScopeError(
+                    "trigger-edge-reject query cannot be combined with configure arguments"
+                )
+            return dict(arguments)
+        if "reject" not in arguments:
+            raise KeysightScopeError("trigger-edge-reject configure requires reject")
+        reject = arguments["reject"]
+        if not isinstance(reject, str):
+            raise KeysightScopeError("trigger-edge-reject argument reject must be a string")
+        if reject not in {"off", "lf-reject", "hf-reject"}:
+            raise KeysightScopeError(
+                "trigger-edge-reject argument reject must be one of: off, lf-reject, hf-reject"
+            )
+        return {"reject": reject}
 
     if command not in {"trigger-noise-reject", "trigger-hf-reject"}:
         return arguments

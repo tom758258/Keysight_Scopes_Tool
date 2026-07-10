@@ -20,6 +20,10 @@ names are intended for package consumers and tests:
 - `EdgeTriggerController`
 - `EdgeTriggerState`
 - `GlitchTriggerController`
+- `EdgeTriggerCouplingController`
+- `EdgeTriggerCouplingState`
+- `EdgeTriggerRejectController`
+- `EdgeTriggerRejectState`
 - `GlitchTriggerState`
 - `OrTriggerController`
 - `OrTriggerState`

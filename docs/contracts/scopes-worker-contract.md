@@ -134,11 +134,11 @@ Worker `/command` supports the existing Scopes capability surface:
 - `display-label`, `display-clear`, `display-persistence`,
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
-- `trigger-edge`, `trigger-pulse-width`, `trigger-runt`,
-  `trigger-transition`, `trigger-delay`, `trigger-setup-hold`,
-  `trigger-edge-burst`, `trigger-tv`, `trigger-pattern`, `trigger-or`,
-  `trigger-sweep`, `trigger-noise-reject`, `trigger-hf-reject`,
-  `trigger-holdoff`, `cursor`, `autoscale`
+- `trigger-edge`, `trigger-edge-coupling`, `trigger-edge-reject`,
+  `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
+  `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
+  `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,
+  `trigger-hf-reject`, `trigger-holdoff`, `cursor`, `autoscale`
 - `setup-save`, `setup-recall`, `fft`
 
 `list-resources` remains an explicit discovery command outside live worker
@@ -308,6 +308,51 @@ Rejected `trigger-sweep` alias keys include `sweep`, `sweep_mode`, and
 `noise_reject`, `nreject`, `nrej`, `state`, `on`, and `enable`. Rejected
 `trigger-hf-reject` alias keys include `hf_reject`, `hfreject`,
 `high_frequency_reject`, `state`, `on`, and `enable`.
+
+
+`trigger-edge-coupling` and `trigger-edge-reject` are accepted only as canonical Edge trigger coupling and reject commands:
+
+```json
+{"command": "trigger-edge-coupling", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-edge-coupling", "arguments": {"coupling": "ac"}}
+```
+
+```json
+{"command": "trigger-edge-coupling", "arguments": {"coupling": "dc"}}
+```
+
+```json
+{"command": "trigger-edge-coupling", "arguments": {"coupling": "lf-reject"}}
+```
+
+```json
+{"command": "trigger-edge-reject", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-edge-reject", "arguments": {"reject": "off"}}
+```
+
+```json
+{"command": "trigger-edge-reject", "arguments": {"reject": "lf-reject"}}
+```
+
+```json
+{"command": "trigger-edge-reject", "arguments": {"reject": "hf-reject"}}
+```
+
+`trigger-edge-coupling` uses `:TRIGger:EDGE:COUPling` and accepts only `query` or `coupling`. `coupling` must be one of `ac`, `dc`, or `lf-reject`. `trigger-edge-reject` uses `:TRIGger:EDGE:REJect` and accepts only `query` or `reject`. `reject` must be one of `off`, `lf-reject`, or `hf-reject`.
+
+For both commands, `query` must be exactly JSON `true`, not `false`, `"true"`, or `1`. Query mode cannot be combined with configure keys. Unknown keys, missing configure keys, partial configure, aliases, and invalid values are rejected before enqueue, artifact creation, simulator/VISA open, or SCPI.
+
+Rejected `trigger-edge-coupling` alias keys include `mode`, `value`, `state`, `enabled`, `enable`, `on`, `off`, `couple`, `trigger_coupling`, `edge_coupling`, `coupling_mode`, `filter`, and `reject`. Alias values such as `lfr`, `lfreject`, `lf_reject`, `low-frequency-reject`, and `low_frequency_reject` are rejected.
+
+Rejected `trigger-edge-reject` alias keys include `mode`, `value`, `state`, `enabled`, `enable`, `on`, `off`, `filter`, `filter_mode`, `trigger_reject`, `edge_reject`, `reject_mode`, `coupling`, `hf_reject`, and `lf_reject`. Alias values such as `lfr`, `hfr`, `lfreject`, `hfreject`, `lf_reject`, `hf_reject`, `low-frequency-reject`, and `high-frequency-reject` are rejected.
+
+This v1 worker support is hardware-free only. Live worker, LAN, WebUI runtime, DSO-X 2000X/3000X/4024A/4034A live validation, additional MSO/digital source support, trigger-coupling/reject cross-setting side-effects emulator behavior, and run/stop/single/force/wait/capture workflow integration have not been run or implemented.
 
 This v1 worker support is hardware-free only. Live worker, LAN, WebUI runtime,
 DSO-X 2000X/3000X/4024A live validation, additional DSO-X 4034A live validation,
@@ -1017,7 +1062,7 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`trigger-edge`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
+`trigger-edge`, `trigger-edge-coupling`, `trigger-edge-reject`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
 `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
 `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,
 `trigger-hf-reject`, `display-clear`, `display-persistence`,

@@ -241,6 +241,10 @@ from keysight_scope_core.trigger import (
     trigger_hf_reject_query,
     trigger_noise_reject_command,
     trigger_noise_reject_query,
+    trigger_edge_coupling_command,
+    trigger_edge_coupling_query,
+    trigger_edge_reject_command,
+    trigger_edge_reject_query,
     trigger_sweep_command,
     trigger_sweep_query,
     tv_trigger_configure_commands,
@@ -994,6 +998,44 @@ def _build_parser() -> argparse.ArgumentParser:
         type=_strict_bool_arg,
         default=None,
         help="true to enable high-frequency reject, false to disable it",
+    )
+
+    trigger_edge_coupling_parser = subparsers.add_parser(
+        "trigger-edge-coupling",
+        allow_abbrev=False,
+        help="configure or query Edge Trigger coupling",
+    )
+    _add_scope_connection_args(trigger_edge_coupling_parser)
+    trigger_edge_coupling_parser.add_argument(
+        "--query",
+        dest="trigger_edge_coupling_query",
+        action="store_true",
+        help="query Edge Trigger coupling",
+    )
+    trigger_edge_coupling_parser.add_argument(
+        "--coupling",
+        choices=("ac", "dc", "lf-reject"),
+        default=None,
+        help="Edge Trigger coupling mode",
+    )
+
+    trigger_edge_reject_parser = subparsers.add_parser(
+        "trigger-edge-reject",
+        allow_abbrev=False,
+        help="configure or query Edge Trigger reject filter",
+    )
+    _add_scope_connection_args(trigger_edge_reject_parser)
+    trigger_edge_reject_parser.add_argument(
+        "--query",
+        dest="trigger_edge_reject_query",
+        action="store_true",
+        help="query Edge Trigger reject filter",
+    )
+    trigger_edge_reject_parser.add_argument(
+        "--reject",
+        choices=("off", "lf-reject", "hf-reject"),
+        default=None,
+        help="Edge Trigger reject filter",
     )
 
     glitch_trigger_parser = subparsers.add_parser(
@@ -2038,6 +2080,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         "trigger-sweep",
         "trigger-noise-reject",
         "trigger-hf-reject",
+        "trigger-edge-coupling",
+        "trigger-edge-reject",
     }:
         return _cmd_trigger_common(args)
     if args.command == "trigger-pulse-width":
@@ -2430,6 +2474,10 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_reject_args(args, "trigger-noise-reject")
     if getattr(args, "command", None) == "trigger-hf-reject":
         _validate_trigger_reject_args(args, "trigger-hf-reject")
+    if getattr(args, "command", None) == "trigger-edge-coupling":
+        _validate_edge_coupling_args(args)
+    if getattr(args, "command", None) == "trigger-edge-reject":
+        _validate_edge_reject_args(args)
     if getattr(args, "command", None) == "trigger-pulse-width":
         _validate_trigger_glitch_args(args)
     if getattr(args, "command", None) == "trigger-runt":
@@ -2496,6 +2544,32 @@ def _validate_trigger_reject_args(args: argparse.Namespace, command: str) -> Non
         raise ParameterValidationError(f"{command} configure requires --enabled.")
     if not isinstance(args.enabled, bool):
         raise ParameterValidationError(f"{command} --enabled must be true or false.")
+
+
+def _validate_edge_coupling_args(args: argparse.Namespace) -> None:
+    if getattr(args, "trigger_edge_coupling_query", False):
+        if getattr(args, "coupling", None) is not None:
+            raise ParameterValidationError(
+                "trigger-edge-coupling --query cannot be combined with configure options."
+            )
+        return
+    if getattr(args, "coupling", None) is None:
+        raise ParameterValidationError(
+            "trigger-edge-coupling configure requires --coupling."
+        )
+
+
+def _validate_edge_reject_args(args: argparse.Namespace) -> None:
+    if getattr(args, "trigger_edge_reject_query", False):
+        if getattr(args, "reject", None) is not None:
+            raise ParameterValidationError(
+                "trigger-edge-reject --query cannot be combined with configure options."
+            )
+        return
+    if getattr(args, "reject", None) is None:
+        raise ParameterValidationError(
+            "trigger-edge-reject configure requires --reject."
+        )
 
 
 def _validate_trigger_glitch_args(args: argparse.Namespace) -> None:
@@ -3094,6 +3168,32 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "command": command_text,
             "enabled": args.enabled,
             "state_changing": True,
+        }
+    if command == "trigger-edge-coupling":
+        if args.trigger_edge_coupling_query:
+            command_text = trigger_edge_coupling_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        command_text = trigger_edge_coupling_command(args.coupling)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "command": command_text,
+            "coupling": args.coupling,
+        }
+    if command == "trigger-edge-reject":
+        if args.trigger_edge_reject_query:
+            command_text = trigger_edge_reject_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        command_text = trigger_edge_reject_command(args.reject)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "command": command_text,
+            "reject": args.reject,
         }
     if command == "trigger-pulse-width":
         if args.glitch_query:
@@ -4876,7 +4976,7 @@ def _cmd_annotation(args: argparse.Namespace) -> int:
                 scope.set_annotation_position(args.x, args.y, slot=args.slot)
             _json_update_result(operation="set", **result)
             for command in commands:
-                print(f"Command: {command}")
+                    print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)
@@ -5083,7 +5183,7 @@ def _cmd_trigger_common(args: argparse.Namespace) -> int:
                     state_changing=True,
                 )
                 print(f"Command: {command}")
-        else:
+        elif args.command == "trigger-hf-reject":
             if args.trigger_hf_reject_query:
                 command = trigger_hf_reject_query()
                 print("Planned query: trigger high-frequency reject")
@@ -5100,6 +5200,44 @@ def _cmd_trigger_common(args: argparse.Namespace) -> int:
                     command=command,
                     enabled=args.enabled,
                     state_changing=True,
+                )
+                print(f"Command: {command}")
+
+        elif args.command == "trigger-edge-coupling":
+            if args.trigger_edge_coupling_query:
+                command = trigger_edge_coupling_query()
+                print("Planned query: Edge Trigger coupling")
+                state = scope.query_trigger_edge_coupling()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+                print(f"Coupling: {state.coupling}")
+            else:
+                command = trigger_edge_coupling_command(args.coupling)
+                print(f"Planned change: Edge Trigger coupling {args.coupling}")
+                scope.configure_trigger_edge_coupling(args.coupling)
+                _json_update_result(
+                    operation="set",
+                    command=command,
+                    coupling=args.coupling,
+                )
+                print(f"Command: {command}")
+
+        elif args.command == "trigger-edge-reject":
+            if args.trigger_edge_reject_query:
+                command = trigger_edge_reject_query()
+                print("Planned query: Edge Trigger reject")
+                state = scope.query_trigger_edge_reject()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+                print(f"Reject: {state.reject}")
+            else:
+                command = trigger_edge_reject_command(args.reject)
+                print(f"Planned change: Edge Trigger reject {args.reject}")
+                scope.configure_trigger_edge_reject(args.reject)
+                _json_update_result(
+                    operation="set",
+                    command=command,
+                    reject=args.reject,
                 )
                 print(f"Command: {command}")
 

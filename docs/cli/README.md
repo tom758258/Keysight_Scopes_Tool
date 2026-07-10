@@ -80,6 +80,8 @@ Current implemented scope:
   and `:TIMebase:POSition`.
 - Configure or query analog edge trigger source, level, and slope with
   `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*`.
+- Configure or query Edge Trigger coupling and reject-filter settings with
+  `:TRIGger:EDGE:COUPling` and `:TRIGger:EDGE:REJect`.
 - Configure or query common trigger sweep, noise reject, and high-frequency
   reject settings with `:TRIGger:SWEep`, `:TRIGger:NREJect`, and
   `:TRIGger:HFReject`.
@@ -775,6 +777,42 @@ Worker JSON for `trigger-holdoff` accepts only `{"query": true}` or
 seconds, string/boolean/null seconds, unknown fields, and holdoff mode aliases
 are rejected before enqueue, artifact creation, simulator/VISA session open, or
 SCPI. Random holdoff and minimum/maximum holdoff commands are not implemented.
+
+Configure or query Keysight Edge Trigger Coupling and Reject filter settings with the canonical `trigger-edge-coupling` and `trigger-edge-reject` commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-coupling --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --coupling ac --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-coupling --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --coupling dc --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-coupling --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --coupling lf-reject --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-coupling --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --reject off --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --reject lf-reject --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --reject hf-reject --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-reject --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query --log-scpi
+```
+
+`trigger-edge-coupling` uses `:TRIGger:EDGE:COUPling` and accepts only `--coupling ac`, `--coupling dc`, or `--coupling lf-reject`. `trigger-edge-reject` uses `:TRIGger:EDGE:REJect` and accepts only `--reject off`, `--reject lf-reject`, or `--reject hf-reject`.
+
+Each command rejects `--query` combined with configure options and rejects missing configure options when not querying.
+
+**Coupling Interaction Warning**:
+Changing Edge Trigger coupling may affect the reject filter readback, and changing reject-filter may affect the coupling readback on the real instrument. The system does not attempt to force both simultaneously, automatically restore, or add hidden corrective/extra SCPI commands. Each command configures or queries only its own SCPI setting, and the simulator does not emulate all hardware coupling side effects.
+
+**Distinction from existing commands**:
+The Phase 11 common command `trigger-hf-reject` uses `:TRIGger:HFReject` and represents a general high-frequency reject filter setting. The new `trigger-edge-reject` command is specific to the Edge Trigger surface and operates through the separate `:TRIGger:EDGE:REJect` path. These commands are independent and do not redirect or replace each other.
+
+Worker usage:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-coupling --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-coupling --arguments-json "{\"coupling\":\"ac\"}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-reject --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-reject --arguments-json "{\"reject\":\"hf-reject\"}" --json
+```
+
+Worker JSON for `trigger-edge-coupling` accepts only `query` or `coupling`. Worker JSON for `trigger-edge-reject` accepts only `query` or `reject`. Invalid inputs, uppercase value strings, unknown fields, and alias commands/keys (such as `edge-trigger-coupling`, `edge-trigger-reject`, `couple`, `reject_mode`, `filter`, etc.) are rejected before enqueue, artifact creation, simulator/VISA session open, or SCPI.
+
 
 Configure or query Keysight pulse-width trigger settings with the canonical
 `trigger-pulse-width` command:

@@ -148,6 +148,8 @@ class SimulatorBackend:
     trigger_sweep: str = "AUTO"
     trigger_noise_reject: bool = False
     trigger_hf_reject: bool = False
+    trigger_edge_coupling: str = "DC"
+    trigger_edge_reject: str = "OFF"
     trigger_source: int = 1
     trigger_mode: str = "EDGE"
     trigger_level: float = 0.0
@@ -303,6 +305,16 @@ class SimulatorBackend:
             self.trigger_noise_reject = _parse_scpi_bool_write(command)
         elif upper.startswith(":TRIGGER:HFREJECT "):
             self.trigger_hf_reject = _parse_scpi_bool_write(command)
+        elif upper.startswith(":TRIGGER:EDGE:COUPLING "):
+            value = command.split(" ", 1)[1]
+            if value.upper() not in {"AC", "DC", "LFREJECT"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.trigger_edge_coupling = value
+        elif upper.startswith(":TRIGGER:EDGE:REJECT "):
+            value = command.split(" ", 1)[1]
+            if value.upper() not in {"OFF", "LFREJECT", "HFREJECT"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.trigger_edge_reject = value
         elif upper.startswith(":TRIGGER:MODE "):
             self.trigger_mode = command.rsplit(" ", 1)[1]
         elif upper.startswith(":TRIGGER:EDGE:SOURCE CHANNEL"):
@@ -596,6 +608,10 @@ class SimulatorBackend:
             return "1" if self.trigger_noise_reject else "0"
         if upper == ":TRIGGER:HFREJECT?":
             return "1" if self.trigger_hf_reject else "0"
+        if upper == ":TRIGGER:EDGE:COUPLING?":
+            return self.trigger_edge_coupling
+        if upper == ":TRIGGER:EDGE:REJECT?":
+            return self.trigger_edge_reject
         if upper == ":TRIGGER:MODE?":
             return _abbreviate_trigger_mode(self.trigger_mode)
         if upper == ":TRIGGER:EDGE:SOURCE?":

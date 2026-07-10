@@ -29,6 +29,10 @@ from .trigger import (
     EdgeBurstTriggerController,
     EdgeBurstTriggerState,
     EdgeTriggerController,
+    EdgeTriggerCouplingController,
+    EdgeTriggerCouplingState,
+    EdgeTriggerRejectController,
+    EdgeTriggerRejectState,
     EdgeTriggerState,
     GlitchTriggerController,
     GlitchTriggerState,
@@ -363,6 +367,27 @@ class KeysightScope:
         """Query common trigger high-frequency reject."""
 
         return self._trigger_hf_reject_controller().query()
+
+
+    def configure_trigger_edge_coupling(self, coupling: str) -> None:
+        """Configure Edge Trigger coupling."""
+
+        self._edge_coupling_controller().configure(coupling)
+
+    def query_trigger_edge_coupling(self) -> EdgeTriggerCouplingState:
+        """Query Edge Trigger coupling."""
+
+        return self._edge_coupling_controller().query()
+
+    def configure_trigger_edge_reject(self, reject: str) -> None:
+        """Configure Edge Trigger reject filter."""
+
+        self._edge_reject_controller().configure(reject)
+
+    def query_trigger_edge_reject(self) -> EdgeTriggerRejectState:
+        """Query Edge Trigger reject filter."""
+
+        return self._edge_reject_controller().query()
 
     def configure_glitch_trigger(
         self,
@@ -803,6 +828,23 @@ class KeysightScope:
                 "call query_idn() first."
             )
         return TriggerHfRejectController(self.scpi)
+
+
+    def _edge_coupling_controller(self) -> EdgeTriggerCouplingController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                'Edge Trigger coupling operations require known capabilities; '
+                'call query_idn() first.'
+            )
+        return EdgeTriggerCouplingController(self.scpi)
+
+    def _edge_reject_controller(self) -> EdgeTriggerRejectController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                'Edge Trigger reject operations require known capabilities; '
+                'call query_idn() first.'
+            )
+        return EdgeTriggerRejectController(self.scpi)
 
     def _glitch_trigger_controller(self) -> GlitchTriggerController:
         if self.capabilities is None:
