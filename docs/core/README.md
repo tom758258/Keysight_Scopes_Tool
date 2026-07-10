@@ -41,7 +41,9 @@ Core owns runtime behavior:
   `KeysightScope.configure_trigger_hf_reject()`, and
   `KeysightScope.query_trigger_hf_reject()`. This `trigger-sweep`,
   `trigger-noise-reject`, and `trigger-hf-reject` v1 slice uses only
-  `:TRIGger:SWEep`, `:TRIGger:NREJect`, and `:TRIGger:HFReject`.
+  `:TRIGger:SWEep`, `:TRIGger:NREJect`, and `:TRIGger:HFReject`. Query mode
+  preserves raw readbacks while normalizing sweep to `auto` or `normal` and
+  the common reject settings to booleans.
 
 - Edge Trigger coupling and reject filter helpers exposed through
   `KeysightScope.configure_trigger_edge_coupling()`,
@@ -50,8 +52,9 @@ Core owns runtime behavior:
   `KeysightScope.query_trigger_edge_reject()`. This v1 slice uses only
   `:TRIGger:EDGE:COUPling` and `:TRIGger:EDGE:REJect`. Each command
   configures or queries its own SCPI setting independently. Query mode
-  preserves raw readbacks while normalizing sweep to `auto` or `normal` and
-  reject filters to booleans. It is hardware-free only so far; no live
+  preserves raw readbacks while normalizing coupling to `ac`, `dc`, or
+  `lf-reject`, and reject to `off`, `lf-reject`, or `hf-reject`. It is
+  hardware-free only so far; no live
   hardware validation has been run, and it does not add holdoff, generic
   trigger settings, run, stop, single, force-trigger, wait-trigger, capture, or
   WebUI runtime behavior.

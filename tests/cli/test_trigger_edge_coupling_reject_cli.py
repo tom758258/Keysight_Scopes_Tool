@@ -47,6 +47,25 @@ def test_trigger_edge_coupling_dry_run_json(capsys):
         ":SYSTem:ERRor?"
     ]
 
+def test_trigger_edge_coupling_dry_run_text_uses_result_command(capsys, monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "_open_scope",
+        lambda *_args, **_kwargs: pytest.fail("dry-run must not open a scope"),
+    )
+
+    assert cli.main([
+        "trigger-edge-coupling",
+        "--dry-run",
+        "--model", "DSOX4024A",
+        "--coupling", "ac",
+    ]) == 0
+
+    output = capsys.readouterr().out
+    assert "Command: :TRIGger:EDGE:COUPling AC" in output
+    assert "Command: :SYSTem:ERRor?" not in output
+
+
 def test_trigger_edge_coupling_simulate_json(capsys):
     # Coupling configure simulate
     assert cli.main([
@@ -112,6 +131,25 @@ def test_trigger_edge_reject_dry_run_json(capsys):
         ":TRIGger:EDGE:REJect?",
         ":SYSTem:ERRor?"
     ]
+
+def test_trigger_edge_reject_query_dry_run_text_uses_result_command(capsys, monkeypatch):
+    monkeypatch.setattr(
+        cli,
+        "_open_scope",
+        lambda *_args, **_kwargs: pytest.fail("dry-run must not open a scope"),
+    )
+
+    assert cli.main([
+        "trigger-edge-reject",
+        "--dry-run",
+        "--model", "DSOX4024A",
+        "--query",
+    ]) == 0
+
+    output = capsys.readouterr().out
+    assert "Command: :TRIGger:EDGE:REJect?" in output
+    assert "Command: :SYSTem:ERRor?" not in output
+
 
 def test_trigger_edge_reject_simulate_json(capsys):
     # Reject configure simulate

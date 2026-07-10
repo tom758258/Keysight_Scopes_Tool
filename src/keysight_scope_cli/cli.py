@@ -2368,6 +2368,9 @@ def _print_text_dry_run_payload(payload: dict[str, object]) -> None:
     if isinstance(result, dict):
         _print_text_dry_run_summary(str(payload.get("command")), result)
         commands = result.get("commands")
+        if not isinstance(commands, list):
+            command = result.get("command")
+            commands = [command] if isinstance(command, str) else None
     else:
         commands = None
 
@@ -4976,7 +4979,7 @@ def _cmd_annotation(args: argparse.Namespace) -> int:
                 scope.set_annotation_position(args.x, args.y, slot=args.slot)
             _json_update_result(operation="set", **result)
             for command in commands:
-                    print(f"Command: {command}")
+                print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)
