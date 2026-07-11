@@ -43,8 +43,8 @@ Core owns runtime behavior:
   the selected model profile. Query parsing preserves the stripped raw source
   and tolerates unsupported, digital, WaveGen, `NONE`, and future readbacks by
   returning no normalized source. This implementation is hardware-free only;
-  live validation has not been run. External level/range and WGEN/WMOD/digital
-  source configuration are not implemented.
+  live validation has not been run. WGEN/WMOD/digital source configuration is
+  not implemented.
 - Phase 13C - Edge Trigger Slope and Analog Level v1 helpers exposed through
   `KeysightScope.configure_trigger_edge_slope()`,
   `KeysightScope.query_trigger_edge_slope()`,
@@ -61,8 +61,24 @@ Core owns runtime behavior:
   trigger mode or source and do not change coupling, reject, common trigger
   settings, holdoff, acquisition, or channel settings. The documented target
   DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A model coverage is
-  hardware-free only; live validation has not been run. External, Line,
-  WaveGen, WMOD, and digital/MSO level controls are not implemented.
+  hardware-free only; live validation has not been run. Line, WaveGen, WMOD,
+  and digital/MSO level controls are not implemented.
+- Phase 14 External Trigger Range and External Edge Level v1 helpers exposed
+  through `KeysightScope.configure_external_trigger_range()`,
+  `KeysightScope.query_external_trigger_range()`,
+  `KeysightScope.configure_trigger_edge_external_level()`, and
+  `KeysightScope.query_trigger_edge_external_level()`. They use only
+  `:EXTernal:RANGe` and External-qualified `:TRIGger:EDGE:LEVel ...,EXTernal`
+  SCPI, without changing trigger mode or source. Local range validation is
+  finite-positive only; it does not query External probe attenuation or clamp
+  values. Local External level validation is finite-real only; it does not
+  query range or clamp levels. The instrument error queue remains authoritative
+  for probe-, model-, firmware-, and hardware-dependent limits. At 1:1, the
+  manuals document 8 V for 2000X/3000X and 1.6 V or 8 V for 4000X; this
+  hardware-free simulator does not emulate every model/probe-dependent range
+  rejection. Target DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A coverage
+  has not received live hardware validation. Line, WaveGen, WMOD, and
+  digital/MSO External-level variants remain out of scope.
 - Common trigger general setting helpers exposed through
   `KeysightScope.configure_trigger_sweep()`,
   `KeysightScope.query_trigger_sweep()`,

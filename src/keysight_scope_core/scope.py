@@ -31,6 +31,8 @@ from .trigger import (
     EdgeTriggerController,
     EdgeTriggerCouplingController,
     EdgeTriggerCouplingState,
+    EdgeTriggerExternalLevelController,
+    EdgeTriggerExternalLevelState,
     EdgeTriggerLevelController,
     EdgeTriggerLevelState,
     EdgeTriggerRejectController,
@@ -40,6 +42,8 @@ from .trigger import (
     EdgeTriggerSourceController,
     EdgeTriggerSourceState,
     EdgeTriggerState,
+    ExternalTriggerRangeController,
+    ExternalTriggerRangeState,
     GlitchTriggerController,
     GlitchTriggerState,
     OrTriggerController,
@@ -389,6 +393,26 @@ class KeysightScope:
         """Query one named analog Edge Trigger level only."""
 
         return self._edge_trigger_level_controller().query(source_channel=source_channel)
+
+    def configure_external_trigger_range(self, range_volts: float) -> None:
+        """Configure the dedicated External trigger input range only."""
+
+        self._external_trigger_range_controller().configure(range_volts=range_volts)
+
+    def query_external_trigger_range(self) -> ExternalTriggerRangeState:
+        """Query the dedicated External trigger input range only."""
+
+        return self._external_trigger_range_controller().query()
+
+    def configure_trigger_edge_external_level(self, *, level_volts: float) -> None:
+        """Configure the External-qualified Edge Trigger level only."""
+
+        self._edge_trigger_external_level_controller().configure(level_volts=level_volts)
+
+    def query_trigger_edge_external_level(self) -> EdgeTriggerExternalLevelState:
+        """Query the External-qualified Edge Trigger level only."""
+
+        return self._edge_trigger_external_level_controller().query()
 
     def configure_trigger_sweep(self, mode: str) -> None:
         """Configure common trigger sweep mode."""
@@ -873,6 +897,12 @@ class KeysightScope:
                 "Edge Trigger level operations require known capabilities; call query_idn() first."
             )
         return EdgeTriggerLevelController(self.scpi, self.capabilities)
+
+    def _external_trigger_range_controller(self) -> ExternalTriggerRangeController:
+        return ExternalTriggerRangeController(self.scpi)
+
+    def _edge_trigger_external_level_controller(self) -> EdgeTriggerExternalLevelController:
+        return EdgeTriggerExternalLevelController(self.scpi)
 
     def _trigger_sweep_controller(self) -> TriggerSweepController:
         if self.capabilities is None:

@@ -155,6 +155,8 @@ class SimulatorBackend:
     trigger_mode: str = "EDGE"
     trigger_level: float = 0.0
     trigger_levels: dict[int, float] = field(default_factory=dict)
+    external_trigger_range: float = 8.0
+    edge_external_level: float = 0.0
     trigger_slope: str = "POSitive"
     glitch_source_channel: int | None = 1
     glitch_source_raw: str = "CHANnel1"
@@ -318,6 +320,16 @@ class SimulatorBackend:
             self.trigger_edge_reject = value
         elif upper.startswith(":TRIGGER:MODE "):
             self.trigger_mode = command.rsplit(" ", 1)[1]
+        elif upper.startswith(":EXTERNAL:RANGE "):
+            try:
+                value = float(command.split(" ", 1)[1])
+            except ValueError as exc:
+                raise SimulatorBackendError("External trigger range must be numeric.") from exc
+            if not math.isfinite(value) or value <= 0:
+                raise SimulatorBackendError(
+                    "External trigger range must be a positive finite number."
+                )
+            self.external_trigger_range = value
         elif upper.startswith(":TRIGGER:EDGE:SOURCE CHANNEL"):
             channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
             self.trigger_source = channel
@@ -326,18 +338,33 @@ class SimulatorBackend:
                 self.trigger_level = self.trigger_levels[channel]
         elif upper == ":TRIGGER:EDGE:SOURCE EXTERNAL":
             self.trigger_edge_source_raw = "EXT"
+            self.trigger_level = self.edge_external_level
         elif upper == ":TRIGGER:EDGE:SOURCE LINE":
             self.trigger_edge_source_raw = "LINE"
         elif upper.startswith(":TRIGGER:EDGE:LEVEL "):
             value_text = command.split(" ", 1)[1]
             if "," in value_text:
-                value, channel = _parse_glitch_level_write(command)
-                channel = self._validate_channel(channel)
-                if not math.isfinite(value):
-                    raise SimulatorBackendError("SCPI numeric parameter must be finite.")
-                self.trigger_levels[channel] = value
-                if self.trigger_edge_source_raw.upper() == f"CHANNEL{channel}":
-                    self.trigger_level = value
+                parts = [part.strip() for part in value_text.split(",")]
+                if len(parts) == 2 and parts[1].upper() == "EXTERNAL":
+                    try:
+                        value = float(parts[0])
+                    except ValueError as exc:
+                        raise SimulatorBackendError(
+                            "SCPI numeric parameter must be finite."
+                        ) from exc
+                    if not math.isfinite(value):
+                        raise SimulatorBackendError("SCPI numeric parameter must be finite.")
+                    self.edge_external_level = value
+                    if self._active_edge_external_source():
+                        self.trigger_level = value
+                else:
+                    value, channel = _parse_glitch_level_write(command)
+                    channel = self._validate_channel(channel)
+                    if not math.isfinite(value):
+                        raise SimulatorBackendError("SCPI numeric parameter must be finite.")
+                    self.trigger_levels[channel] = value
+                    if self.trigger_edge_source_raw.upper() == f"CHANNEL{channel}":
+                        self.trigger_level = value
             else:
                 value = float(value_text)
                 if not math.isfinite(value):
@@ -346,6 +373,8 @@ class SimulatorBackend:
                 active_channel = self._active_edge_analog_channel()
                 if active_channel is not None:
                     self.trigger_levels[active_channel] = value
+                elif self._active_edge_external_source():
+                    self.edge_external_level = value
         elif upper.startswith(":TRIGGER:EDGE:SLOPE "):
             value = command.rsplit(" ", 1)[1]
             if value.upper() not in {"POSITIVE", "NEGATIVE", "EITHER", "ALTERNATE"}:
@@ -635,8 +664,12 @@ class SimulatorBackend:
             return _abbreviate_trigger_mode(self.trigger_mode)
         if upper == ":TRIGGER:EDGE:SOURCE?":
             return self.trigger_edge_source_raw
+        if upper == ":EXTERNAL:RANGE?":
+            return f"{self.external_trigger_range:.12g}"
         if upper == ":TRIGGER:EDGE:LEVEL?":
             return f"{self.trigger_level:.12g}"
+        if upper == ":TRIGGER:EDGE:LEVEL? EXTERNAL":
+            return f"{self.edge_external_level:.12g}"
         if upper.startswith(":TRIGGER:EDGE:LEVEL? CHANNEL"):
             channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
             return f"{self.trigger_levels.get(channel, self.trigger_level):.12g}"
@@ -837,6 +870,9 @@ class SimulatorBackend:
             return self._validate_channel(int(match.group(1)))
         except SimulatorBackendError:
             return None
+
+    def _active_edge_external_source(self) -> bool:
+        return self.trigger_edge_source_raw.strip().upper() in {"EXT", "EXTERNAL"}
 
     def _queue_marker_range_error(self, value: float) -> None:
         visible_half_span = self.timebase_scale * 4.5

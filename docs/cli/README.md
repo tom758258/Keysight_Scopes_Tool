@@ -793,6 +793,49 @@ or SCPI. The documented DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A scope
 is hardware-free only; live hardware, LAN, and worker-live validation have not
 run. External, Line, WaveGen, WMOD, and digital/MSO levels are excluded.
 
+Phase 14 adds two independent External-input controls. `external-trigger-range`
+accepts exactly one of `--query` or `--range-volts <finite-positive-number>`:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli external-trigger-range --dry-run --json --model DSOX2004A --range-volts 8.0
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli external-trigger-range --simulate --json --model DSOX4034A --query
+```
+
+It sends only `:EXTernal:RANGe <range>` or `:EXTernal:RANGe?`; it does not
+query or configure `:EXTernal:PROBe`, change Edge source/mode/level, or alter
+acquisition state. Local validation accepts any finite positive range and does
+not restrict input to 1.6 V or 8 V. The manuals document 8 V at 1:1 probe
+attenuation for 2000X/3000X, and 1.6 V or 8 V at 1:1 for 4000X. Because this
+phase does not inspect probe attenuation, the instrument and its error queue
+remain authoritative for actual model-, firmware-, probe-, and hardware-valid
+range selection. The simulator enforces only finite-positive input and does not
+emulate every model/probe-dependent range rejection.
+
+`trigger-edge-external-level` accepts exactly one of `--query` or
+`--level-volts <finite-number>`:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-external-level --dry-run --json --model DSOX2004A --level-volts 0.5
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-external-level --simulate --json --model DSOX4034A --query
+```
+
+It always sends `:TRIGger:EDGE:LEVel <level>,EXTernal` or
+`:TRIGger:EDGE:LEVel? EXTernal`; it never uses active-source implicit level
+SCPI, changes Edge source or mode, or queries/changes External range. This is
+separate from the analog-channel-only `trigger-edge-level` command. Local
+validation accepts finite positive, negative, or zero values only; it does not
+query the dynamic External range or clamp levels. The instrument/error queue
+enforces the documented current-range limit. Neither command has aliases.
+
+Canonical worker JSON is `{"query":true}` or `{"range_volts":8.0}` for
+`external-trigger-range`, and `{"query":true}` or `{"level_volts":0.5}`
+for `trigger-edge-external-level`. Workers reject empty arguments,
+`query: false`, query/configure mixes, unknown or alias keys, booleans,
+non-numeric and non-finite values, and zero/negative External ranges before
+enqueue, artifact creation, simulator/VISA open, or SCPI. These target
+DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A paths are hardware-free only;
+live hardware, LAN, and worker-live validation have not been run.
+
 Configure or query common trigger general settings:
 
 ```powershell

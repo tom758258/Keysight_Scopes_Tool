@@ -71,6 +71,8 @@ DOMAIN_COMMANDS = {
     "trigger-edge-source",
     "trigger-edge-slope",
     "trigger-edge-level",
+    "external-trigger-range",
+    "trigger-edge-external-level",
     "trigger-pulse-width",
     "trigger-runt",
     "trigger-transition",
@@ -338,6 +340,10 @@ def parse_domain_command(
     arguments = _normalize_trigger_edge_level_worker_arguments(
         command, arguments, runtime
     )
+    arguments = _normalize_external_trigger_range_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_edge_external_level_worker_arguments(
+        command, arguments
+    )
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
@@ -552,6 +558,79 @@ def _normalize_trigger_edge_level_worker_arguments(
             "trigger-edge-level argument level_volts must be a finite number"
         )
     return {"source_channel": source_channel, "level_volts": level_volts}
+
+
+def _normalize_external_trigger_range_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "external-trigger-range":
+        return arguments
+    allowed = {"query", "range_volts"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for external-trigger-range: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "external-trigger-range argument query must be exactly true"
+            )
+        if "range_volts" in arguments:
+            raise KeysightScopeError(
+                "external-trigger-range query cannot be combined with range_volts"
+            )
+        return {"query": True}
+    if "range_volts" not in arguments:
+        raise KeysightScopeError("external-trigger-range configure requires range_volts")
+    range_volts = arguments["range_volts"]
+    if (
+        isinstance(range_volts, bool)
+        or not isinstance(range_volts, (int, float))
+        or not math.isfinite(float(range_volts))
+        or range_volts <= 0
+    ):
+        raise KeysightScopeError(
+            "external-trigger-range argument range_volts must be a positive finite number"
+        )
+    return {"range_volts": range_volts}
+
+
+def _normalize_trigger_edge_external_level_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-edge-external-level":
+        return arguments
+    allowed = {"query", "level_volts"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for trigger-edge-external-level: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "trigger-edge-external-level argument query must be exactly true"
+            )
+        if "level_volts" in arguments:
+            raise KeysightScopeError(
+                "trigger-edge-external-level query cannot be combined with level_volts"
+            )
+        return {"query": True}
+    if "level_volts" not in arguments:
+        raise KeysightScopeError(
+            "trigger-edge-external-level configure requires level_volts"
+        )
+    level_volts = arguments["level_volts"]
+    if (
+        isinstance(level_volts, bool)
+        or not isinstance(level_volts, (int, float))
+        or not math.isfinite(float(level_volts))
+    ):
+        raise KeysightScopeError(
+            "trigger-edge-external-level argument level_volts must be a finite number"
+        )
+    return {"level_volts": level_volts}
 
 
 def _normalize_trigger_glitch_worker_arguments(

@@ -135,6 +135,7 @@ Worker `/command` supports the existing Scopes capability surface:
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
 - `trigger-edge`, `trigger-edge-source`, `trigger-edge-slope`, `trigger-edge-level`,
+  `external-trigger-range`, `trigger-edge-external-level`,
   `trigger-edge-coupling`, `trigger-edge-reject`,
   `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
   `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
@@ -338,9 +339,52 @@ boolean, string, null, NaN, or infinity). Query cannot be combined with
 commands validate before enqueue, accepted counters, job/artifact creation,
 simulator/VISA open, or SCPI. They use only Edge slope or source-qualified
 analog level SCPI, do not switch trigger mode or source, and do not support
-external, Line, WaveGen, WMOD, or digital/MSO levels. This target
+Line, WaveGen, WMOD, or digital/MSO levels. This target
 DSOX2004A/DSOX3024A/DSOX4024A/DSOX4034A worker support is hardware-free only;
 live hardware, LAN, and worker-live validation have not been run.
+
+Phase 14 adds two canonical External-input commands. `external-trigger-range`
+accepts only:
+
+```json
+{"command": "external-trigger-range", "arguments": {"query": true}}
+```
+
+```json
+{"command": "external-trigger-range", "arguments": {"range_volts": 8.0}}
+```
+
+It maps to `external-trigger-range --query` or
+`external-trigger-range --range-volts 8.0`, then sends only
+`:EXTernal:RANGe?` or `:EXTernal:RANGe <range>`. `range_volts` must be a
+non-boolean finite positive JSON number. Empty arguments, `query: false`,
+query/range mixes, zero or negative values, non-numeric/non-finite values, and
+unknown or alias keys are rejected before enqueue, counters, artifacts,
+simulator/VISA open, or SCPI. No probe attenuation is queried; 1:1 manual
+observations are 8 V for 2000X/3000X and 1.6 V or 8 V for 4000X, but actual
+probe/model/firmware acceptance remains instrument/error-queue authority.
+
+`trigger-edge-external-level` accepts only:
+
+```json
+{"command": "trigger-edge-external-level", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-edge-external-level", "arguments": {"level_volts": 0.5}}
+```
+
+It maps to `trigger-edge-external-level --query` or
+`trigger-edge-external-level --level-volts 0.5`, and uses only
+`:TRIGger:EDGE:LEVel? EXTernal` or
+`:TRIGger:EDGE:LEVel <level>,EXTernal`. `level_volts` must be a non-boolean
+finite JSON number and may be positive, negative, or zero. Empty arguments,
+`query: false`, query/level mixes, unknown or alias keys, booleans, strings,
+null, NaN, and infinity are rejected before any worker side effect. This
+command neither changes nor queries range, source, or trigger mode; it does
+not clamp to the dynamic External range. Both Phase 14 worker paths are
+hardware-free only; live hardware, LAN, and worker-live validation have not
+been run.
 
 `trigger-sweep`, `trigger-noise-reject`, and `trigger-hf-reject` are accepted
 only as canonical common trigger general setting commands:
@@ -1151,6 +1195,7 @@ recorded as absolute paths. Default worker outputs are:
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
 `trigger-edge`, `trigger-edge-source`, `trigger-edge-slope`, `trigger-edge-level`,
+`external-trigger-range`, `trigger-edge-external-level`,
 `trigger-edge-coupling`, `trigger-edge-reject`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
 `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
 `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,

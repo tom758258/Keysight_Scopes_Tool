@@ -182,6 +182,13 @@ Control and setup:
   Configure results include finite `level_volts`. Query results include finite
   parsed `level_volts` and stripped `raw_level`. The command always names the
   analog source channel and does not use an active-source implicit level form.
+- `external-trigger-range`: `operation` and `command`. Configure results
+  include finite positive `range_volts`. Query results include finite parsed
+  `range_volts` and stripped `raw_range` from `:EXTernal:RANGe?`.
+- `trigger-edge-external-level`: `operation` and `command`. Configure results
+  include finite `level_volts`. Query results include finite parsed
+  `level_volts` and stripped `raw_level`; all SCPI is External-qualified and
+  does not use an active-source implicit level form.
 - `trigger-sweep`: `operation` and `command`. Configure results include
   normalized `mode` (`auto` or `normal`) and `state_changing: true`. Query
   results include normalized `mode` and preserved `raw_value`.

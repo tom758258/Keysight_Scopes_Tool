@@ -207,11 +207,15 @@ from keysight_scope_core.trigger import (
     edge_trigger_level_command,
     edge_trigger_level_channel_command,
     edge_trigger_level_channel_query,
+    edge_trigger_external_level_command,
+    edge_trigger_external_level_query,
     edge_trigger_level_query,
     edge_trigger_slope_command,
     edge_trigger_slope_query,
     edge_trigger_source_command,
     edge_trigger_source_query,
+    external_trigger_range_command,
+    external_trigger_range_query,
     force_trigger_command,
     glitch_trigger_configure_commands,
     glitch_trigger_query_commands,
@@ -257,6 +261,7 @@ from keysight_scope_core.trigger import (
     validate_delay_trigger_time,
     validate_edge_burst_count,
     validate_edge_burst_idle_time,
+    validate_external_trigger_range,
     trigger_high_level_query,
     trigger_low_level_query,
     validate_or_trigger_pattern,
@@ -1014,6 +1019,44 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="Edge Trigger level in volts for the named analog channel",
+    )
+
+    external_trigger_range_parser = subparsers.add_parser(
+        "external-trigger-range",
+        allow_abbrev=False,
+        help="configure or query the dedicated External trigger input range",
+    )
+    _add_scope_connection_args(external_trigger_range_parser)
+    external_trigger_range_parser.add_argument(
+        "--query",
+        dest="external_trigger_range_query",
+        action="store_true",
+        help="query the External trigger input range",
+    )
+    external_trigger_range_parser.add_argument(
+        "--range-volts",
+        type=float,
+        default=None,
+        help="External trigger input range in volts",
+    )
+
+    edge_trigger_external_level_parser = subparsers.add_parser(
+        "trigger-edge-external-level",
+        allow_abbrev=False,
+        help="configure or query the External-qualified Edge Trigger level",
+    )
+    _add_scope_connection_args(edge_trigger_external_level_parser)
+    edge_trigger_external_level_parser.add_argument(
+        "--query",
+        dest="trigger_edge_external_level_query",
+        action="store_true",
+        help="query the External-qualified Edge Trigger level",
+    )
+    edge_trigger_external_level_parser.add_argument(
+        "--level-volts",
+        type=float,
+        default=None,
+        help="External-qualified Edge Trigger level in volts",
     )
 
     trigger_sweep_parser = subparsers.add_parser(
@@ -2155,6 +2198,10 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_trigger_edge_slope(args)
     if args.command == "trigger-edge-level":
         return _cmd_trigger_edge_level(args)
+    if args.command == "external-trigger-range":
+        return _cmd_external_trigger_range(args)
+    if args.command == "trigger-edge-external-level":
+        return _cmd_trigger_edge_external_level(args)
     if args.command in {
         "trigger-sweep",
         "trigger-noise-reject",
@@ -2556,6 +2603,10 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_edge_slope_args(args)
     if getattr(args, "command", None) == "trigger-edge-level":
         _validate_trigger_edge_level_args(args)
+    if getattr(args, "command", None) == "external-trigger-range":
+        _validate_external_trigger_range_args(args)
+    if getattr(args, "command", None) == "trigger-edge-external-level":
+        _validate_trigger_edge_external_level_args(args)
     if getattr(args, "command", None) == "trigger-sweep":
         _validate_trigger_sweep_args(args)
     if getattr(args, "command", None) == "trigger-noise-reject":
@@ -2651,6 +2702,38 @@ def _validate_trigger_edge_level_args(args: argparse.Namespace) -> None:
     if level_volts is None:
         raise ParameterValidationError(
             "trigger-edge-level requires --query or --level-volts."
+        )
+    validate_trigger_level(level_volts)
+
+
+def _validate_external_trigger_range_args(args: argparse.Namespace) -> None:
+    query = getattr(args, "external_trigger_range_query", False)
+    range_volts = getattr(args, "range_volts", None)
+    if query:
+        if range_volts is not None:
+            raise ParameterValidationError(
+                "external-trigger-range --query cannot be combined with --range-volts."
+            )
+        return
+    if range_volts is None:
+        raise ParameterValidationError(
+            "external-trigger-range requires --query or --range-volts."
+        )
+    validate_external_trigger_range(range_volts)
+
+
+def _validate_trigger_edge_external_level_args(args: argparse.Namespace) -> None:
+    query = getattr(args, "trigger_edge_external_level_query", False)
+    level_volts = getattr(args, "level_volts", None)
+    if query:
+        if level_volts is not None:
+            raise ParameterValidationError(
+                "trigger-edge-external-level --query cannot be combined with --level-volts."
+            )
+        return
+    if level_volts is None:
+        raise ParameterValidationError(
+            "trigger-edge-external-level requires --query or --level-volts."
         )
     validate_trigger_level(level_volts)
 
@@ -3322,6 +3405,34 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "operation": "set",
             "command": command_text,
             "source_channel": channel,
+            "level_volts": level_volts,
+        }
+    if command == "external-trigger-range":
+        if args.external_trigger_range_query:
+            command_text = external_trigger_range_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        range_volts = validate_external_trigger_range(args.range_volts)
+        command_text = external_trigger_range_command(range_volts)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "command": command_text,
+            "range_volts": range_volts,
+        }
+    if command == "trigger-edge-external-level":
+        if args.trigger_edge_external_level_query:
+            command_text = edge_trigger_external_level_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        level_volts = validate_trigger_level(args.level_volts)
+        command_text = edge_trigger_external_level_command(level_volts)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "command": command_text,
             "level_volts": level_volts,
         }
     if command == "trigger-sweep":
@@ -5459,6 +5570,86 @@ def _cmd_trigger_edge_level(args: argparse.Namespace) -> int:
                 level_volts=level_volts,
             )
             print(f"Command: {command}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_external_trigger_range(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+
+        if args.external_trigger_range_query:
+            command = external_trigger_range_query()
+            print("Planned query: External trigger range")
+            state = scope.query_external_trigger_range()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Command: {command}")
+            print(f"External trigger range V: {state.range_volts}")
+        else:
+            range_volts = validate_external_trigger_range(args.range_volts)
+            command = external_trigger_range_command(range_volts)
+            print("Planned change: External trigger range")
+            scope.configure_external_trigger_range(range_volts)
+            _json_update_result(
+                operation="set",
+                command=command,
+                range_volts=range_volts,
+            )
+            print(f"Command: {command}")
+            print(f"External trigger range V: {range_volts}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_edge_external_level(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+
+        if args.trigger_edge_external_level_query:
+            command = edge_trigger_external_level_query()
+            print("Planned query: External Edge Trigger level")
+            state = scope.query_trigger_edge_external_level()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Command: {command}")
+            print(f"External Edge level V: {state.level_volts}")
+        else:
+            level_volts = validate_trigger_level(args.level_volts)
+            command = edge_trigger_external_level_command(level_volts)
+            print("Planned change: External Edge Trigger level")
+            scope.configure_trigger_edge_external_level(level_volts=level_volts)
+            _json_update_result(
+                operation="set",
+                command=command,
+                level_volts=level_volts,
+            )
+            print(f"Command: {command}")
+            print(f"External Edge level V: {level_volts}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)

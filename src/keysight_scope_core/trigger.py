@@ -387,6 +387,28 @@ class EdgeTriggerLevelState:
 
 
 @dataclass(frozen=True)
+class ExternalTriggerRangeState:
+    """Readback state for the External trigger input range."""
+
+    range_volts: float
+    raw_range: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"range_volts": self.range_volts, "raw_range": self.raw_range}
+
+
+@dataclass(frozen=True)
+class EdgeTriggerExternalLevelState:
+    """Readback state for the External-qualified Edge Trigger level."""
+
+    level_volts: float
+    raw_level: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"level_volts": self.level_volts, "raw_level": self.raw_level}
+
+
+@dataclass(frozen=True)
 class TriggerSweepState:
     """Readback state for trigger sweep mode."""
 
@@ -854,6 +876,36 @@ class EdgeTriggerLevelController:
             source_channel=source_channel,
             level_volts=parse_trigger_float(raw_level, "Edge Trigger level"),
             raw_level=raw_level,
+        )
+
+
+class ExternalTriggerRangeController:
+    """Controls for the dedicated External trigger input range."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, *, range_volts: float) -> None:
+        self.scpi.write(external_trigger_range_command(range_volts))
+
+    def query(self) -> ExternalTriggerRangeState:
+        return parse_external_trigger_range(
+            self.scpi.query(external_trigger_range_query())
+        )
+
+
+class EdgeTriggerExternalLevelController:
+    """Controls for the External-qualified Edge Trigger level only."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, *, level_volts: float) -> None:
+        self.scpi.write(edge_trigger_external_level_command(level_volts))
+
+    def query(self) -> EdgeTriggerExternalLevelState:
+        return parse_edge_trigger_external_level(
+            self.scpi.query(edge_trigger_external_level_query())
         )
 
 
@@ -1550,6 +1602,19 @@ def _validate_edge_trigger_level_value(level_volts: float) -> float:
     return validate_trigger_level(level_volts)
 
 
+def validate_external_trigger_range(range_volts: float) -> float:
+    """Validate an External trigger range without probing attenuation state."""
+
+    if isinstance(range_volts, bool) or not isinstance(range_volts, (int, float)):
+        raise ParameterValidationError("External trigger range must be a real number.")
+    value = float(range_volts)
+    if not math.isfinite(value) or value <= 0:
+        raise ParameterValidationError(
+            "External trigger range must be a positive finite number."
+        )
+    return value
+
+
 def _validate_edge_trigger_level_channel(
     source_channel: int, capabilities: ScopeCapabilities
 ) -> int:
@@ -1997,6 +2062,32 @@ def edge_trigger_level_channel_query(source_channel: int) -> str:
     """Build a source-qualified analog Edge Trigger level query."""
 
     return f":TRIGger:EDGE:LEVel? CHANnel{source_channel}"
+
+
+def external_trigger_range_command(range_volts: float) -> str:
+    """Build the SCPI command for the dedicated External trigger input range."""
+
+    value = validate_external_trigger_range(range_volts)
+    return f":EXTernal:RANGe {_format_scpi_float(value)}"
+
+
+def external_trigger_range_query() -> str:
+    """Build the SCPI query for the dedicated External trigger input range."""
+
+    return ":EXTernal:RANGe?"
+
+
+def edge_trigger_external_level_command(level_volts: float) -> str:
+    """Build a source-qualified External Edge Trigger level command."""
+
+    level = _format_scpi_float(_validate_edge_trigger_level_value(level_volts))
+    return f":TRIGger:EDGE:LEVel {level},EXTernal"
+
+
+def edge_trigger_external_level_query() -> str:
+    """Build a source-qualified External Edge Trigger level query."""
+
+    return ":TRIGger:EDGE:LEVel? EXTernal"
 
 
 def edge_trigger_slope_command(slope_command: str) -> str:
@@ -3532,6 +3623,26 @@ def parse_trigger_float(raw: str, setting_name: str) -> float:
     if not math.isfinite(value):
         raise TriggerResponseError(f"Could not parse trigger {setting_name} response: {raw!r}")
     return value
+
+
+def parse_external_trigger_range(raw: str) -> ExternalTriggerRangeState:
+    """Parse an External trigger range response while preserving raw SCPI."""
+
+    raw_range = raw.strip()
+    return ExternalTriggerRangeState(
+        range_volts=parse_trigger_float(raw_range, "External trigger range"),
+        raw_range=raw_range,
+    )
+
+
+def parse_edge_trigger_external_level(raw: str) -> EdgeTriggerExternalLevelState:
+    """Parse an External-qualified Edge Trigger level response."""
+
+    raw_level = raw.strip()
+    return EdgeTriggerExternalLevelState(
+        level_volts=parse_trigger_float(raw_level, "External Edge Trigger level"),
+        raw_level=raw_level,
+    )
 
 
 def parse_optional_trigger_float(raw: str, setting_name: str) -> float | None:
