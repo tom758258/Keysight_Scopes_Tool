@@ -73,6 +73,9 @@ DOMAIN_COMMANDS = {
     "trigger-edge-level",
     "external-trigger-range",
     "trigger-edge-external-level",
+    "external-trigger-probe",
+    "external-trigger-units",
+    "external-trigger-settings",
     "trigger-pulse-width",
     "trigger-runt",
     "trigger-transition",
@@ -344,6 +347,9 @@ def parse_domain_command(
     arguments = _normalize_trigger_edge_external_level_worker_arguments(
         command, arguments
     )
+    arguments = _normalize_external_trigger_probe_worker_arguments(command, arguments)
+    arguments = _normalize_external_trigger_units_worker_arguments(command, arguments)
+    arguments = _normalize_external_trigger_settings_worker_arguments(command, arguments)
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
@@ -638,6 +644,87 @@ def _normalize_trigger_edge_external_level_worker_arguments(
             "trigger-edge-external-level argument level_volts must be a finite number"
         )
     return {"level_volts": level_volts}
+
+
+def _normalize_external_trigger_probe_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "external-trigger-probe":
+        return arguments
+    allowed = {"query", "attenuation"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for external-trigger-probe: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "external-trigger-probe argument query must be exactly true"
+            )
+        if "attenuation" in arguments:
+            raise KeysightScopeError(
+                "external-trigger-probe query cannot be combined with attenuation"
+            )
+        return {"query": True}
+    if "attenuation" not in arguments:
+        raise KeysightScopeError("external-trigger-probe configure requires attenuation")
+    attenuation = arguments["attenuation"]
+    if isinstance(attenuation, bool) or not isinstance(attenuation, (int, float)):
+        raise KeysightScopeError(
+            "external-trigger-probe argument attenuation must be a positive finite number"
+        )
+    try:
+        finite_attenuation = math.isfinite(float(attenuation))
+    except (TypeError, ValueError, OverflowError):
+        finite_attenuation = False
+    if not finite_attenuation or attenuation <= 0:
+        raise KeysightScopeError(
+            "external-trigger-probe argument attenuation must be a positive finite number"
+        )
+    return {"attenuation": attenuation}
+
+
+def _normalize_external_trigger_units_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "external-trigger-units":
+        return arguments
+    allowed = {"query", "units"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for external-trigger-units: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "external-trigger-units argument query must be exactly true"
+            )
+        if "units" in arguments:
+            raise KeysightScopeError(
+                "external-trigger-units query cannot be combined with units"
+            )
+        return {"query": True}
+    if arguments.get("units") not in {"volts", "amps"}:
+        raise KeysightScopeError(
+            "external-trigger-units configure requires units of volts or amps"
+        )
+    return {"units": arguments["units"]}
+
+
+def _normalize_external_trigger_settings_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "external-trigger-settings":
+        return arguments
+    if set(arguments) - {"query"}:
+        raise KeysightScopeError(
+            f"unknown argument for external-trigger-settings: {sorted(set(arguments) - {'query'})[0]}"
+        )
+    if arguments.get("query") is not True:
+        raise KeysightScopeError("external-trigger-settings requires query to be exactly true")
+    return {"query": True}
 
 
 def _normalize_trigger_glitch_worker_arguments(

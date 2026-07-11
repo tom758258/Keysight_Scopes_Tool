@@ -136,6 +136,7 @@ Worker `/command` supports the existing Scopes capability surface:
 - `timebase-scale`, `timebase-position`
 - `trigger-edge`, `trigger-edge-source`, `trigger-edge-slope`, `trigger-edge-level`,
   `external-trigger-range`, `trigger-edge-external-level`,
+  `external-trigger-probe`, `external-trigger-units`, `external-trigger-settings`,
   `trigger-edge-coupling`, `trigger-edge-reject`,
   `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
   `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
@@ -385,6 +386,42 @@ command neither changes nor queries range, source, or trigger mode; it does
 not clamp to the dynamic External range. Both Phase 14 worker paths are
 hardware-free only; live hardware, LAN, and worker-live validation have not
 been run.
+
+Phase 15 adds three canonical External trigger input commands. The only
+accepted forms are:
+
+```json
+{"command": "external-trigger-probe", "arguments": {"query": true}}
+```
+
+```json
+{"command": "external-trigger-probe", "arguments": {"attenuation": 10}}
+```
+
+```json
+{"command": "external-trigger-units", "arguments": {"query": true}}
+```
+
+```json
+{"command": "external-trigger-units", "arguments": {"units": "volts"}}
+```
+
+```json
+{"command": "external-trigger-settings", "arguments": {"query": true}}
+```
+
+They map respectively to `external-trigger-probe --query` or
+`--attenuation 10`, `external-trigger-units --query` or `--units volts`, and
+the query-only `external-trigger-settings --query`. Probe attenuation must be
+a non-boolean finite positive JSON number; units configure accepts only exact
+lowercase `volts` or `amps`; aggregate settings accepts exactly `query: true`.
+All aliases, empty arguments, `query: false`, operation mixes, unknown keys,
+wrong types, non-finite values, and oversized numeric values are rejected
+before enqueue, accepted counters, artifacts, simulator/VISA open, or SCPI.
+The SCPI surface is only `:EXTernal:PROBe`, `:EXTernal:UNITs`, and one
+`:EXTernal?` aggregate query. No External BWLimit setter, AutoProbe discovery,
+range/level conversion, trigger mode/source modification, or worker-live
+validation is included.
 
 `trigger-sweep`, `trigger-noise-reject`, and `trigger-hf-reject` are accepted
 only as canonical common trigger general setting commands:
@@ -1196,6 +1233,7 @@ recorded as absolute paths. Default worker outputs are:
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
 `trigger-edge`, `trigger-edge-source`, `trigger-edge-slope`, `trigger-edge-level`,
 `external-trigger-range`, `trigger-edge-external-level`,
+`external-trigger-probe`, `external-trigger-units`, `external-trigger-settings`,
 `trigger-edge-coupling`, `trigger-edge-reject`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
 `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
 `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,

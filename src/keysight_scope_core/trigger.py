@@ -135,6 +135,17 @@ _EDGE_TRIGGER_SOURCE_COMMANDS = {
     "line": "LINE",
 }
 
+_EXTERNAL_TRIGGER_UNITS_COMMANDS = {
+    "volts": "VOLT",
+    "amps": "AMPere",
+}
+
+_EXTERNAL_TRIGGER_UNITS_READBACKS = {
+    "VOLT": "volts",
+    "AMP": "amps",
+    "AMPERE": "amps",
+}
+
 
 def _validate_edge_coupling(coupling: str) -> None:
     if coupling not in _EDGE_COUPLING_COMMANDS:
@@ -395,6 +406,51 @@ class ExternalTriggerRangeState:
 
     def to_json(self) -> dict[str, object]:
         return {"range_volts": self.range_volts, "raw_range": self.raw_range}
+
+
+@dataclass(frozen=True)
+class ExternalTriggerProbeState:
+    """Readback state for the External trigger probe attenuation."""
+
+    attenuation: float
+    raw_attenuation: str
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "attenuation": self.attenuation,
+            "raw_attenuation": self.raw_attenuation,
+        }
+
+
+@dataclass(frozen=True)
+class ExternalTriggerUnitsState:
+    """Readback state for the External trigger input units."""
+
+    units: str | None
+    raw_units: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"units": self.units, "raw_units": self.raw_units}
+
+
+@dataclass(frozen=True)
+class ExternalTriggerSettingsState:
+    """Readback state parsed from the aggregate External input query."""
+
+    probe_attenuation: float | None
+    range_value: float | None
+    units: str | None
+    bandwidth_limit_enabled: bool | None
+    raw_response: str
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "probe_attenuation": self.probe_attenuation,
+            "range_value": self.range_value,
+            "units": self.units,
+            "bandwidth_limit_enabled": self.bandwidth_limit_enabled,
+            "raw_response": self.raw_response,
+        }
 
 
 @dataclass(frozen=True)
@@ -892,6 +948,42 @@ class ExternalTriggerRangeController:
         return parse_external_trigger_range(
             self.scpi.query(external_trigger_range_query())
         )
+
+
+class ExternalTriggerProbeController:
+    """Controls for the External trigger probe attenuation only."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, *, attenuation: float) -> None:
+        self.scpi.write(external_trigger_probe_command(attenuation))
+
+    def query(self) -> ExternalTriggerProbeState:
+        return parse_external_trigger_probe(self.scpi.query(external_trigger_probe_query()))
+
+
+class ExternalTriggerUnitsController:
+    """Controls for the External trigger input units only."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, *, units: str) -> None:
+        self.scpi.write(external_trigger_units_command(units))
+
+    def query(self) -> ExternalTriggerUnitsState:
+        return parse_external_trigger_units(self.scpi.query(external_trigger_units_query()))
+
+
+class ExternalTriggerSettingsController:
+    """Read-only aggregate External trigger input settings query."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def query(self) -> ExternalTriggerSettingsState:
+        return parse_external_trigger_settings(self.scpi.query(external_trigger_settings_query()))
 
 
 class EdgeTriggerExternalLevelController:
@@ -1620,6 +1712,34 @@ def validate_external_trigger_range(range_volts: float) -> float:
     return value
 
 
+def validate_external_trigger_probe_attenuation(attenuation: float) -> float:
+    """Validate External probe attenuation without probing probe type or limits."""
+
+    if isinstance(attenuation, bool) or not isinstance(attenuation, (int, float)):
+        raise ParameterValidationError("External trigger probe attenuation must be a real number.")
+    try:
+        value = float(attenuation)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ParameterValidationError(
+            "External trigger probe attenuation must be a real number."
+        ) from exc
+    if not math.isfinite(value) or value <= 0:
+        raise ParameterValidationError(
+            "External trigger probe attenuation must be a positive finite number."
+        )
+    return value
+
+
+def validate_external_trigger_units(units: str) -> str:
+    """Validate canonical External trigger input units."""
+
+    if not isinstance(units, str) or units not in _EXTERNAL_TRIGGER_UNITS_COMMANDS:
+        raise ParameterValidationError(
+            "External trigger units must be one of: volts, amps."
+        )
+    return units
+
+
 def _validate_edge_trigger_level_channel(
     source_channel: int, capabilities: ScopeCapabilities
 ) -> int:
@@ -2080,6 +2200,37 @@ def external_trigger_range_query() -> str:
     """Build the SCPI query for the dedicated External trigger input range."""
 
     return ":EXTernal:RANGe?"
+
+
+def external_trigger_probe_command(attenuation: float) -> str:
+    """Build the SCPI command for External trigger probe attenuation."""
+
+    value = validate_external_trigger_probe_attenuation(attenuation)
+    return f":EXTernal:PROBe {_format_scpi_float(value)}"
+
+
+def external_trigger_probe_query() -> str:
+    """Build the SCPI query for External trigger probe attenuation."""
+
+    return ":EXTernal:PROBe?"
+
+
+def external_trigger_units_command(units: str) -> str:
+    """Build the SCPI command for canonical External trigger input units."""
+
+    return f":EXTernal:UNITs {_EXTERNAL_TRIGGER_UNITS_COMMANDS[validate_external_trigger_units(units)]}"
+
+
+def external_trigger_units_query() -> str:
+    """Build the SCPI query for External trigger input units."""
+
+    return ":EXTernal:UNITs?"
+
+
+def external_trigger_settings_query() -> str:
+    """Build the aggregate External trigger input settings query."""
+
+    return ":EXTernal?"
 
 
 def edge_trigger_external_level_command(level_volts: float) -> str:
@@ -3637,6 +3788,86 @@ def parse_external_trigger_range(raw: str) -> ExternalTriggerRangeState:
     return ExternalTriggerRangeState(
         range_volts=parse_trigger_float(raw_range, "External trigger range"),
         raw_range=raw_range,
+    )
+
+
+def parse_external_trigger_probe(raw: str) -> ExternalTriggerProbeState:
+    """Parse an External trigger probe response while preserving raw SCPI."""
+
+    raw_attenuation = raw.strip()
+    return ExternalTriggerProbeState(
+        attenuation=parse_trigger_float(raw_attenuation, "External trigger probe attenuation"),
+        raw_attenuation=raw_attenuation,
+    )
+
+
+def normalize_external_trigger_units(raw: str) -> str | None:
+    """Normalize an External units readback without claiming future values."""
+
+    return _EXTERNAL_TRIGGER_UNITS_READBACKS.get(raw.strip().upper())
+
+
+def parse_external_trigger_units(raw: str) -> ExternalTriggerUnitsState:
+    """Parse an External trigger units response while preserving raw SCPI."""
+
+    raw_units = raw.strip()
+    return ExternalTriggerUnitsState(
+        units=normalize_external_trigger_units(raw_units),
+        raw_units=raw_units,
+    )
+
+
+def parse_external_trigger_settings(raw: str) -> ExternalTriggerSettingsState:
+    """Parse an aggregate External trigger settings response in any field order."""
+
+    raw_response = raw.strip()
+    if not raw_response:
+        raise TriggerResponseError("Could not parse External trigger settings response: empty response")
+
+    values: dict[str, object] = {}
+    saw_field = False
+    for segment in raw_response.split(";"):
+        segment = segment.strip()
+        if not segment:
+            continue
+        saw_field = True
+        parts = segment.split(None, 1)
+        if len(parts) != 2:
+            raise TriggerResponseError(
+                f"Could not parse External trigger settings response: {raw!r}"
+            )
+        header, value = parts[0].lstrip(":"), parts[1].strip()
+        final_header = header.split(":")[-1].upper()
+        if final_header.startswith("BWL"):
+            normalized = value.upper()
+            if normalized in {"0", "OFF"}:
+                values["bandwidth_limit_enabled"] = False
+            elif normalized in {"1", "ON"}:
+                values["bandwidth_limit_enabled"] = True
+            else:
+                raise TriggerResponseError(
+                    f"Could not parse External trigger bandwidth limit response: {value!r}"
+                )
+        elif final_header in {"RANG", "RANGE"}:
+            values["range_value"] = parse_trigger_float(value, "External trigger range")
+        elif final_header in {"UNIT", "UNITS"}:
+            values["units"] = normalize_external_trigger_units(value)
+        elif final_header in {"PROB", "PROBE"}:
+            values["probe_attenuation"] = parse_trigger_float(
+                value, "External trigger probe attenuation"
+            )
+
+    if not saw_field:
+        raise TriggerResponseError(
+            f"Could not parse External trigger settings response: {raw!r}"
+        )
+
+    return ExternalTriggerSettingsState(
+        probe_attenuation=values.get("probe_attenuation"),
+        range_value=values.get("range_value"),
+        units=values.get("units"),
+        bandwidth_limit_enabled=values.get("bandwidth_limit_enabled"),
+        raw_response=raw_response,
     )
 
 

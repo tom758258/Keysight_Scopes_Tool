@@ -216,6 +216,11 @@ from keysight_scope_core.trigger import (
     edge_trigger_source_query,
     external_trigger_range_command,
     external_trigger_range_query,
+    external_trigger_probe_command,
+    external_trigger_probe_query,
+    external_trigger_settings_query,
+    external_trigger_units_command,
+    external_trigger_units_query,
     force_trigger_command,
     glitch_trigger_configure_commands,
     glitch_trigger_query_commands,
@@ -262,6 +267,8 @@ from keysight_scope_core.trigger import (
     validate_edge_burst_count,
     validate_edge_burst_idle_time,
     validate_external_trigger_range,
+    validate_external_trigger_probe_attenuation,
+    validate_external_trigger_units,
     trigger_high_level_query,
     trigger_low_level_query,
     validate_or_trigger_pattern,
@@ -1057,6 +1064,56 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="External-qualified Edge Trigger level in volts",
+    )
+
+    external_trigger_probe_parser = subparsers.add_parser(
+        "external-trigger-probe",
+        allow_abbrev=False,
+        help="configure or query the External trigger probe attenuation",
+    )
+    _add_scope_connection_args(external_trigger_probe_parser)
+    external_trigger_probe_parser.add_argument(
+        "--query",
+        dest="external_trigger_probe_query",
+        action="store_true",
+        help="query the External trigger probe attenuation",
+    )
+    external_trigger_probe_parser.add_argument(
+        "--attenuation",
+        type=float,
+        default=None,
+        help="External trigger probe attenuation",
+    )
+
+    external_trigger_units_parser = subparsers.add_parser(
+        "external-trigger-units",
+        allow_abbrev=False,
+        help="configure or query the External trigger input units",
+    )
+    _add_scope_connection_args(external_trigger_units_parser)
+    external_trigger_units_parser.add_argument(
+        "--query",
+        dest="external_trigger_units_query",
+        action="store_true",
+        help="query the External trigger input units",
+    )
+    external_trigger_units_parser.add_argument(
+        "--units",
+        choices=("volts", "amps"),
+        default=None,
+        help="External trigger input units",
+    )
+
+    external_trigger_settings_parser = subparsers.add_parser(
+        "external-trigger-settings",
+        allow_abbrev=False,
+        help="query aggregate External trigger input settings",
+    )
+    _add_scope_connection_args(external_trigger_settings_parser)
+    external_trigger_settings_parser.add_argument(
+        "--query",
+        action="store_true",
+        help="query aggregate External trigger input settings",
     )
 
     trigger_sweep_parser = subparsers.add_parser(
@@ -2203,6 +2260,12 @@ def _dispatch_command(args: argparse.Namespace) -> int:
     if args.command == "trigger-edge-external-level":
         return _cmd_trigger_edge_external_level(args)
     if args.command in {
+        "external-trigger-probe",
+        "external-trigger-units",
+        "external-trigger-settings",
+    }:
+        return _cmd_external_trigger_input(args)
+    if args.command in {
         "trigger-sweep",
         "trigger-noise-reject",
         "trigger-hf-reject",
@@ -2607,6 +2670,12 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_external_trigger_range_args(args)
     if getattr(args, "command", None) == "trigger-edge-external-level":
         _validate_trigger_edge_external_level_args(args)
+    if getattr(args, "command", None) == "external-trigger-probe":
+        _validate_external_trigger_probe_args(args)
+    if getattr(args, "command", None) == "external-trigger-units":
+        _validate_external_trigger_units_args(args)
+    if getattr(args, "command", None) == "external-trigger-settings":
+        _validate_external_trigger_settings_args(args)
     if getattr(args, "command", None) == "trigger-sweep":
         _validate_trigger_sweep_args(args)
     if getattr(args, "command", None) == "trigger-noise-reject":
@@ -2736,6 +2805,41 @@ def _validate_trigger_edge_external_level_args(args: argparse.Namespace) -> None
             "trigger-edge-external-level requires --query or --level-volts."
         )
     validate_trigger_level(level_volts)
+
+
+def _validate_external_trigger_probe_args(args: argparse.Namespace) -> None:
+    query = getattr(args, "external_trigger_probe_query", False)
+    attenuation = getattr(args, "attenuation", None)
+    if query:
+        if attenuation is not None:
+            raise ParameterValidationError(
+                "external-trigger-probe --query cannot be combined with --attenuation."
+            )
+        return
+    if attenuation is None:
+        raise ParameterValidationError(
+            "external-trigger-probe requires --query or --attenuation."
+        )
+    validate_external_trigger_probe_attenuation(attenuation)
+
+
+def _validate_external_trigger_units_args(args: argparse.Namespace) -> None:
+    query = getattr(args, "external_trigger_units_query", False)
+    units = getattr(args, "units", None)
+    if query:
+        if units is not None:
+            raise ParameterValidationError(
+                "external-trigger-units --query cannot be combined with --units."
+            )
+        return
+    if units is None:
+        raise ParameterValidationError("external-trigger-units requires --query or --units.")
+    validate_external_trigger_units(units)
+
+
+def _validate_external_trigger_settings_args(args: argparse.Namespace) -> None:
+    if not getattr(args, "query", False):
+        raise ParameterValidationError("external-trigger-settings requires --query.")
 
 
 def _validate_trigger_sweep_args(args: argparse.Namespace) -> None:
@@ -3434,6 +3538,40 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "operation": "set",
             "command": command_text,
             "level_volts": level_volts,
+        }
+    if command == "external-trigger-probe":
+        if args.external_trigger_probe_query:
+            command_text = external_trigger_probe_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        attenuation = validate_external_trigger_probe_attenuation(args.attenuation)
+        command_text = external_trigger_probe_command(attenuation)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "command": command_text,
+            "attenuation": attenuation,
+        }
+    if command == "external-trigger-units":
+        if args.external_trigger_units_query:
+            command_text = external_trigger_units_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        units = validate_external_trigger_units(args.units)
+        command_text = external_trigger_units_command(units)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "command": command_text,
+            "units": units,
+        }
+    if command == "external-trigger-settings":
+        command_text = external_trigger_settings_query()
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "query",
+            "command": command_text,
         }
     if command == "trigger-sweep":
         if args.trigger_sweep_query:
@@ -5650,6 +5788,71 @@ def _cmd_trigger_edge_external_level(args: argparse.Namespace) -> int:
             )
             print(f"Command: {command}")
             print(f"External Edge level V: {level_volts}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_external_trigger_input(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+
+        if args.command == "external-trigger-probe":
+            if args.external_trigger_probe_query:
+                command = external_trigger_probe_query()
+                print("Planned query: External trigger probe attenuation")
+                state = scope.query_external_trigger_probe()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+                print(f"External trigger probe attenuation: {state.attenuation}")
+            else:
+                attenuation = validate_external_trigger_probe_attenuation(args.attenuation)
+                command = external_trigger_probe_command(attenuation)
+                print("Planned change: External trigger probe attenuation")
+                scope.configure_external_trigger_probe(attenuation)
+                _json_update_result(
+                    operation="set", command=command, attenuation=attenuation
+                )
+                print(f"Command: {command}")
+                print(f"External trigger probe attenuation: {attenuation}")
+        elif args.command == "external-trigger-units":
+            if args.external_trigger_units_query:
+                command = external_trigger_units_query()
+                print("Planned query: External trigger input units")
+                state = scope.query_external_trigger_units()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+                print(f"External trigger units: {state.units}")
+            else:
+                units = validate_external_trigger_units(args.units)
+                command = external_trigger_units_command(units)
+                print("Planned change: External trigger input units")
+                scope.configure_external_trigger_units(units)
+                _json_update_result(operation="set", command=command, units=units)
+                print(f"Command: {command}")
+                print(f"External trigger units: {units}")
+        else:
+            command = external_trigger_settings_query()
+            print("Planned query: External trigger input settings")
+            state = scope.query_external_trigger_settings()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Command: {command}")
+            print(f"External trigger probe attenuation: {state.probe_attenuation}")
+            print(f"External trigger range: {state.range_value}")
+            print(f"External trigger units: {state.units}")
+            print(f"External trigger bandwidth limit enabled: {state.bandwidth_limit_enabled}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)

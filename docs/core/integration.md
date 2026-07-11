@@ -34,6 +34,12 @@ names are intended for package consumers and tests:
 - `EdgeTriggerSlopeState`
 - `ExternalTriggerRangeController`
 - `ExternalTriggerRangeState`
+- `ExternalTriggerProbeController`
+- `ExternalTriggerProbeState`
+- `ExternalTriggerSettingsController`
+- `ExternalTriggerSettingsState`
+- `ExternalTriggerUnitsController`
+- `ExternalTriggerUnitsState`
 - `GlitchTriggerState`
 - `OrTriggerController`
 - `OrTriggerState`

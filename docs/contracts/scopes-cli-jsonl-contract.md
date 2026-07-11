@@ -189,6 +189,16 @@ Control and setup:
   include finite `level_volts`. Query results include finite parsed
   `level_volts` and stripped `raw_level`; all SCPI is External-qualified and
   does not use an active-source implicit level form.
+- `external-trigger-probe`: `operation` and `command`. Configure results
+  include finite positive `attenuation`. Query results include finite parsed
+  `attenuation` and stripped `raw_attenuation` from `:EXTernal:PROBe?`.
+- `external-trigger-units`: `operation` and `command`. Configure results
+  include canonical `units` (`volts` or `amps`). Query results include nullable
+  normalized `units` and stripped `raw_units`; unknown future readbacks remain
+  raw with null normalized units.
+- `external-trigger-settings`: query-only `operation: "query"` and `command:
+  ":EXTernal?"`; results include nullable `probe_attenuation`, `range_value`,
+  `units`, `bandwidth_limit_enabled`, and stripped `raw_response`.
 - `trigger-sweep`: `operation` and `command`. Configure results include
   normalized `mode` (`auto` or `normal`) and `state_changing: true`. Query
   results include normalized `mode` and preserved `raw_value`.

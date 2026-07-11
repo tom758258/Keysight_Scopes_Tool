@@ -836,6 +836,37 @@ enqueue, artifact creation, simulator/VISA open, or SCPI. These target
 DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A paths are hardware-free only;
 live hardware, LAN, and worker-live validation have not been run.
 
+Phase 15 — External Trigger Input Settings v1 adds three independent common
+DSO-X 2000X/3000X/4000X commands. `external-trigger-probe` accepts exactly
+one of `--query` or `--attenuation <finite-positive-number>` and sends only
+`:EXTernal:PROBe?` or `:EXTernal:PROBe <attenuation>`. It does not apply a
+shared hardware attenuation range: probe, model, firmware, and AutoProbe
+acceptance remain instrument/error-queue authority.
+
+`external-trigger-units` accepts exactly one of `--query`, `--units volts`,
+or `--units amps`; it sends only `:EXTernal:UNITs?`, `:EXTernal:UNITs VOLT`,
+or `:EXTernal:UNITs AMPere`. `external-trigger-settings` is query-only and
+requires explicit `--query`; it sends one `:EXTernal?` query rather than four
+separate queries. Its JSON result preserves `raw_response` and normalizes
+known probe attenuation, range value, units, and BWL readback fields. Units
+readbacks accept `VOLT`, `AMP`, and `AMPere`; unknown future readbacks are
+preserved without being presented as configure support.
+
+Canonical worker JSON is `{"query":true}` or `{"attenuation":10}` for
+`external-trigger-probe`, `{"query":true}` or `{"units":"volts"}` for
+`external-trigger-units`, and only `{"query":true}` for
+`external-trigger-settings`. Workers reject empty arguments, `query: false`,
+operation mixes, aliases, unknown keys, incorrect JSON types, non-finite
+values, and oversized integers before enqueue, artifacts, simulator/VISA open,
+or SCPI. These commands do not set External BWLimit (the aggregate BWL field
+is compatibility/readback information only; use existing `trigger-hf-reject`
+for common high-frequency rejection), discover AutoProbe, query probe
+type, convert range/level values, modify trigger source/mode, or control
+acquisition. Real firmware may relate these settings, but the library issues
+no compensating writes; the simulator stores probe, units, range, and External
+Edge level independently to detect unintended side effects. Hardware, LAN, and
+worker-live validation have not been run.
+
 Configure or query common trigger general settings:
 
 ```powershell

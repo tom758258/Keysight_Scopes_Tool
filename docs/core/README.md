@@ -79,6 +79,23 @@ Core owns runtime behavior:
   rejection. Target DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A coverage
   has not received live hardware validation. Line, WaveGen, WMOD, and
   digital/MSO External-level variants remain out of scope.
+- Phase 15 External Trigger Input Settings v1 helpers exposed through
+  `KeysightScope.configure_external_trigger_probe()`,
+  `KeysightScope.query_external_trigger_probe()`,
+  `KeysightScope.configure_external_trigger_units()`,
+  `KeysightScope.query_external_trigger_units()`, and
+  `KeysightScope.query_external_trigger_settings()`. They use only
+  `:EXTernal:PROBe`, `:EXTernal:UNITs`, and the read-only aggregate
+  `:EXTernal?` query. Probe attenuation validation is finite-positive only;
+  units configure accepts only `volts` and `amps`. The aggregate parser
+  tolerates abbreviated, full, reordered, and unknown fields while preserving
+  the complete raw response; malformed known numeric values still fail. No
+  External bandwidth-limit setter (use existing `trigger-hf-reject` for common
+  high-frequency rejection), AutoProbe discovery, probe-aware range or
+  level scaling, trigger mode/source modification, or automatic compensation
+  is implemented. The simulator intentionally stores probe attenuation, units,
+  range, and External Edge level independently. These DSO-X 2000X/3000X/4000X
+  paths are hardware-free only; live hardware validation has not been run.
 - Common trigger general setting helpers exposed through
   `KeysightScope.configure_trigger_sweep()`,
   `KeysightScope.query_trigger_sweep()`,

@@ -156,6 +156,8 @@ class SimulatorBackend:
     trigger_level: float = 0.0
     trigger_levels: dict[int, float] = field(default_factory=dict)
     external_trigger_range: float = 8.0
+    external_trigger_probe: float = 1.0
+    external_trigger_units: str = "VOLT"
     edge_external_level: float = 0.0
     trigger_slope: str = "POSitive"
     glitch_source_channel: int | None = 1
@@ -320,6 +322,21 @@ class SimulatorBackend:
             self.trigger_edge_reject = value
         elif upper.startswith(":TRIGGER:MODE "):
             self.trigger_mode = command.rsplit(" ", 1)[1]
+        elif upper.startswith(":EXTERNAL:PROBE "):
+            try:
+                value = float(command.split(" ", 1)[1])
+            except (TypeError, ValueError, OverflowError) as exc:
+                raise SimulatorBackendError("External trigger probe attenuation must be numeric.") from exc
+            if not math.isfinite(value) or value <= 0:
+                raise SimulatorBackendError(
+                    "External trigger probe attenuation must be a positive finite number."
+                )
+            self.external_trigger_probe = value
+        elif upper.startswith(":EXTERNAL:UNITS "):
+            value = command.split(" ", 1)[1]
+            if value.upper() not in {"VOLT", "AMPERE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.external_trigger_units = "VOLT" if value.upper() == "VOLT" else "AMPere"
         elif upper.startswith(":EXTERNAL:RANGE "):
             try:
                 value = float(command.split(" ", 1)[1])
@@ -664,6 +681,15 @@ class SimulatorBackend:
             return _abbreviate_trigger_mode(self.trigger_mode)
         if upper == ":TRIGGER:EDGE:SOURCE?":
             return self.trigger_edge_source_raw
+        if upper == ":EXTERNAL?":
+            return (
+                f":EXT:BWL 0;RANG {self.external_trigger_range:+.8E};"
+                f"UNIT {self.external_trigger_units};PROB {self.external_trigger_probe:+.8E}"
+            )
+        if upper == ":EXTERNAL:PROBE?":
+            return f"{self.external_trigger_probe:.12g}"
+        if upper == ":EXTERNAL:UNITS?":
+            return "AMP" if self.external_trigger_units.upper().startswith("AMP") else "VOLT"
         if upper == ":EXTERNAL:RANGE?":
             return f"{self.external_trigger_range:.12g}"
         if upper == ":TRIGGER:EDGE:LEVEL?":

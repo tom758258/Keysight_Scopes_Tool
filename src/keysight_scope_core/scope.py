@@ -44,6 +44,12 @@ from .trigger import (
     EdgeTriggerState,
     ExternalTriggerRangeController,
     ExternalTriggerRangeState,
+    ExternalTriggerProbeController,
+    ExternalTriggerProbeState,
+    ExternalTriggerSettingsController,
+    ExternalTriggerSettingsState,
+    ExternalTriggerUnitsController,
+    ExternalTriggerUnitsState,
     GlitchTriggerController,
     GlitchTriggerState,
     OrTriggerController,
@@ -403,6 +409,31 @@ class KeysightScope:
         """Query the dedicated External trigger input range only."""
 
         return self._external_trigger_range_controller().query()
+
+    def configure_external_trigger_probe(self, attenuation: float) -> None:
+        """Configure the External trigger probe attenuation only."""
+
+        self._external_trigger_probe_controller().configure(attenuation=attenuation)
+
+    def query_external_trigger_probe(self) -> ExternalTriggerProbeState:
+        """Query the External trigger probe attenuation only."""
+
+        return self._external_trigger_probe_controller().query()
+
+    def configure_external_trigger_units(self, units: str) -> None:
+        """Configure the External trigger input units only."""
+
+        self._external_trigger_units_controller().configure(units=units)
+
+    def query_external_trigger_units(self) -> ExternalTriggerUnitsState:
+        """Query the External trigger input units only."""
+
+        return self._external_trigger_units_controller().query()
+
+    def query_external_trigger_settings(self) -> ExternalTriggerSettingsState:
+        """Query aggregate External trigger input settings only."""
+
+        return self._external_trigger_settings_controller().query()
 
     def configure_trigger_edge_external_level(self, *, level_volts: float) -> None:
         """Configure the External-qualified Edge Trigger level only."""
@@ -900,6 +931,15 @@ class KeysightScope:
 
     def _external_trigger_range_controller(self) -> ExternalTriggerRangeController:
         return ExternalTriggerRangeController(self.scpi)
+
+    def _external_trigger_probe_controller(self) -> ExternalTriggerProbeController:
+        return ExternalTriggerProbeController(self.scpi)
+
+    def _external_trigger_units_controller(self) -> ExternalTriggerUnitsController:
+        return ExternalTriggerUnitsController(self.scpi)
+
+    def _external_trigger_settings_controller(self) -> ExternalTriggerSettingsController:
+        return ExternalTriggerSettingsController(self.scpi)
 
     def _edge_trigger_external_level_controller(self) -> EdgeTriggerExternalLevelController:
         return EdgeTriggerExternalLevelController(self.scpi)
