@@ -24,8 +24,12 @@ names are intended for package consumers and tests:
 - `GlitchTriggerController`
 - `EdgeTriggerCouplingController`
 - `EdgeTriggerCouplingState`
+- `EdgeTriggerLevelController`
+- `EdgeTriggerLevelState`
 - `EdgeTriggerRejectController`
 - `EdgeTriggerRejectState`
+- `EdgeTriggerSlopeController`
+- `EdgeTriggerSlopeState`
 - `GlitchTriggerState`
 - `OrTriggerController`
 - `OrTriggerState`

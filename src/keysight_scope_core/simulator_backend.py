@@ -331,12 +331,21 @@ class SimulatorBackend:
             if "," in value_text:
                 value, channel = _parse_glitch_level_write(command)
                 channel = self._validate_channel(channel)
+                if not math.isfinite(value):
+                    raise SimulatorBackendError("SCPI numeric parameter must be finite.")
                 self.trigger_levels[channel] = value
-                self.trigger_level = value
+                if self.trigger_edge_source_raw.upper() == f"CHANNEL{channel}":
+                    self.trigger_level = value
             else:
-                self.trigger_level = float(value_text)
+                value = float(value_text)
+                if not math.isfinite(value):
+                    raise SimulatorBackendError("SCPI numeric parameter must be finite.")
+                self.trigger_level = value
         elif upper.startswith(":TRIGGER:EDGE:SLOPE "):
-            self.trigger_slope = command.rsplit(" ", 1)[1]
+            value = command.rsplit(" ", 1)[1]
+            if value.upper() not in {"POSITIVE", "NEGATIVE", "EITHER", "ALTERNATE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.trigger_slope = value
         elif upper.startswith(":TRIGGER:GLITCH:SOURCE CHANNEL"):
             channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
             self.glitch_source_channel = channel
@@ -627,7 +636,7 @@ class SimulatorBackend:
             channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
             return f"{self.trigger_levels.get(channel, self.trigger_level):.12g}"
         if upper == ":TRIGGER:EDGE:SLOPE?":
-            return self.trigger_slope
+            return _abbreviate_edge_slope(self.trigger_slope)
         if upper == ":TRIGGER:GLITCH:SOURCE?":
             if self.glitch_source_channel is None:
                 return self.glitch_source_raw
@@ -1722,6 +1731,19 @@ def _abbreviate_transition_slope(value: str) -> str:
         return "POS"
     if upper.startswith("NEG"):
         return "NEG"
+    return upper
+
+
+def _abbreviate_edge_slope(value: str) -> str:
+    upper = value.strip().upper()
+    if upper.startswith("POS"):
+        return "POS"
+    if upper.startswith("NEG"):
+        return "NEG"
+    if upper.startswith("EITH"):
+        return "EITH"
+    if upper.startswith("ALT"):
+        return "ALT"
     return upper
 
 

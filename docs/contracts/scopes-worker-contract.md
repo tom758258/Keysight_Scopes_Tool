@@ -134,7 +134,8 @@ Worker `/command` supports the existing Scopes capability surface:
 - `display-label`, `display-clear`, `display-persistence`,
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
-- `trigger-edge`, `trigger-edge-source`, `trigger-edge-coupling`, `trigger-edge-reject`,
+- `trigger-edge`, `trigger-edge-source`, `trigger-edge-slope`, `trigger-edge-level`,
+  `trigger-edge-coupling`, `trigger-edge-reject`,
   `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
   `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
   `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,
@@ -297,6 +298,49 @@ validation happens before enqueue, artifact creation, simulator/VISA open, or
 SCPI. This v1 worker support is hardware-free only; live hardware, LAN, and
 worker live validation have not been run. External level/range and WGEN, WMOD,
 digital/MSO source configuration are not included.
+
+Phase 13C - Edge Trigger Slope and Analog Level v1 adds two canonical,
+independent worker commands. `trigger-edge-slope` accepts only:
+
+```json
+{"command": "trigger-edge-slope", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-edge-slope", "arguments": {"slope": "positive"}}
+```
+
+The configure value is exactly one lowercase canonical value: `positive`,
+`negative`, `either`, or `alternate`. These map to
+`trigger-edge-slope --slope <value>` and the corresponding
+`:TRIGger:EDGE:SLOPe` command; the query maps to `trigger-edge-slope --query`.
+`query` must be exactly JSON `true`. Empty arguments, query/slope mixes,
+unknown or alias keys, non-string, uppercase, mixed-case, abbreviated, or
+undocumented slope values, and command aliases are rejected before enqueue,
+artifact creation, simulator/VISA open, or SCPI.
+
+`trigger-edge-level` accepts only:
+
+```json
+{"command": "trigger-edge-level", "arguments": {"query": true, "source_channel": 1}}
+```
+
+```json
+{"command": "trigger-edge-level", "arguments": {"source_channel": 1, "level_volts": 0.5}}
+```
+
+These map respectively to `trigger-edge-level --query --source-channel 1` and
+`trigger-edge-level --source-channel 1 --level-volts 0.5`. `source_channel`
+is required, must be a non-boolean positive integer available in the worker's
+selected model profile, and `level_volts` must be a finite JSON number (not a
+boolean, string, null, NaN, or infinity). Query cannot be combined with
+`level_volts`; unknown or alias keys and command aliases are rejected. Both
+commands validate before enqueue, accepted counters, job/artifact creation,
+simulator/VISA open, or SCPI. They use only Edge slope or source-qualified
+analog level SCPI, do not switch trigger mode or source, and do not support
+external, Line, WaveGen, WMOD, or digital/MSO levels. This target
+DSOX2004A/DSOX3024A/DSOX4024A/DSOX4034A worker support is hardware-free only;
+live hardware, LAN, and worker-live validation have not been run.
 
 `trigger-sweep`, `trigger-noise-reject`, and `trigger-hf-reject` are accepted
 only as canonical common trigger general setting commands:
@@ -1106,7 +1150,8 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
-`trigger-edge`, `trigger-edge-coupling`, `trigger-edge-reject`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
+`trigger-edge`, `trigger-edge-source`, `trigger-edge-slope`, `trigger-edge-level`,
+`trigger-edge-coupling`, `trigger-edge-reject`, `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
 `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
 `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,
 `trigger-hf-reject`, `display-clear`, `display-persistence`,

@@ -360,6 +360,33 @@ class EdgeTriggerSourceState:
 
 
 @dataclass(frozen=True)
+class EdgeTriggerSlopeState:
+    """Readback state for the Edge Trigger slope only."""
+
+    slope: str | None
+    raw_slope: str
+
+    def to_json(self) -> dict[str, object]:
+        return {"slope": self.slope, "raw_slope": self.raw_slope}
+
+
+@dataclass(frozen=True)
+class EdgeTriggerLevelState:
+    """Readback state for one analog Edge Trigger level."""
+
+    source_channel: int
+    level_volts: float
+    raw_level: str
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "source_channel": self.source_channel,
+            "level_volts": self.level_volts,
+            "raw_level": self.raw_level,
+        }
+
+
+@dataclass(frozen=True)
 class TriggerSweepState:
     """Readback state for trigger sweep mode."""
 
@@ -789,6 +816,45 @@ class EdgeTriggerSourceController:
 
     def query(self) -> EdgeTriggerSourceState:
         return parse_trigger_edge_source(self.scpi.query(trigger_edge_source_query()))
+
+
+class EdgeTriggerSlopeController:
+    """Controls for the Edge Trigger slope only."""
+
+    def __init__(self, scpi: SCPIClient) -> None:
+        self.scpi = scpi
+
+    def configure(self, *, slope: str) -> None:
+        self.scpi.write(edge_trigger_slope_command(_normalize_edge_trigger_slope(slope)))
+
+    def query(self) -> EdgeTriggerSlopeState:
+        return parse_trigger_edge_slope(self.scpi.query(edge_trigger_slope_query()))
+
+
+class EdgeTriggerLevelController:
+    """Controls for one named analog Edge Trigger level only."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(self, *, source_channel: int, level_volts: float) -> None:
+        source_channel = _validate_edge_trigger_level_channel(
+            source_channel, self.capabilities
+        )
+        level_volts = _validate_edge_trigger_level_value(level_volts)
+        self.scpi.write(edge_trigger_level_channel_command(source_channel, level_volts))
+
+    def query(self, *, source_channel: int) -> EdgeTriggerLevelState:
+        source_channel = _validate_edge_trigger_level_channel(
+            source_channel, self.capabilities
+        )
+        raw_level = self.scpi.query(edge_trigger_level_channel_query(source_channel)).strip()
+        return EdgeTriggerLevelState(
+            source_channel=source_channel,
+            level_volts=parse_trigger_float(raw_level, "Edge Trigger level"),
+            raw_level=raw_level,
+        )
 
 
 class TriggerSweepController:
@@ -1476,6 +1542,34 @@ def validate_trigger_level(level_volts: float) -> float:
     return value
 
 
+def _validate_edge_trigger_level_value(level_volts: float) -> float:
+    """Validate an atomic Edge Trigger analog level value."""
+
+    if isinstance(level_volts, bool) or not isinstance(level_volts, (int, float)):
+        raise ParameterValidationError("Edge Trigger level must be a real number.")
+    return validate_trigger_level(level_volts)
+
+
+def _validate_edge_trigger_level_channel(
+    source_channel: int, capabilities: ScopeCapabilities
+) -> int:
+    if isinstance(source_channel, bool):
+        raise ParameterValidationError("Edge Trigger source_channel must be an integer.")
+    return validate_analog_channel(source_channel, capabilities)
+
+
+def _normalize_edge_trigger_slope(slope: str) -> str:
+    if not isinstance(slope, str):
+        raise ParameterValidationError(
+            "edge trigger slope must be one of: positive, negative, either, alternate."
+        )
+    if slope not in {"positive", "negative", "either", "alternate"}:
+        raise ParameterValidationError(
+            "edge trigger slope must be one of: positive, negative, either, alternate."
+        )
+    return _SLOPE_COMMANDS[slope]
+
+
 def normalize_edge_slope(slope: str) -> str:
     """Normalize a user-facing edge slope into a SCPI argument."""
 
@@ -1890,6 +1984,19 @@ def edge_trigger_level_for_source_query(channel: int) -> str:
     """Build the SCPI query for an analog-source edge trigger level."""
 
     return f":TRIGger:EDGE:LEVel? CHANnel{channel}"
+
+
+def edge_trigger_level_channel_command(source_channel: int, level_volts: float) -> str:
+    """Build a source-qualified analog Edge Trigger level command."""
+
+    level = _format_scpi_float(_validate_edge_trigger_level_value(level_volts))
+    return f":TRIGger:EDGE:LEVel {level},CHANnel{source_channel}"
+
+
+def edge_trigger_level_channel_query(source_channel: int) -> str:
+    """Build a source-qualified analog Edge Trigger level query."""
+
+    return f":TRIGger:EDGE:LEVel? CHANnel{source_channel}"
 
 
 def edge_trigger_slope_command(slope_command: str) -> str:
@@ -3401,6 +3508,16 @@ def parse_edge_slope(raw: str) -> str:
         return _SLOPE_READBACKS[normalized]
     except KeyError as exc:
         raise TriggerResponseError(f"Could not parse edge trigger slope response: {raw!r}") from exc
+
+
+def parse_trigger_edge_slope(raw: str) -> EdgeTriggerSlopeState:
+    """Parse an Edge Trigger slope readback without rejecting unknown values."""
+
+    raw_slope = raw.strip()
+    return EdgeTriggerSlopeState(
+        slope=_SLOPE_READBACKS.get(raw_slope.upper()),
+        raw_slope=raw_slope,
+    )
 
 
 def parse_trigger_float(raw: str, setting_name: str) -> float:

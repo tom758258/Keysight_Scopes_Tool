@@ -69,6 +69,8 @@ DOMAIN_COMMANDS = {
     "timebase-position",
     "trigger-edge",
     "trigger-edge-source",
+    "trigger-edge-slope",
+    "trigger-edge-level",
     "trigger-pulse-width",
     "trigger-runt",
     "trigger-transition",
@@ -332,6 +334,10 @@ def parse_domain_command(
     arguments = _normalize_trigger_edge_source_worker_arguments(
         command, arguments, runtime
     )
+    arguments = _normalize_trigger_edge_slope_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_edge_level_worker_arguments(
+        command, arguments, runtime
+    )
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
@@ -460,6 +466,92 @@ def _normalize_trigger_edge_source_worker_arguments(
             f"trigger-edge-source argument source_channel is invalid: {exc}"
         ) from exc
     return {"source_channel": source_channel}
+
+
+def _normalize_trigger_edge_slope_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "trigger-edge-slope":
+        return arguments
+    allowed = {"query", "slope"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for trigger-edge-slope: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "trigger-edge-slope argument query must be exactly true"
+            )
+        if "slope" in arguments:
+            raise KeysightScopeError(
+                "trigger-edge-slope query cannot be combined with slope"
+            )
+        return {"query": True}
+    slope = arguments.get("slope")
+    if not isinstance(slope, str) or slope not in {
+        "positive",
+        "negative",
+        "either",
+        "alternate",
+    }:
+        raise KeysightScopeError(
+            "trigger-edge-slope argument slope must be one of: positive, negative, either, alternate"
+        )
+    return {"slope": slope}
+
+
+def _normalize_trigger_edge_level_worker_arguments(
+    command: str,
+    arguments: dict[str, Any],
+    runtime: WorkerRuntime,
+) -> dict[str, Any]:
+    if command != "trigger-edge-level":
+        return arguments
+    allowed = {"query", "source_channel", "level_volts"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for trigger-edge-level: {sorted(unknown)[0]}"
+        )
+    if "source_channel" not in arguments:
+        raise KeysightScopeError("trigger-edge-level requires source_channel")
+    source_channel = arguments["source_channel"]
+    if isinstance(source_channel, bool) or not isinstance(source_channel, int):
+        raise KeysightScopeError("trigger-edge-level argument source_channel must be an integer")
+    try:
+        source_channel = validate_analog_channel(
+            source_channel, capabilities_for_model(runtime.model)
+        )
+    except KeysightScopeError as exc:
+        raise KeysightScopeError(
+            f"trigger-edge-level argument source_channel is invalid: {exc}"
+        ) from exc
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "trigger-edge-level argument query must be exactly true"
+            )
+        if "level_volts" in arguments:
+            raise KeysightScopeError(
+                "trigger-edge-level query cannot be combined with level_volts"
+            )
+        return {"query": True, "source_channel": source_channel}
+    if "level_volts" not in arguments:
+        raise KeysightScopeError(
+            "trigger-edge-level configure requires level_volts"
+        )
+    level_volts = arguments["level_volts"]
+    if (
+        isinstance(level_volts, bool)
+        or not isinstance(level_volts, (int, float))
+        or not math.isfinite(float(level_volts))
+    ):
+        raise KeysightScopeError(
+            "trigger-edge-level argument level_volts must be a finite number"
+        )
+    return {"source_channel": source_channel, "level_volts": level_volts}
 
 
 def _normalize_trigger_glitch_worker_arguments(

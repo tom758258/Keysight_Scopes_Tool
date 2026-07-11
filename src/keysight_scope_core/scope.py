@@ -31,8 +31,12 @@ from .trigger import (
     EdgeTriggerController,
     EdgeTriggerCouplingController,
     EdgeTriggerCouplingState,
+    EdgeTriggerLevelController,
+    EdgeTriggerLevelState,
     EdgeTriggerRejectController,
     EdgeTriggerRejectState,
+    EdgeTriggerSlopeController,
+    EdgeTriggerSlopeState,
     EdgeTriggerSourceController,
     EdgeTriggerSourceState,
     EdgeTriggerState,
@@ -357,6 +361,34 @@ class KeysightScope:
         """Query the Edge Trigger source without querying other settings."""
 
         return self._edge_trigger_source_controller().query()
+
+    def configure_trigger_edge_slope(self, *, slope: str) -> None:
+        """Configure Edge Trigger slope without changing other settings."""
+
+        self._edge_trigger_slope_controller().configure(slope=slope)
+
+    def query_trigger_edge_slope(self) -> EdgeTriggerSlopeState:
+        """Query Edge Trigger slope without querying other settings."""
+
+        return self._edge_trigger_slope_controller().query()
+
+    def configure_trigger_edge_level(
+        self,
+        *,
+        source_channel: int,
+        level_volts: float,
+    ) -> None:
+        """Configure one named analog Edge Trigger level only."""
+
+        self._edge_trigger_level_controller().configure(
+            source_channel=source_channel,
+            level_volts=level_volts,
+        )
+
+    def query_trigger_edge_level(self, *, source_channel: int) -> EdgeTriggerLevelState:
+        """Query one named analog Edge Trigger level only."""
+
+        return self._edge_trigger_level_controller().query(source_channel=source_channel)
 
     def configure_trigger_sweep(self, mode: str) -> None:
         """Configure common trigger sweep mode."""
@@ -831,6 +863,16 @@ class KeysightScope:
                 "Edge Trigger source operations require known capabilities; call query_idn() first."
             )
         return EdgeTriggerSourceController(self.scpi, self.capabilities)
+
+    def _edge_trigger_slope_controller(self) -> EdgeTriggerSlopeController:
+        return EdgeTriggerSlopeController(self.scpi)
+
+    def _edge_trigger_level_controller(self) -> EdgeTriggerLevelController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Edge Trigger level operations require known capabilities; call query_idn() first."
+            )
+        return EdgeTriggerLevelController(self.scpi, self.capabilities)
 
     def _trigger_sweep_controller(self) -> TriggerSweepController:
         if self.capabilities is None:

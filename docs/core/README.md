@@ -45,6 +45,24 @@ Core owns runtime behavior:
   returning no normalized source. This implementation is hardware-free only;
   live validation has not been run. External level/range and WGEN/WMOD/digital
   source configuration are not implemented.
+- Phase 13C - Edge Trigger Slope and Analog Level v1 helpers exposed through
+  `KeysightScope.configure_trigger_edge_slope()`,
+  `KeysightScope.query_trigger_edge_slope()`,
+  `KeysightScope.configure_trigger_edge_level()`, and
+  `KeysightScope.query_trigger_edge_level()`. The slope command uses only
+  `:TRIGger:EDGE:SLOPe` for `positive`, `negative`, `either`, or `alternate`;
+  query preserves the stripped raw slope and tolerates unknown values without
+  claiming configure support. The level command always uses an explicitly
+  named analog channel with `:TRIGger:EDGE:LEVel <level>,CHANnel<n>` or
+  `:TRIGger:EDGE:LEVel? CHANnel<n>`. It validates only a finite real value and
+  the selected profile's analog channel count; the current vertical range and
+  center remain instrument-state dependent, so Core performs no scale, offset,
+  or range queries and does not clamp levels. These commands do not switch
+  trigger mode or source and do not change coupling, reject, common trigger
+  settings, holdoff, acquisition, or channel settings. The documented target
+  DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A model coverage is
+  hardware-free only; live validation has not been run. External, Line,
+  WaveGen, WMOD, and digital/MSO level controls are not implemented.
 - Common trigger general setting helpers exposed through
   `KeysightScope.configure_trigger_sweep()`,
   `KeysightScope.query_trigger_sweep()`,

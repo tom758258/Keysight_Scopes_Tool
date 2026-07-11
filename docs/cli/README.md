@@ -748,6 +748,51 @@ enqueue, artifact creation, simulator/VISA session open, or SCPI. This v1
 implementation has hardware-free Core/CLI/simulator/worker coverage only;
 live hardware, LAN, and worker live validation have not been run.
 
+Phase 13C - Edge Trigger Slope and Analog Level v1 adds two independent
+commands. `trigger-edge-slope` accepts exactly one of `--query` or
+`--slope positive|negative|either|alternate`:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-slope --dry-run --json --model DSOX2004A --slope positive
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-slope --simulate --json --model DSOX4034A --query
+```
+
+Its configure mappings are `positive` to `:TRIGger:EDGE:SLOPe POSitive`,
+`negative` to `NEGative`, `either` to `EITHer`, and `alternate` to
+`ALTernate`; query sends `:TRIGger:EDGE:SLOPe?`. Query normalizes documented
+short/long readbacks (`POS`, `NEG`, `EITH`, `ALT`) while preserving
+`raw_slope`; unknown values return a null normalized `slope`. It neither
+queries nor changes trigger mode, and it does not redirect to TV polarity.
+
+`trigger-edge-level` always requires `--source-channel <int>` and accepts
+exactly one of `--query` or `--level-volts <number>`:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-level --dry-run --json --model DSOX2004A --source-channel 1 --level-volts 0.5
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-level --simulate --json --model DSOX4034A --source-channel 2 --query
+```
+
+Configure sends `:TRIGger:EDGE:LEVel <level>,CHANnel<n>` and query sends
+`:TRIGger:EDGE:LEVel? CHANnel<n>`; no active-source implicit form is used.
+The named channel's stored level is addressed without switching the active
+source. Local validation checks only the selected model profile's analog
+channel count and a finite numeric level. The instrument enforces the dynamic
+level range based on current vertical range and center; this command makes no
+scale, offset, or range queries and never clamps a value.
+
+Both commands are distinct from `trigger-edge`, which continues to configure
+mode, source, level, and slope together. They have no aliases. Their canonical
+worker JSON forms are `{"query":true}` or
+`{"slope":"positive"}` for `trigger-edge-slope`, and
+`{"query":true,"source_channel":1}` or
+`{"source_channel":1,"level_volts":0.5}` for `trigger-edge-level`.
+Workers reject unknown/alias keys, aliases, query/configure mixes, uppercase
+or undocumented slope values, invalid or boolean channel values, and
+non-finite/non-numeric levels before enqueue, artifacts, simulator/VISA open,
+or SCPI. The documented DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A scope
+is hardware-free only; live hardware, LAN, and worker-live validation have not
+run. External, Line, WaveGen, WMOD, and digital/MSO levels are excluded.
+
 Configure or query common trigger general settings:
 
 ```powershell

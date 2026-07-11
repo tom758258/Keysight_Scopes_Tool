@@ -90,7 +90,7 @@ def test_simulator_state_queries_reflect_channel_timebase_and_trigger_writes():
     assert backend.query(":TIMebase:POSition?") == "0.001"
     assert backend.query(":TRIGger:EDGE:SOURce?") == "CHANnel2"
     assert backend.query(":TRIGger:EDGE:LEVel?") == "0.15"
-    assert backend.query(":TRIGger:EDGE:SLOPe?") == "NEGative"
+    assert backend.query(":TRIGger:EDGE:SLOPe?") == "NEG"
 
 
 def test_simulator_trigger_common_roundtrip():

@@ -174,6 +174,14 @@ Control and setup:
   external/line. Query results use `operation: "query"` and additionally
   preserve stripped `raw_source`; unsupported, digital, WaveGen, `NONE`, and
   unknown readbacks use null `source` and null `source_channel`.
+- `trigger-edge-slope`: `operation` and `command`. Configure results include
+  canonical `slope` (`positive`, `negative`, `either`, or `alternate`). Query
+  results include normalized nullable `slope` plus stripped `raw_slope`; an
+  unknown readback preserves `raw_slope` and has null `slope`.
+- `trigger-edge-level`: `operation`, `command`, and `source_channel`.
+  Configure results include finite `level_volts`. Query results include finite
+  parsed `level_volts` and stripped `raw_level`. The command always names the
+  analog source channel and does not use an active-source implicit level form.
 - `trigger-sweep`: `operation` and `command`. Configure results include
   normalized `mode` (`auto` or `normal`) and `state_changing: true`. Query
   results include normalized `mode` and preserved `raw_value`.
