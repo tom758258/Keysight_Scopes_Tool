@@ -33,6 +33,18 @@ Core owns runtime behavior:
   queries the existing `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*` SCPI
   behavior for DSO analog channels only; external and digital/MSO edge trigger
   expansion is not included.
+- Edge Trigger source-only helpers exposed through
+  `KeysightScope.configure_trigger_edge_source()` and
+  `KeysightScope.query_trigger_edge_source()`. This v1 slice uses only
+  `:TRIGger:EDGE:SOURce` and configures analog channels, External, or AC Line
+  sources without changing trigger mode, level, slope, coupling, reject, or
+  acquisition state. The common DSO-X 2000X/3000X/4000X target models support
+  `CHANnel<n>`, `EXTernal`, and `LINE`; analog channels are validated against
+  the selected model profile. Query parsing preserves the stripped raw source
+  and tolerates unsupported, digital, WaveGen, `NONE`, and future readbacks by
+  returning no normalized source. This implementation is hardware-free only;
+  live validation has not been run. External level/range and WGEN/WMOD/digital
+  source configuration are not implemented.
 - Common trigger general setting helpers exposed through
   `KeysightScope.configure_trigger_sweep()`,
   `KeysightScope.query_trigger_sweep()`,

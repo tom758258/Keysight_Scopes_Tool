@@ -703,6 +703,51 @@ Worker JSON for `trigger-edge` accepts only `query`, `source_channel`,
 `level`, and `slope`. Aliases and unknown fields are rejected before enqueue,
 artifact creation, simulator/VISA session open, or SCPI.
 
+Configure or query only the Edge Trigger source with the canonical
+`trigger-edge-source` command:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-source --dry-run --json --model DSOX2004A --source-channel 1
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-source --simulate --json --model DSOX3024A --source external
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-source --simulate --json --model DSOX4024A --source line
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli trigger-edge-source --simulate --json --model DSOX4034A --query
+```
+
+Exactly one operation is required: `--query`, `--source-channel <int>`, or
+`--source external|line`. Analog configuration maps to
+`:TRIGger:EDGE:SOURce CHANnel<n>`; External maps to
+`:TRIGger:EDGE:SOURce EXTernal`; AC Line maps to
+`:TRIGger:EDGE:SOURce LINE`; query sends `:TRIGger:EDGE:SOURce?`. The command
+does not send `:TRIGger:MODE EDGE` and does not change level, slope, coupling,
+reject, sweep, noise reject, HF reject, holdoff, or acquisition state.
+
+This command is distinct from the existing `trigger-edge` command, which
+continues to configure analog source, level, and slope together. The source-only
+configure surface is the documented common `CHANnel<n>`, `EXTernal`, and
+`LINE` values for target DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A models;
+analog channels are checked against the selected model profile. It does not
+configure external level/range or WGEN, WMOD, digital/MSO sources. Query JSON
+preserves `raw_source` and normalizes only analog-channel, external, or line;
+`NONE`, WaveGen, digital, unsupported, and future readbacks return null
+normalized source fields without failing solely for that readback.
+
+Worker usage accepts only canonical JSON:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-source --arguments-json "{\"query\":true}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-source --arguments-json "{\"source_channel\":1}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-source --arguments-json "{\"source\":\"external\"}" --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-edge-source --arguments-json "{\"source\":\"line\"}" --json
+```
+
+Worker validation requires exactly one operation, lowercase `external` or
+`line`, and a non-boolean integer analog channel within the selected model.
+Query/configure mixes, `query: false`, aliases, camelCase keys, unknown keys,
+uppercase source values, and unsupported source values are rejected before
+enqueue, artifact creation, simulator/VISA session open, or SCPI. This v1
+implementation has hardware-free Core/CLI/simulator/worker coverage only;
+live hardware, LAN, and worker live validation have not been run.
+
 Configure or query common trigger general settings:
 
 ```powershell

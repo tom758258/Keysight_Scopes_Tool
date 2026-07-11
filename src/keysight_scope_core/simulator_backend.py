@@ -151,6 +151,7 @@ class SimulatorBackend:
     trigger_edge_coupling: str = "DC"
     trigger_edge_reject: str = "OFF"
     trigger_source: int = 1
+    trigger_edge_source_raw: str = "CHANnel1"
     trigger_mode: str = "EDGE"
     trigger_level: float = 0.0
     trigger_levels: dict[int, float] = field(default_factory=dict)
@@ -318,9 +319,13 @@ class SimulatorBackend:
         elif upper.startswith(":TRIGGER:MODE "):
             self.trigger_mode = command.rsplit(" ", 1)[1]
         elif upper.startswith(":TRIGGER:EDGE:SOURCE CHANNEL"):
-            self.trigger_source = self._validate_channel(
-                int(command.rsplit("CHANnel", 1)[1])
-            )
+            channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            self.trigger_source = channel
+            self.trigger_edge_source_raw = f"CHANnel{channel}"
+        elif upper == ":TRIGGER:EDGE:SOURCE EXTERNAL":
+            self.trigger_edge_source_raw = "EXT"
+        elif upper == ":TRIGGER:EDGE:SOURCE LINE":
+            self.trigger_edge_source_raw = "LINE"
         elif upper.startswith(":TRIGGER:EDGE:LEVEL "):
             value_text = command.split(" ", 1)[1]
             if "," in value_text:
@@ -615,7 +620,7 @@ class SimulatorBackend:
         if upper == ":TRIGGER:MODE?":
             return _abbreviate_trigger_mode(self.trigger_mode)
         if upper == ":TRIGGER:EDGE:SOURCE?":
-            return f"CHANnel{self.trigger_source}"
+            return self.trigger_edge_source_raw
         if upper == ":TRIGGER:EDGE:LEVEL?":
             return f"{self.trigger_level:.12g}"
         if upper.startswith(":TRIGGER:EDGE:LEVEL? CHANNEL"):

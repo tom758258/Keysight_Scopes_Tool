@@ -134,7 +134,7 @@ Worker `/command` supports the existing Scopes capability surface:
 - `display-label`, `display-clear`, `display-persistence`,
   `display-intensity`, `display-vectors`, `annotation`
 - `timebase-scale`, `timebase-position`
-- `trigger-edge`, `trigger-edge-coupling`, `trigger-edge-reject`,
+- `trigger-edge`, `trigger-edge-source`, `trigger-edge-coupling`, `trigger-edge-reject`,
   `trigger-pulse-width`, `trigger-runt`, `trigger-transition`,
   `trigger-delay`, `trigger-setup-hold`, `trigger-edge-burst`, `trigger-tv`,
   `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,
@@ -253,6 +253,50 @@ hardware-free validation only; live CLI, worker live, LAN, WebUI, DSO-X
 2000X/3000X/4024A/4034A, MSO/digital, external source, actual signal-trigger
 behavior, and broader trigger-tree validation have not been run for this
 cleanup package.
+
+`trigger-edge-source` is the canonical source-only Edge Trigger command. It
+uses only `:TRIGger:EDGE:SOURce`: it never sends `:TRIGger:MODE EDGE` and does
+not change Edge Trigger level, slope, coupling, reject, common trigger
+settings, holdoff, or acquisition state. Accepted JSON forms are:
+
+```json
+{"command": "trigger-edge-source", "arguments": {"query": true}}
+```
+
+```json
+{"command": "trigger-edge-source", "arguments": {"source_channel": 1}}
+```
+
+```json
+{"command": "trigger-edge-source", "arguments": {"source": "external"}}
+```
+
+```json
+{"command": "trigger-edge-source", "arguments": {"source": "line"}}
+```
+
+The worker maps these forms respectively to `trigger-edge-source --query`,
+`trigger-edge-source --source-channel 1`,
+`trigger-edge-source --source external`, and
+`trigger-edge-source --source line`. The configure SCPI values are
+`CHANnel<n>`, `EXTernal`, and `LINE`, common to the documented target
+DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A models. Analog channels are
+validated against the selected profile.
+
+Exactly one operation is required. `query` must be exactly JSON `true`;
+`source` must be lowercase `external` or `line`; and `source_channel` must be a
+non-boolean positive integer within the selected model. The worker rejects
+empty arguments, query/configure mixes, source/channel mixes, unknown keys,
+camelCase alternatives, uppercase or unsupported source values, and command
+aliases such as `edge-trigger-source`, `trigger-source`, `edge-source`,
+`trigger-edge-input`, and `trigger_edge_source`. Rejected source-key aliases
+include `channel`, `channel_number`, `sourceChannel`,
+`source_channel_number`, `input`, `input_source`, `trigger_source`,
+`edge_source`, `type`, `kind`, `value`, `mode`, and `enabled`. All such
+validation happens before enqueue, artifact creation, simulator/VISA open, or
+SCPI. This v1 worker support is hardware-free only; live hardware, LAN, and
+worker live validation have not been run. External level/range and WGEN, WMOD,
+digital/MSO source configuration are not included.
 
 `trigger-sweep`, `trigger-noise-reject`, and `trigger-hf-reject` are accepted
 only as canonical common trigger general setting commands:

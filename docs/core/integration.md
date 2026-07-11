@@ -19,6 +19,8 @@ names are intended for package consumers and tests:
 - `EdgeBurstTriggerState`
 - `EdgeTriggerController`
 - `EdgeTriggerState`
+- `EdgeTriggerSourceController`
+- `EdgeTriggerSourceState`
 - `GlitchTriggerController`
 - `EdgeTriggerCouplingController`
 - `EdgeTriggerCouplingState`

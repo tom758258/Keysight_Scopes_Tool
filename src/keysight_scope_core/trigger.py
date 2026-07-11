@@ -130,6 +130,11 @@ _EDGE_REJECT_READBACKS = {
     'HFR': 'hf-reject',
 }
 
+_EDGE_TRIGGER_SOURCE_COMMANDS = {
+    "external": "EXTernal",
+    "line": "LINE",
+}
+
 
 def _validate_edge_coupling(coupling: str) -> None:
     if coupling not in _EDGE_COUPLING_COMMANDS:
@@ -336,6 +341,22 @@ class EdgeTriggerState:
     source_channel: int
     level_volts: float
     slope: str
+
+
+@dataclass(frozen=True)
+class EdgeTriggerSourceState:
+    """Readback state for the Edge Trigger source only."""
+
+    source: str | None
+    source_channel: int | None
+    raw_source: str
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "source": self.source,
+            "source_channel": self.source_channel,
+            "raw_source": self.raw_source,
+        }
 
 
 @dataclass(frozen=True)
@@ -743,6 +764,31 @@ class EdgeTriggerController:
         level_volts = parse_trigger_float(self.scpi.query(edge_trigger_level_query()), "level")
         slope = parse_edge_slope(self.scpi.query(edge_trigger_slope_query()))
         return EdgeTriggerState(source_channel=source_channel, level_volts=level_volts, slope=slope)
+
+
+class EdgeTriggerSourceController:
+    """Controls for the Edge Trigger source only."""
+
+    def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
+        self.scpi = scpi
+        self.capabilities = capabilities
+
+    def configure(
+        self,
+        *,
+        source: str,
+        source_channel: int | None = None,
+    ) -> None:
+        self.scpi.write(
+            trigger_edge_source_command(
+                source,
+                source_channel=source_channel,
+                capabilities=self.capabilities,
+            )
+        )
+
+    def query(self) -> EdgeTriggerSourceState:
+        return parse_trigger_edge_source(self.scpi.query(trigger_edge_source_query()))
 
 
 class TriggerSweepController:
@@ -1762,6 +1808,64 @@ def edge_trigger_source_query() -> str:
     """Build the SCPI query for edge trigger source."""
 
     return ":TRIGger:EDGE:SOURce?"
+
+
+def trigger_edge_source_channel_command(channel: int) -> str:
+    """Build the SCPI command for an analog Edge Trigger source."""
+
+    return f":TRIGger:EDGE:SOURce CHANnel{channel}"
+
+
+def trigger_edge_source_external_command() -> str:
+    """Build the SCPI command for the external Edge Trigger source."""
+
+    return ":TRIGger:EDGE:SOURce EXTernal"
+
+
+def trigger_edge_source_line_command() -> str:
+    """Build the SCPI command for the line Edge Trigger source."""
+
+    return ":TRIGger:EDGE:SOURce LINE"
+
+
+def trigger_edge_source_query() -> str:
+    """Build the SCPI query for the Edge Trigger source."""
+
+    return ":TRIGger:EDGE:SOURce?"
+
+
+def trigger_edge_source_command(
+    source: str,
+    *,
+    source_channel: int | None = None,
+    capabilities: ScopeCapabilities | None = None,
+) -> str:
+    """Build one validated source-only Edge Trigger command."""
+
+    if source == "analog-channel":
+        if source_channel is None:
+            raise ParameterValidationError(
+                "Edge Trigger analog-channel source requires source_channel."
+            )
+        if isinstance(source_channel, bool) or not isinstance(source_channel, int):
+            raise ParameterValidationError("Edge Trigger source_channel must be an integer.")
+        if capabilities is not None:
+            source_channel = validate_analog_channel(source_channel, capabilities)
+        elif source_channel < 1:
+            raise ParameterValidationError("Edge Trigger source_channel must be positive.")
+        return trigger_edge_source_channel_command(source_channel)
+    if source in _EDGE_TRIGGER_SOURCE_COMMANDS:
+        if source_channel is not None:
+            raise ParameterValidationError(
+                f"Edge Trigger {source} source does not accept source_channel."
+            )
+        return {
+            "external": trigger_edge_source_external_command,
+            "line": trigger_edge_source_line_command,
+        }[source]()
+    raise ParameterValidationError(
+        "Invalid Edge Trigger source. Valid values are: analog-channel, external, line."
+    )
 
 
 def edge_trigger_level_command(level_volts: float) -> str:
@@ -2950,6 +3054,47 @@ def parse_edge_trigger_source(raw: str) -> int:
     if channel < 1:
         raise TriggerResponseError(f"Could not parse edge trigger source response: {raw!r}")
     return channel
+
+
+def parse_trigger_edge_source(raw: str) -> EdgeTriggerSourceState:
+    """Parse an Edge Trigger source readback without rejecting unknown states."""
+
+    raw_source = raw.strip()
+    normalized = raw_source.upper()
+    if normalized.startswith("CHANNEL"):
+        suffix = normalized.removeprefix("CHANNEL")
+    elif normalized.startswith("CHAN"):
+        suffix = normalized.removeprefix("CHAN")
+    else:
+        suffix = None
+    if suffix is not None:
+        try:
+            channel = int(suffix)
+        except ValueError:
+            channel = None
+        if channel is not None and channel >= 1:
+            return EdgeTriggerSourceState(
+                source="analog-channel",
+                source_channel=channel,
+                raw_source=raw_source,
+            )
+    if normalized in {"EXT", "EXTERNAL"}:
+        return EdgeTriggerSourceState(
+            source="external",
+            source_channel=None,
+            raw_source=raw_source,
+        )
+    if normalized == "LINE":
+        return EdgeTriggerSourceState(
+            source="line",
+            source_channel=None,
+            raw_source=raw_source,
+        )
+    return EdgeTriggerSourceState(
+        source=None,
+        source_channel=None,
+        raw_source=raw_source,
+    )
 
 
 def parse_trigger_mode(raw: str) -> str | None:

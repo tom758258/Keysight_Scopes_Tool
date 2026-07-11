@@ -168,6 +168,12 @@ Control and setup:
   `position_seconds`.
 - `trigger-edge`: `operation`, `commands`, `source_channel`, `level_volts`,
   `slope`.
+- `trigger-edge-source`: `operation`, `command`, `source`, and
+  `source_channel`. Configure results use `operation: "set"`; `source` is
+  `analog-channel`, `external`, or `line`, and `source_channel` is null for
+  external/line. Query results use `operation: "query"` and additionally
+  preserve stripped `raw_source`; unsupported, digital, WaveGen, `NONE`, and
+  unknown readbacks use null `source` and null `source_channel`.
 - `trigger-sweep`: `operation` and `command`. Configure results include
   normalized `mode` (`auto` or `normal`) and `state_changing: true`. Query
   results include normalized `mode` and preserved `raw_value`.

@@ -19,6 +19,8 @@ from urllib import request as urlrequest
 from uuid import uuid4
 
 from keysight_scope_core.errors import KeysightScopeError
+from keysight_scope_core.capabilities import capabilities_for_model
+from keysight_scope_core.channel import validate_analog_channel
 
 from . import cli as scope_cli
 
@@ -66,6 +68,7 @@ DOMAIN_COMMANDS = {
     "timebase-scale",
     "timebase-position",
     "trigger-edge",
+    "trigger-edge-source",
     "trigger-pulse-width",
     "trigger-runt",
     "trigger-transition",
@@ -326,6 +329,9 @@ def parse_domain_command(
 ) -> argparse.Namespace:
     _validate_display_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_worker_arguments(command, arguments)
+    arguments = _normalize_trigger_edge_source_worker_arguments(
+        command, arguments, runtime
+    )
     arguments = _normalize_trigger_glitch_worker_arguments(command, arguments)
     arguments = _normalize_trigger_runt_worker_arguments(command, arguments)
     arguments = _normalize_trigger_transition_worker_arguments(command, arguments)
@@ -400,6 +406,60 @@ def _normalize_trigger_edge_worker_arguments(
             )
         return dict(arguments)
     return dict(arguments)
+
+
+def _normalize_trigger_edge_source_worker_arguments(
+    command: str,
+    arguments: dict[str, Any],
+    runtime: WorkerRuntime,
+) -> dict[str, Any]:
+    if command != "trigger-edge-source":
+        return arguments
+    allowed = {"query", "source", "source_channel"}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for trigger-edge-source: {sorted(unknown)[0]}"
+        )
+    if "query" in arguments:
+        if arguments["query"] is not True:
+            raise KeysightScopeError(
+                "trigger-edge-source argument query must be exactly true"
+            )
+        if {"source", "source_channel"} & set(arguments):
+            raise KeysightScopeError(
+                "trigger-edge-source query cannot be combined with configure arguments"
+            )
+        return {"query": True}
+    has_source = "source" in arguments
+    has_channel = "source_channel" in arguments
+    if has_source == has_channel:
+        raise KeysightScopeError(
+            "trigger-edge-source configure requires exactly one of source or source_channel"
+        )
+    if has_source:
+        source = arguments["source"]
+        if not isinstance(source, str):
+            raise KeysightScopeError("trigger-edge-source argument source must be a string")
+        if source not in {"external", "line"}:
+            raise KeysightScopeError(
+                "trigger-edge-source argument source must be one of: external, line"
+            )
+        return {"source": source}
+    source_channel = arguments["source_channel"]
+    if isinstance(source_channel, bool) or not isinstance(source_channel, int):
+        raise KeysightScopeError(
+            "trigger-edge-source argument source_channel must be an integer"
+        )
+    try:
+        source_channel = validate_analog_channel(
+            source_channel, capabilities_for_model(runtime.model)
+        )
+    except KeysightScopeError as exc:
+        raise KeysightScopeError(
+            f"trigger-edge-source argument source_channel is invalid: {exc}"
+        ) from exc
+    return {"source_channel": source_channel}
 
 
 def _normalize_trigger_glitch_worker_arguments(

@@ -33,6 +33,8 @@ from .trigger import (
     EdgeTriggerCouplingState,
     EdgeTriggerRejectController,
     EdgeTriggerRejectState,
+    EdgeTriggerSourceController,
+    EdgeTriggerSourceState,
     EdgeTriggerState,
     GlitchTriggerController,
     GlitchTriggerState,
@@ -337,6 +339,24 @@ class KeysightScope:
         """Query analog edge trigger source, level, and slope."""
 
         return self._edge_trigger_controller().query()
+
+    def configure_trigger_edge_source(
+        self,
+        *,
+        source: str,
+        source_channel: int | None = None,
+    ) -> None:
+        """Configure the Edge Trigger source without changing other settings."""
+
+        self._edge_trigger_source_controller().configure(
+            source=source,
+            source_channel=source_channel,
+        )
+
+    def query_trigger_edge_source(self) -> EdgeTriggerSourceState:
+        """Query the Edge Trigger source without querying other settings."""
+
+        return self._edge_trigger_source_controller().query()
 
     def configure_trigger_sweep(self, mode: str) -> None:
         """Configure common trigger sweep mode."""
@@ -804,6 +824,13 @@ class KeysightScope:
                 "Edge trigger operations require known capabilities; call query_idn() first."
             )
         return EdgeTriggerController(self.scpi, self.capabilities)
+
+    def _edge_trigger_source_controller(self) -> EdgeTriggerSourceController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Edge Trigger source operations require known capabilities; call query_idn() first."
+            )
+        return EdgeTriggerSourceController(self.scpi, self.capabilities)
 
     def _trigger_sweep_controller(self) -> TriggerSweepController:
         if self.capabilities is None:

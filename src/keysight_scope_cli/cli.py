@@ -245,6 +245,8 @@ from keysight_scope_core.trigger import (
     trigger_edge_coupling_query,
     trigger_edge_reject_command,
     trigger_edge_reject_query,
+    trigger_edge_source_command,
+    trigger_edge_source_query,
     trigger_sweep_command,
     trigger_sweep_query,
     tv_trigger_configure_commands,
@@ -941,6 +943,31 @@ def _build_parser() -> argparse.ArgumentParser:
         choices=("positive", "negative", "either", "alternate"),
         default=None,
         help="edge trigger slope",
+    )
+
+    edge_trigger_source_parser = subparsers.add_parser(
+        "trigger-edge-source",
+        allow_abbrev=False,
+        help="configure or query the Edge Trigger source only",
+    )
+    _add_scope_connection_args(edge_trigger_source_parser)
+    edge_trigger_source_parser.add_argument(
+        "--query",
+        dest="trigger_edge_source_query",
+        action="store_true",
+        help="query the Edge Trigger source",
+    )
+    edge_trigger_source_parser.add_argument(
+        "--source-channel",
+        type=_positive_int,
+        default=None,
+        help="analog channel used as the Edge Trigger source",
+    )
+    edge_trigger_source_parser.add_argument(
+        "--source",
+        choices=("external", "line"),
+        default=None,
+        help="non-analog Edge Trigger source",
     )
 
     trigger_sweep_parser = subparsers.add_parser(
@@ -2076,6 +2103,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_timebase_position(args)
     if args.command == "trigger-edge":
         return _cmd_trigger_edge(args)
+    if args.command == "trigger-edge-source":
+        return _cmd_trigger_edge_source(args)
     if args.command in {
         "trigger-sweep",
         "trigger-noise-reject",
@@ -2471,6 +2500,8 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             raise ParameterValidationError("display-vectors set OFF is not supported.")
     if getattr(args, "command", None) == "trigger-edge":
         _validate_trigger_edge_args(args)
+    if getattr(args, "command", None) == "trigger-edge-source":
+        _validate_trigger_edge_source_args(args)
     if getattr(args, "command", None) == "trigger-sweep":
         _validate_trigger_sweep_args(args)
     if getattr(args, "command", None) == "trigger-noise-reject":
@@ -2516,6 +2547,25 @@ def _validate_trigger_edge_args(args: argparse.Namespace) -> None:
     if not all(value is not None for value in configure_values):
         raise ParameterValidationError(
             "trigger-edge configure requires --source-channel, --level, and --slope."
+        )
+
+
+def _validate_trigger_edge_source_args(args: argparse.Namespace) -> None:
+    source_channel = getattr(args, "source_channel", None)
+    source = getattr(args, "source", None)
+    if getattr(args, "trigger_edge_source_query", False):
+        if source_channel is not None or source is not None:
+            raise ParameterValidationError(
+                "trigger-edge-source --query cannot be combined with configure options."
+            )
+        return
+    if source_channel is not None and source is not None:
+        raise ParameterValidationError(
+            "trigger-edge-source --source-channel cannot be combined with --source."
+        )
+    if source_channel is None and source is None:
+        raise ParameterValidationError(
+            "trigger-edge-source requires --query, --source-channel, or --source."
         )
 
 
@@ -3130,6 +3180,33 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         slope = normalize_edge_slope(args.slope)
         commands = [trigger_mode_edge_command(), edge_trigger_source_command(channel), edge_trigger_level_command(args.level), edge_trigger_slope_command(slope)]
         return commands + [":SYSTem:ERRor?"], [], {"operation": "set", "commands": commands, "source_channel": channel, "level_volts": args.level, "slope": slope}
+    if command == "trigger-edge-source":
+        if args.trigger_edge_source_query:
+            command_text = trigger_edge_source_query()
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": command_text,
+            }
+        if args.source_channel is not None:
+            channel = validate_analog_channel(args.source_channel, capabilities)
+            command_text = trigger_edge_source_command(
+                "analog-channel",
+                source_channel=channel,
+                capabilities=capabilities,
+            )
+            return [command_text, ":SYSTem:ERRor?"], [], {
+                "operation": "set",
+                "command": command_text,
+                "source": "analog-channel",
+                "source_channel": channel,
+            }
+        command_text = trigger_edge_source_command(args.source)
+        return [command_text, ":SYSTem:ERRor?"], [], {
+            "operation": "set",
+            "command": command_text,
+            "source": args.source,
+            "source_channel": None,
+        }
     if command == "trigger-sweep":
         if args.trigger_sweep_query:
             command_text = trigger_sweep_query()
@@ -5124,6 +5201,65 @@ def _cmd_trigger_edge(args: argparse.Namespace) -> int:
             print(f"Command: {edge_trigger_source_command(channel)}")
             print(f"Command: {edge_trigger_level_command(level)}")
             print(f"Command: {edge_trigger_slope_command(slope)}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_trigger_edge_source(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.trigger_edge_source_query:
+            command = trigger_edge_source_query()
+            print("Planned query: Edge Trigger source")
+            state = scope.query_trigger_edge_source()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Command: {command}")
+            print(f"Source: {state.source or state.raw_source}")
+            if state.source_channel is not None:
+                print(f"Source channel: CH{state.source_channel}")
+        else:
+            if args.source_channel is not None:
+                source = "analog-channel"
+                source_channel = validate_analog_channel(
+                    args.source_channel, scope.capabilities
+                )
+            else:
+                source = args.source
+                source_channel = None
+            command = trigger_edge_source_command(
+                source,
+                source_channel=source_channel,
+                capabilities=scope.capabilities,
+            )
+            print(f"Planned change: Edge Trigger source {source}")
+            scope.configure_trigger_edge_source(
+                source=source,
+                source_channel=source_channel,
+            )
+            _json_update_result(
+                operation="set",
+                command=command,
+                source=source,
+                source_channel=source_channel,
+            )
+            print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)
