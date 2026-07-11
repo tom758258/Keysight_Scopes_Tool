@@ -128,6 +128,8 @@ Worker `/command` supports the existing Scopes capability surface:
 - `capture`, `capture-batch`, `screenshot`, `smoke`
 - `measure`, `measure-stats`, `measure-sweep`, `measure-log`, `measure-clear`,
   `measure-show`, `measure-source`, `measure-window`
+- `dvm-enable`, `dvm-source`, `dvm-mode`, `dvm-auto-range`, `dvm-current`,
+  `dvm-query`
 - `reference-save`, `reference-display`, `reference-label`,
   `reference-clear`, `reference-query`
 - `channel-display`, `channel-label`, `channel-scale`, `channel-offset`,
@@ -1159,6 +1161,50 @@ Slots are limited to 1 and 2; save sources are analog channels only; labels
 are 1-10 printable ASCII characters without double quotes. Unknown keys and
 invalid values are rejected before enqueue and artifact creation.
 
+### DVM Common Pack v1 Commands
+
+The worker accepts only the canonical DVM commands and argument shapes:
+
+```json
+{"command": "dvm-enable", "arguments": {"query": true}}
+```
+
+```json
+{"command": "dvm-enable", "arguments": {"enabled": true}}
+```
+
+```json
+{"command": "dvm-source", "arguments": {"channel": 1}}
+```
+
+```json
+{"command": "dvm-mode", "arguments": {"mode": "dc-rms"}}
+```
+
+```json
+{"command": "dvm-auto-range", "arguments": {"enabled": false}}
+```
+
+```json
+{"command": "dvm-current", "arguments": {"query": true}}
+```
+
+```json
+{"command": "dvm-query", "arguments": {"query": true}}
+```
+
+Configure/query commands also accept their exact `{"query": true}` form.
+Modes are only `dc`, `dc-rms`, and `ac-rms`; sources are analog channels within
+the startup model profile. Empty arguments, `query: false`, query/configure
+mixes, aliases, unknown keys, non-boolean `enabled`, and non-integer or invalid
+channels are rejected before enqueue, accepted counters, artifacts,
+simulator/VISA open, or SCPI.
+
+DVM may be option/license dependent on live instruments. DVM Common Pack v1
+does not accept `dvm-frequency`, Counter command names, DVM frequency mode,
+`:COUNter` commands, or `:MEASure:COUNter`. Its validation is hardware-free;
+no live hardware validation was performed for this pack.
+
 ### Label And Annotation Commands
 
 The worker supports the same one-shot label and annotation commands as the CLI:
@@ -1295,7 +1341,8 @@ recorded as absolute paths. Default worker outputs are:
 `display-intensity`, and `display-vectors` do not create command artifacts.
 The `measure-clear`, `measure-show`, `measure-source`, `measure-window`,
 `reference-save`, `reference-display`, `reference-label`, `reference-clear`,
-and `reference-query` commands also do not create command artifacts.
+`reference-query`, `dvm-enable`, `dvm-source`, `dvm-mode`, `dvm-auto-range`,
+`dvm-current`, and `dvm-query` commands also do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
 includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.

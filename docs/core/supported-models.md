@@ -33,6 +33,11 @@ All supported series profiles currently expose:
   selecting the MAIN, ZOOM, AUTO, or GATE measurement window.
 - Reference Waveform Pack v1 helpers for runtime-managed reference waveform
   slots 1 and 2.
+- DVM Common Pack v1 helpers for enable, analog source, `dc`, `dc-rms`, and
+  `ac-rms` voltage modes, auto range, current voltage, and aggregate queries.
+  DVM can be option/license dependent. This pack has hardware-free validation
+  only and does not implement DVM frequency, independent `:COUNter`, or
+  `:MEASure:COUNter` support.
 - Analog channel labels, display labels, and display annotation.
 - Hardware-free Core/CLI/simulator/worker support for the documented one-shot
   trigger packs, including `trigger-tv` basic TV / video trigger configure and

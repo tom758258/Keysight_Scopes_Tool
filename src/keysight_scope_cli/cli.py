@@ -158,6 +158,19 @@ from keysight_scope_core.display import (
     validate_display_intensity,
     validate_display_persistence,
 )
+from keysight_scope_core.dvm import (
+    DVM_MODES,
+    dvm_auto_range_command,
+    dvm_auto_range_query,
+    dvm_current_query,
+    dvm_enable_command,
+    dvm_enable_query,
+    dvm_mode_command,
+    dvm_mode_query,
+    dvm_query_commands,
+    dvm_source_command,
+    dvm_source_query,
+)
 from keysight_scope_core.errors import KeysightScopeError, ParameterValidationError
 from keysight_scope_core.idn import normalize_model_key, parse_idn
 from keysight_scope_core.measurements import (
@@ -918,6 +931,46 @@ def _build_parser() -> argparse.ArgumentParser:
     measure_window_action = measure_window_parser.add_mutually_exclusive_group(required=True)
     measure_window_action.add_argument("--query", action="store_true")
     measure_window_action.add_argument("--window", choices=MEASUREMENT_WINDOW_CHOICES)
+
+    dvm_enable_parser = subparsers.add_parser(
+        "dvm-enable", allow_abbrev=False, help="configure or query DVM enable state"
+    )
+    _add_scope_connection_args(dvm_enable_parser)
+    dvm_enable_parser.add_argument("--query", action="store_true")
+    dvm_enable_parser.add_argument("--enabled", type=_strict_bool_arg)
+
+    dvm_source_parser = subparsers.add_parser(
+        "dvm-source", allow_abbrev=False, help="configure or query the analog DVM source"
+    )
+    _add_scope_connection_args(dvm_source_parser)
+    dvm_source_parser.add_argument("--query", action="store_true")
+    dvm_source_parser.add_argument("--channel", type=_positive_int)
+
+    dvm_mode_parser = subparsers.add_parser(
+        "dvm-mode", allow_abbrev=False, help="configure or query DVM voltage mode"
+    )
+    _add_scope_connection_args(dvm_mode_parser)
+    dvm_mode_parser.add_argument("--query", action="store_true")
+    dvm_mode_parser.add_argument("--mode", choices=DVM_MODES)
+
+    dvm_auto_range_parser = subparsers.add_parser(
+        "dvm-auto-range", allow_abbrev=False, help="configure or query DVM auto range"
+    )
+    _add_scope_connection_args(dvm_auto_range_parser)
+    dvm_auto_range_parser.add_argument("--query", action="store_true")
+    dvm_auto_range_parser.add_argument("--enabled", type=_strict_bool_arg)
+
+    dvm_current_parser = subparsers.add_parser(
+        "dvm-current", allow_abbrev=False, help="query the current DVM voltage reading"
+    )
+    _add_scope_connection_args(dvm_current_parser)
+    dvm_current_parser.add_argument("--query", action="store_true", required=True)
+
+    dvm_query_parser = subparsers.add_parser(
+        "dvm-query", allow_abbrev=False, help="query aggregate DVM Common Pack v1 state"
+    )
+    _add_scope_connection_args(dvm_query_parser)
+    dvm_query_parser.add_argument("--query", action="store_true", required=True)
 
     reference_save_parser = subparsers.add_parser(
         "reference-save", help="copy an analog channel into a reference waveform slot"
@@ -2336,6 +2389,15 @@ def _dispatch_command(args: argparse.Namespace) -> int:
     }:
         return _cmd_measurement_control(args)
     if args.command in {
+        "dvm-enable",
+        "dvm-source",
+        "dvm-mode",
+        "dvm-auto-range",
+        "dvm-current",
+        "dvm-query",
+    }:
+        return _cmd_dvm(args)
+    if args.command in {
         "reference-save",
         "reference-display",
         "reference-label",
@@ -2771,6 +2833,13 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         "reference-query",
     }:
         _validate_measurement_reference_args(args)
+    if getattr(args, "command", None) in {
+        "dvm-enable",
+        "dvm-source",
+        "dvm-mode",
+        "dvm-auto-range",
+    }:
+        _validate_dvm_args(args)
     if getattr(args, "command", None) == "trigger-edge":
         _validate_trigger_edge_args(args)
     if getattr(args, "command", None) == "trigger-edge-source":
@@ -2817,6 +2886,30 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_pattern_args(args)
     if getattr(args, "command", None) == "trigger-or":
         _validate_trigger_or_args(args)
+
+
+def _validate_dvm_args(args: argparse.Namespace) -> None:
+    command = args.command
+    query = bool(getattr(args, "query", False))
+    configure_key = {
+        "dvm-enable": "enabled",
+        "dvm-source": "channel",
+        "dvm-mode": "mode",
+        "dvm-auto-range": "enabled",
+    }[command]
+    value = getattr(args, configure_key, None)
+    if query:
+        if value is not None:
+            raise ParameterValidationError(
+                f"{command} --query cannot be combined with configure options."
+            )
+        return
+    if value is None:
+        raise ParameterValidationError(
+            f"{command} configure requires --{configure_key.replace('_', '-')}."
+        )
+    if command == "dvm-source":
+        validate_analog_channel(value, capabilities_for_model(args.model))
 
 
 def _validate_measurement_reference_args(args: argparse.Namespace) -> None:
@@ -3588,6 +3681,42 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
     }:
         commands, result = _reference_waveform_plan(args, capabilities)
         return ["*IDN?", *commands, ":SYSTem:ERRor?"], [], result
+    if command == "dvm-enable":
+        target = dvm_enable_query() if args.query else dvm_enable_command(args.enabled)
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if not args.query:
+            result.update(enabled=args.enabled, state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
+    if command == "dvm-source":
+        channel = None if args.query else validate_analog_channel(args.channel, capabilities)
+        target = dvm_source_query() if args.query else dvm_source_command(
+            channel, capabilities=capabilities
+        )
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if channel is not None:
+            result.update(source_channel=channel, state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
+    if command == "dvm-mode":
+        target = dvm_mode_query() if args.query else dvm_mode_command(args.mode)
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if not args.query:
+            result.update(mode=args.mode, state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
+    if command == "dvm-auto-range":
+        target = dvm_auto_range_query() if args.query else dvm_auto_range_command(args.enabled)
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if not args.query:
+            result.update(auto_range_enabled=args.enabled, state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
+    if command == "dvm-current":
+        target = dvm_current_query()
+        return [target, ":SYSTem:ERRor?"], [], {"operation": "query", "command": target}
+    if command == "dvm-query":
+        commands = dvm_query_commands()
+        return [*commands, ":SYSTem:ERRor?"], [], {
+            "operation": "query",
+            "commands": commands,
+        }
     if command == "annotation":
         operation, commands, result = _annotation_plan(args, capabilities)
         result["operation"] = operation
@@ -6168,6 +6297,115 @@ def _cmd_external_trigger_input(args: argparse.Namespace) -> int:
             print(f"External trigger range: {state.range_value}")
             print(f"External trigger units: {state.units}")
             print(f"External trigger bandwidth limit enabled: {state.bandwidth_limit_enabled}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_dvm(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.command == "dvm-enable":
+            if args.query:
+                command = dvm_enable_query()
+                state = scope.query_dvm_enable()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"DVM enabled: {state.enabled}")
+            else:
+                command = dvm_enable_command(args.enabled)
+                scope.configure_dvm_enable(args.enabled)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    enabled=args.enabled,
+                    state_changing=True,
+                )
+                print(f"DVM enabled: {args.enabled}")
+            print(f"Command: {command}")
+        elif args.command == "dvm-source":
+            if args.query:
+                command = dvm_source_query()
+                state = scope.query_dvm_source()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"DVM source channel: {state.source_channel}")
+            else:
+                channel = validate_analog_channel(args.channel, scope.capabilities)
+                command = dvm_source_command(channel, capabilities=scope.capabilities)
+                scope.configure_dvm_source(channel)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    source_channel=channel,
+                    state_changing=True,
+                )
+                print(f"DVM source channel: {channel}")
+            print(f"Command: {command}")
+        elif args.command == "dvm-mode":
+            if args.query:
+                command = dvm_mode_query()
+                state = scope.query_dvm_mode()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"DVM mode: {state.mode}")
+            else:
+                command = dvm_mode_command(args.mode)
+                scope.configure_dvm_mode(args.mode)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    mode=args.mode,
+                    state_changing=True,
+                )
+                print(f"DVM mode: {args.mode}")
+            print(f"Command: {command}")
+        elif args.command == "dvm-auto-range":
+            if args.query:
+                command = dvm_auto_range_query()
+                state = scope.query_dvm_auto_range()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"DVM auto range enabled: {state.auto_range_enabled}")
+            else:
+                command = dvm_auto_range_command(args.enabled)
+                scope.configure_dvm_auto_range(args.enabled)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    auto_range_enabled=args.enabled,
+                    state_changing=True,
+                )
+                print(f"DVM auto range enabled: {args.enabled}")
+            print(f"Command: {command}")
+        elif args.command == "dvm-current":
+            command = dvm_current_query()
+            reading = scope.query_dvm_current()
+            _json_update_result(operation="query", command=command, **reading.to_json())
+            print(f"Command: {command}")
+            print(f"DVM current value: {reading.value}")
+        else:
+            commands = dvm_query_commands()
+            state = scope.query_dvm()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"DVM enabled: {state.enabled}")
+            print(f"DVM source channel: {state.source_channel}")
+            print(f"DVM mode: {state.mode}")
+            print(f"DVM auto range enabled: {state.auto_range_enabled}")
+            print(f"DVM current value: {state.value}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)

@@ -9,6 +9,16 @@ from .channel import (
     parse_channel_units,
 )
 from .display import AnnotationState, DisplayController, DisplayPersistence, parse_display_label
+from .dvm import (
+    DVM_MODES,
+    DvmAutoRangeState,
+    DvmBooleanState,
+    DvmController,
+    DvmModeState,
+    DvmReading,
+    DvmSourceState,
+    DvmState,
+)
 from .idn import IDN, detect_series, parse_idn
 from .measurements import (
     MeasurementController,
@@ -111,6 +121,14 @@ __all__ = [
     "DisplayController",
     "AnnotationState",
     "DisplayPersistence",
+    "DVM_MODES",
+    "DvmAutoRangeState",
+    "DvmBooleanState",
+    "DvmController",
+    "DvmModeState",
+    "DvmReading",
+    "DvmSourceState",
+    "DvmState",
     "DelayTriggerController",
     "DelayTriggerState",
     "EdgeBurstTriggerController",

@@ -16,6 +16,15 @@ from .advanced import (
 from .capabilities import ScopeCapabilities, capabilities_for_model
 from .channel import ChannelController
 from .display import AnnotationState, DisplayController, DisplayPersistence
+from .dvm import (
+    DvmAutoRangeState,
+    DvmBooleanState,
+    DvmController,
+    DvmModeState,
+    DvmReading,
+    DvmSourceState,
+    DvmState,
+)
 from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
 from .measurements import (
@@ -482,6 +491,56 @@ class KeysightScope:
         """Query common trigger high-frequency reject."""
 
         return self._trigger_hf_reject_controller().query()
+
+    def configure_dvm_enable(self, enabled: bool) -> None:
+        """Configure DVM enable state."""
+
+        self._dvm_controller().configure_enable(enabled)
+
+    def query_dvm_enable(self) -> DvmBooleanState:
+        """Query DVM enable state."""
+
+        return self._dvm_controller().query_enable()
+
+    def configure_dvm_source(self, channel: int) -> None:
+        """Configure the analog DVM source channel."""
+
+        self._dvm_controller().configure_source(channel)
+
+    def query_dvm_source(self) -> DvmSourceState:
+        """Query the analog DVM source channel."""
+
+        return self._dvm_controller().query_source()
+
+    def configure_dvm_mode(self, mode: str) -> None:
+        """Configure a DVM Common Pack v1 voltage mode."""
+
+        self._dvm_controller().configure_mode(mode)
+
+    def query_dvm_mode(self) -> DvmModeState:
+        """Query the DVM voltage mode."""
+
+        return self._dvm_controller().query_mode()
+
+    def configure_dvm_auto_range(self, enabled: bool) -> None:
+        """Configure DVM auto range."""
+
+        self._dvm_controller().configure_auto_range(enabled)
+
+    def query_dvm_auto_range(self) -> DvmAutoRangeState:
+        """Query DVM auto range."""
+
+        return self._dvm_controller().query_auto_range()
+
+    def query_dvm_current(self) -> DvmReading:
+        """Query the current DVM voltage reading."""
+
+        return self._dvm_controller().query_current()
+
+    def query_dvm(self) -> DvmState:
+        """Query aggregate DVM Common Pack v1 state."""
+
+        return self._dvm_controller().query()
 
 
     def configure_trigger_edge_coupling(self, coupling: str) -> None:
@@ -1113,6 +1172,13 @@ class KeysightScope:
                 "Measurement operations require known capabilities; call query_idn() first."
             )
         return MeasurementController(self.scpi, self.capabilities)
+
+    def _dvm_controller(self) -> DvmController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "DVM operations require known capabilities; call query_idn() first."
+            )
+        return DvmController(self.scpi, self.capabilities)
 
     def _reference_waveform_controller(self) -> ReferenceWaveformController:
         if self.capabilities is None:

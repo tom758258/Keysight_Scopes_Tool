@@ -145,6 +145,11 @@ class SimulatorBackend:
     run_state: str = "stopped"
     timebase_scale: float = 1e-3
     timebase_position: float = 0.0
+    dvm_enabled: bool = False
+    dvm_source_channel: int = 1
+    dvm_mode: str = "DC"
+    dvm_auto_range: bool = True
+    dvm_current_value: float = 0.0
     trigger_sweep: str = "AUTO"
     trigger_noise_reject: bool = False
     trigger_hf_reject: bool = False
@@ -313,6 +318,22 @@ class SimulatorBackend:
             self.timebase_scale = float(command.rsplit(" ", 1)[1])
         elif upper.startswith(":TIMEBASE:POSITION "):
             self.timebase_position = float(command.rsplit(" ", 1)[1])
+        elif upper.startswith(":DVM:ENABLE "):
+            self.dvm_enabled = _parse_scpi_bool_write(command)
+        elif upper.startswith(":DVM:SOURCE CHANNEL"):
+            match = re.fullmatch(
+                r":DVM:SOURce\s+CHAN(?:nel)?(\d+)", command, flags=re.IGNORECASE
+            )
+            if match is None:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.dvm_source_channel = self._validate_channel(int(match.group(1)))
+        elif upper.startswith(":DVM:MODE "):
+            mode = command.rsplit(" ", 1)[1].upper()
+            if mode not in {"DC", "DCRMS", "ACRMS"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.dvm_mode = {"DC": "DC", "DCRMS": "DCRMs", "ACRMS": "ACRMs"}[mode]
+        elif upper.startswith(":DVM:ARANGE "):
+            self.dvm_auto_range = _parse_scpi_bool_write(command)
         elif upper.startswith(":TRIGGER:SWEEP "):
             value = command.rsplit(" ", 1)[1]
             if value.upper() not in {"AUTO", "NORMAL"}:
@@ -700,6 +721,16 @@ class SimulatorBackend:
             return str(self.display_intensity)
         if upper == ":DISPLAY:VECTORS?":
             return "ON" if self.display_vectors else "OFF"
+        if upper == ":DVM:ENABLE?":
+            return "1" if self.dvm_enabled else "0"
+        if upper == ":DVM:SOURCE?":
+            return f"CHAN{self.dvm_source_channel}"
+        if upper == ":DVM:MODE?":
+            return self.dvm_mode
+        if upper == ":DVM:ARANGE?":
+            return "1" if self.dvm_auto_range else "0"
+        if upper == ":DVM:CURRENT?":
+            return f"{self.dvm_current_value:+.8E}"
         if upper == ":MEASURE:SHOW?":
             return "1" if self.measurement_show else "0"
         if upper == ":MEASURE:SOURCE?":

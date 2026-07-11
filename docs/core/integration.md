@@ -13,6 +13,14 @@ names are intended for package consumers and tests:
 - `DisplayController`
 - `AnnotationState`
 - `DisplayPersistence`
+- `DVM_MODES`
+- `DvmAutoRangeState`
+- `DvmBooleanState`
+- `DvmController`
+- `DvmModeState`
+- `DvmReading`
+- `DvmSourceState`
+- `DvmState`
 - `DelayTriggerController`
 - `DelayTriggerState`
 - `EdgeBurstTriggerController`

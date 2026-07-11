@@ -50,6 +50,12 @@ DOMAIN_COMMANDS = {
     "measure-show",
     "measure-source",
     "measure-window",
+    "dvm-enable",
+    "dvm-source",
+    "dvm-mode",
+    "dvm-auto-range",
+    "dvm-current",
+    "dvm-query",
     "reference-save",
     "reference-display",
     "reference-label",
@@ -347,6 +353,7 @@ def parse_domain_command(
     arguments = _normalize_measurement_reference_worker_arguments(
         command, arguments, runtime
     )
+    arguments = _normalize_dvm_worker_arguments(command, arguments, runtime)
     arguments = _normalize_trigger_edge_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_source_worker_arguments(
         command, arguments, runtime
@@ -1117,6 +1124,66 @@ def _normalize_trigger_common_worker_arguments(
         return {"reject": reject}
 
     return arguments
+
+
+def _normalize_dvm_worker_arguments(
+    command: str, arguments: dict[str, Any], runtime: WorkerRuntime
+) -> dict[str, Any]:
+    if command not in {
+        "dvm-enable",
+        "dvm-source",
+        "dvm-mode",
+        "dvm-auto-range",
+        "dvm-current",
+        "dvm-query",
+    }:
+        return arguments
+
+    if command in {"dvm-current", "dvm-query"}:
+        if set(arguments) != {"query"} or arguments.get("query") is not True:
+            raise KeysightScopeError(f"{command} requires exactly query=true")
+        return dict(arguments)
+
+    configure_key = {
+        "dvm-enable": "enabled",
+        "dvm-source": "channel",
+        "dvm-mode": "mode",
+        "dvm-auto-range": "enabled",
+    }[command]
+    allowed = {"query", configure_key}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for {command}: {sorted(unknown)[0]}"
+        )
+    if arguments.get("query") is True:
+        if set(arguments) != {"query"}:
+            raise KeysightScopeError(
+                f"{command} query cannot be combined with configure arguments"
+            )
+        return dict(arguments)
+    if "query" in arguments:
+        raise KeysightScopeError(f"{command} argument query must be exactly true")
+    if set(arguments) != {configure_key}:
+        raise KeysightScopeError(
+            f"{command} configure requires exactly {configure_key}"
+        )
+
+    value = arguments[configure_key]
+    if command in {"dvm-enable", "dvm-auto-range"}:
+        if not isinstance(value, bool):
+            raise KeysightScopeError(f"{command} argument enabled must be a boolean")
+        return {"enabled": "true" if value else "false"}
+    if command == "dvm-source":
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise KeysightScopeError("dvm-source argument channel must be an integer")
+        validate_analog_channel(value, capabilities_for_model(runtime.model))
+        return dict(arguments)
+    if value not in {"dc", "dc-rms", "ac-rms"}:
+        raise KeysightScopeError(
+            "dvm-mode argument mode must be one of: dc, dc-rms, ac-rms"
+        )
+    return dict(arguments)
 
 
 def arguments_to_argv(arguments: dict[str, Any]) -> list[str]:

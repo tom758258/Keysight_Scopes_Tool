@@ -45,6 +45,10 @@ class MeasurementResponseError(KeysightScopeError, ValueError):
     """Raised when a measurement query response cannot be parsed."""
 
 
+class DvmResponseError(KeysightScopeError, ValueError):
+    """Raised when a DVM query response cannot be parsed."""
+
+
 class WaveformResponseError(KeysightScopeError, ValueError):
     """Raised when waveform data or metadata cannot be parsed."""
 

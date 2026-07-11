@@ -41,6 +41,12 @@ keysight-scopes send-command --port 8765 --command sample-rate --arguments-json 
 keysight-scopes send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command record-length --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command force-trigger --arguments-json "{}" --json
+keysight-scopes send-command --port 8765 --command dvm-enable --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command dvm-source --arguments-json "{\"channel\":1}" --json
+keysight-scopes send-command --port 8765 --command dvm-mode --arguments-json "{\"mode\":\"dc-rms\"}" --json
+keysight-scopes send-command --port 8765 --command dvm-auto-range --arguments-json "{\"enabled\":true}" --json
+keysight-scopes send-command --port 8765 --command dvm-current --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command dvm-query --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command trigger-edge --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command trigger-edge --arguments-json "{\"source_channel\":1,\"level\":0.5,\"slope\":\"positive\"}" --json
 keysight-scopes send-command --port 8765 --command trigger-sweep --arguments-json "{\"query\":true}" --json

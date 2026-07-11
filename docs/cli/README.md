@@ -1378,6 +1378,39 @@ accepts one or two analog channels validated against the selected model
 profile. Digital, math/function, and reference measurement sources are not
 accepted. `measure-window` accepts `main`, `zoom`, `auto`, or `gate`.
 
+Control or query DVM Common Pack v1:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-enable --enabled true --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-enable --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-source --channel 1 --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-source --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-mode --mode dc-rms --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-mode --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-auto-range --enabled false --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-current --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli dvm-query --query --simulate --json
+```
+
+The only public modes are `dc`, `dc-rms`, and `ac-rms`; no aliases or
+uppercase values are accepted. Boolean configuration uses only
+`--enabled true|false`. DVM source is an analog channel validated against the
+selected model profile. Current and aggregate results preserve raw readbacks;
+sentinel or non-finite readings return `value: null`, `valid: false`, and a
+reason instead of crashing. DVM availability may depend on an instrument
+option or license, and live rejection flows through the normal instrument
+error handling path.
+
+`dvm-frequency`, `:DVM:FREQuency?`, `:DVM:MODE FREQuency`, the independent
+`:COUNter` subsystem, Counter CLI commands, and `:MEASure:COUNter` are
+intentionally unsupported in DVM Common Pack v1. Normal tests are
+hardware-free, and no live hardware validation was performed for this pack.
+
+Worker requests use the same canonical values and require `{"query": true}`
+for query operations. Unknown keys, aliases, mixed query/configure payloads,
+non-boolean `enabled`, and channels outside the model profile are rejected
+before enqueue or artifact/session creation.
+
 Control reference waveform slots:
 
 ```powershell

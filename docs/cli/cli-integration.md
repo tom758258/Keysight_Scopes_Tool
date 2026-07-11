@@ -12,6 +12,12 @@ CLI-only fields include:
 - stderr SCPI diagnostic handling
 - parser validation messages
 
+DVM Common Pack v1 adapter commands are `dvm-enable`, `dvm-source`,
+`dvm-mode`, `dvm-auto-range`, `dvm-current`, and `dvm-query`. Boolean
+configuration uses canonical `--enabled true|false`; `dvm-current` and
+`dvm-query` require `--query`. The adapter does not expose DVM frequency,
+independent Counter, or `:MEASure:COUNter` commands.
+
 These fields are adapter behavior, not Core schema. Core receives normalized
 requests and returns runtime data; the CLI decides how to render human text,
 JSON stdout, stderr logs, and exit codes.

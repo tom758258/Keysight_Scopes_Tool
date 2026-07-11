@@ -24,6 +24,13 @@ Core owns runtime behavior:
   enabling or querying measurement markers, selecting one or two analog
   measurement source channels, and selecting `MAIN`, `ZOOM`, `AUTO`, or
   `GATE` measurement windows. Marker OFF is intentionally not exposed in v1.
+- DVM Common Pack v1 helpers for enabling DVM, selecting one analog source,
+  selecting `dc`, `dc-rms`, or `ac-rms` voltage mode, controlling auto range,
+  reading current voltage, and querying aggregate state. DVM availability may
+  depend on an instrument option or license. `:DVM:FREQuency`, DVM frequency
+  mode, the independent `:COUNter` subsystem, and `:MEASure:COUNter` are not
+  implemented. Coverage is hardware-free; no live hardware validation was
+  performed for this pack.
 - Reference Waveform Pack v1 helpers for saving an analog channel to reference
   slot 1 or 2, configuring or querying display and label state, clearing a
   slot, and querying aggregate display/label state. Labels are limited to
