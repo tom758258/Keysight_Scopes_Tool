@@ -61,16 +61,22 @@ def test_parse_search_mode_long_and_short_forms(raw, expected):
     assert parse_search_mode(raw) == expected
 
 
-@pytest.mark.parametrize("raw", ["", "1.0", "abc", "1E+1"])
-def test_parse_search_count_rejects_non_integer_readback(raw):
+@pytest.mark.parametrize("raw", ["", "1.0", "abc", "1E+1", "-1"])
+def test_parse_search_count_rejects_malformed_or_negative_readback(raw):
     with pytest.raises(SearchResponseError, match="Could not parse search count response"):
         parse_search_count(raw)
 
 
-def test_parse_search_count_preserves_raw_integer_readback():
-    state = parse_search_count(" +12 \n")
-    assert state.count == 12
-    assert state.raw_count == "+12"
+@pytest.mark.parametrize(
+    "raw, expected_count, expected_raw",
+    [("0", 0, "0"), ("+0", 0, "+0"), ("7", 7, "7"), (" +12 \n", 12, "+12")],
+)
+def test_parse_search_count_preserves_raw_non_negative_integer_readback(
+    raw, expected_count, expected_raw
+):
+    state = parse_search_count(raw)
+    assert state.count == expected_count
+    assert state.raw_count == expected_raw
 
 
 @pytest.mark.parametrize(

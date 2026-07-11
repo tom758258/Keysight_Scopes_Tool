@@ -186,4 +186,6 @@ def parse_search_count(raw: str) -> SearchCountState:
         raise SearchResponseError(
             f"Could not parse search count response: {raw!r}"
         ) from exc
+    if count < 0:
+        raise SearchResponseError(f"Could not parse search count response: {raw!r}")
     return SearchCountState(count=count, raw_count=raw_count)
