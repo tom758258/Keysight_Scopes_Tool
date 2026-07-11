@@ -64,13 +64,25 @@ def test_external_trigger_units_and_settings_simulate_paths(capsys, command, arg
         ("external-trigger-probe", ["--attenuation", "nan"]),
         ("external-trigger-units", []),
         ("external-trigger-units", ["--query", "--units", "volts"]),
-        ("external-trigger-settings", []),
     ],
 )
 def test_external_trigger_input_commands_reject_invalid_operations_before_open(capsys, monkeypatch, command, arguments):
     monkeypatch.setattr(cli, "_open_scope", lambda *_a, **_kw: pytest.fail("opened scope"))
     assert cli.main([command, "--dry-run", "--json", *arguments]) == 1
     assert _payload(capsys)["ok"] is False
+
+
+def test_external_trigger_settings_requires_query_at_argparse_level(capsys, monkeypatch):
+    monkeypatch.setattr(cli, "_open_scope", lambda *_a, **_kw: pytest.fail("opened scope"))
+
+    with pytest.raises(SystemExit) as exc_info:
+        cli.main(["external-trigger-settings", "--dry-run", "--json"])
+
+    assert exc_info.value.code == 2
+    captured = capsys.readouterr()
+    assert "usage:" in captured.err
+    assert "the following arguments are required: --query" in captured.err
+    assert captured.out == ""
 
 
 @pytest.mark.parametrize(
@@ -84,8 +96,12 @@ def test_external_trigger_input_commands_reject_invalid_operations_before_open(c
     ],
 )
 def test_external_trigger_input_commands_reject_aliases_or_noncanonical_choices(capsys, command, alias, value):
+    arguments = [command, "--dry-run"]
+    if command == "external-trigger-settings":
+        arguments.append("--query")
+    arguments.extend([alias, value])
     with pytest.raises(SystemExit):
-        cli.main([command, "--dry-run", alias, value])
+        cli.main(arguments)
     error_output = capsys.readouterr().err
     assert "unrecognized arguments" in error_output or "invalid choice" in error_output
 

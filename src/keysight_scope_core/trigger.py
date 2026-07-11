@@ -3832,13 +3832,25 @@ def parse_external_trigger_settings(raw: str) -> ExternalTriggerSettingsState:
             continue
         saw_field = True
         parts = segment.split(None, 1)
-        if len(parts) != 2:
+        header = parts[0].lstrip(":")
+        value = parts[1].strip() if len(parts) == 2 else None
+        final_header = header.split(":")[-1].upper()
+        if final_header not in {
+            "BWL",
+            "BWLIMIT",
+            "RANG",
+            "RANGE",
+            "UNIT",
+            "UNITS",
+            "PROB",
+            "PROBE",
+        }:
+            continue
+        if value is None:
             raise TriggerResponseError(
                 f"Could not parse External trigger settings response: {raw!r}"
             )
-        header, value = parts[0].lstrip(":"), parts[1].strip()
-        final_header = header.split(":")[-1].upper()
-        if final_header.startswith("BWL"):
+        if final_header in {"BWL", "BWLIMIT"}:
             normalized = value.upper()
             if normalized in {"0", "OFF"}:
                 values["bandwidth_limit_enabled"] = False

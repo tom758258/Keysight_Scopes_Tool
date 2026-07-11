@@ -92,6 +92,24 @@ def test_external_trigger_settings_parser_handles_headers_order_whitespace_and_u
     assert state.raw_response == raw.strip()
 
 
+def test_external_trigger_settings_parser_ignores_unknown_field_without_value():
+    raw = "UNIT VOLT;FUTURE;RANG 8;PROB 1;BWL 0"
+    state = parse_external_trigger_settings(raw)
+
+    assert state.units == "volts"
+    assert state.range_value == 8.0
+    assert state.probe_attenuation == 1.0
+    assert state.bandwidth_limit_enabled is False
+    assert state.raw_response == raw
+
+
+def test_external_trigger_settings_parser_does_not_treat_known_header_prefix_as_known():
+    state = parse_external_trigger_settings("BWLEXTRA;UNIT VOLT")
+
+    assert state.units == "volts"
+    assert state.bandwidth_limit_enabled is None
+
+
 def test_external_trigger_settings_parser_uses_last_duplicate_known_field():
     state = parse_external_trigger_settings("RANG 1;RANGE 8;PROB 1;UNIT VOLT;BWL 1;BWL OFF")
     assert state.range_value == 8.0
@@ -103,7 +121,10 @@ def test_external_trigger_settings_parser_allows_missing_known_fields_and_preser
     assert state == ExternalTriggerSettingsState(None, None, None, None, "UNIT FUTURE;UNKNOWN field")
 
 
-@pytest.mark.parametrize("raw", ["", ";", "RANG nonsense", "PROB NaN", "BWL MAYBE", "UNIT"])
+@pytest.mark.parametrize(
+    "raw",
+    ["", ";", "RANG nonsense", "PROB NaN", "BWL MAYBE", "UNIT", "RANG", "PROB", "BWL"],
+)
 def test_external_trigger_settings_parser_rejects_malformed_known_or_structural_fields(raw):
     with pytest.raises(TriggerResponseError):
         parse_external_trigger_settings(raw)

@@ -1113,6 +1113,7 @@ def _build_parser() -> argparse.ArgumentParser:
     external_trigger_settings_parser.add_argument(
         "--query",
         action="store_true",
+        required=True,
         help="query aggregate External trigger input settings",
     )
 
