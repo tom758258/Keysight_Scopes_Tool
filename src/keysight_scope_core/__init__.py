@@ -68,7 +68,7 @@ from .run_config import (
     resolve_resource,
     resolve_run_mode,
 )
-from .screenshot import ScreenshotCapture, ScreenshotController
+from .screenshot import HardcopyState, ScreenshotCapture, ScreenshotController, ScreenshotOptions
 from .scope import KeysightScope
 from .status import (
     OperationCompleteState,
@@ -219,8 +219,10 @@ __all__ = [
     "MeasureSweepRequest",
     "SmokeRequest",
     "AcquisitionCheckRequest",
+    "HardcopyState",
     "ScreenshotCapture",
     "ScreenshotController",
+    "ScreenshotOptions",
     "ScopeCapabilities",
     "SystemErrorEntry",
     "StatusController",

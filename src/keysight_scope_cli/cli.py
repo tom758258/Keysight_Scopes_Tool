@@ -226,9 +226,20 @@ from keysight_scope_core.status import (
 from keysight_scope_core.screenshot import (
     DEFAULT_SCREENSHOT_BACKGROUND,
     SCREENSHOT_TIMEOUT_MS,
+    ScreenshotOptions,
+    hardcopy_area_query,
+    hardcopy_format_query,
     hardcopy_inksaver_command,
     hardcopy_inksaver_for_background,
+    hardcopy_inksaver_query,
+    hardcopy_layout_command,
+    hardcopy_layout_query,
+    hardcopy_palette_command,
+    hardcopy_palette_query,
+    hardcopy_screen_dump_data_query,
+    normalize_screenshot_options,
     screenshot_data_query,
+    write_screenshot,
     write_screenshot_png,
 )
 from keysight_scope_core.scope import KeysightScope
@@ -2115,13 +2126,26 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output",
         dest="output_path",
         default=None,
-        help="output PNG path; defaults to data/<UTC+8 timestamp>.png",
+        help="output image path; defaults to data/<UTC+8 timestamp>.<format>",
     )
     screenshot_parser.add_argument(
         "--background",
         choices=("black", "white"),
-        default=DEFAULT_SCREENSHOT_BACKGROUND,
+        default=None,
         help="screenshot background color; defaults to black",
+    )
+    screenshot_parser.add_argument("--format", choices=("png", "bmp", "bmp8bit"))
+    screenshot_parser.add_argument("--ink-saver", type=_strict_bool_arg)
+    screenshot_parser.add_argument(
+        "--palette", choices=("color", "grayscale", "none")
+    )
+    screenshot_parser.add_argument(
+        "--layout", choices=("landscape", "portrait")
+    )
+    screenshot_parser.add_argument(
+        "--query-hardcopy",
+        action="store_true",
+        help="query hardcopy state without capturing image bytes",
     )
 
     smoke_parser = subparsers.add_parser(
@@ -2844,7 +2868,67 @@ def _safe_mode(args: argparse.Namespace) -> str:
         return "dry_run" if getattr(args, "dry_run", False) else "simulate" if getattr(args, "simulate", False) else "live"
 
 
+def _screenshot_options(args: argparse.Namespace) -> ScreenshotOptions:
+    return normalize_screenshot_options(
+        ScreenshotOptions(
+            format=getattr(args, "format", None),
+            ink_saver=getattr(args, "ink_saver", None),
+            palette=getattr(args, "palette", None),
+            layout=getattr(args, "layout", None),
+        )
+    )
+
+
+def _uses_screenshot_format_pack(args: argparse.Namespace) -> bool:
+    options = _screenshot_options(args)
+    return bool(
+        getattr(args, "query_hardcopy", False)
+        or options.format is not None
+        or options.ink_saver is not None
+        or options.palette is not None
+        or options.layout is not None
+    )
+
+
+def _validate_screenshot_args(args: argparse.Namespace) -> None:
+    options = _screenshot_options(args)
+    if getattr(args, "query_hardcopy", False):
+        conflicting = (
+            getattr(args, "output_path", None) is not None
+            or getattr(args, "background", None) is not None
+            or any(
+                value is not None
+                for value in (
+                    options.format,
+                    options.ink_saver,
+                    options.palette,
+                    options.layout,
+                )
+            )
+        )
+        if conflicting:
+            raise ParameterValidationError(
+                "--query-hardcopy cannot be combined with screenshot capture or setting options."
+            )
+    if getattr(args, "background", None) is not None and options.ink_saver is not None:
+        raise ParameterValidationError("--background cannot be combined with --ink-saver.")
+    if options.format is not None and getattr(args, "output_path", None) is not None:
+        expected = ".png" if options.format == "png" else ".bmp"
+        if Path(args.output_path).suffix.lower() != expected:
+            raise ParameterValidationError(
+                f"--format {options.format} requires an output path ending in {expected}."
+            )
+    if _uses_screenshot_format_pack(args):
+        capabilities = capabilities_for_model(args.model)
+        if not capabilities.supports_screenshot_format_pack:
+            raise ParameterValidationError(
+                "Screenshot Format Pack v1 requires a 4000X model profile."
+            )
+
+
 def _validate_pre_open_args(args: argparse.Namespace) -> None:
+    if getattr(args, "command", None) == "screenshot":
+        _validate_screenshot_args(args)
     if getattr(args, "command", None) == "channel-impedance":
         if (
             getattr(args, "impedance_value", None) == "fifty"
@@ -4429,9 +4513,59 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         }
         return planned, files, result
     if command == "screenshot":
-        png_path = Path(args.output_path) if args.output_path else _default_screenshot_path()
-        files = [{"kind": "png", "path": str(png_path)}]
-        return [hardcopy_inksaver_command(hardcopy_inksaver_for_background(args.background)), screenshot_data_query(), ":SYSTem:ERRor?"], files, {"format": "PNG", "background": args.background, "timeout_ms": SCREENSHOT_TIMEOUT_MS, "files": files, "png_path": str(png_path)}
+        if args.query_hardcopy:
+            planned = [
+                hardcopy_area_query(),
+                hardcopy_inksaver_query(),
+                hardcopy_palette_query(),
+                hardcopy_layout_query(),
+                hardcopy_format_query(),
+                ":SYSTem:ERRor?",
+            ]
+            return planned, [], {"operation": "query", "hardcopy": None}
+        options = _screenshot_options(args)
+        background = args.background or DEFAULT_SCREENSHOT_BACKGROUND
+        format_name = options.format or "png"
+        output_path = _screenshot_output_path(args, format_name)
+        file_kind = "png" if format_name == "png" else "bmp"
+        files = [{"kind": file_kind, "path": str(output_path)}]
+        if _uses_screenshot_format_pack(args):
+            planned = []
+            if options.ink_saver is not None:
+                planned.append(hardcopy_inksaver_command(options.ink_saver))
+            else:
+                planned.append(
+                    hardcopy_inksaver_command(hardcopy_inksaver_for_background(background))
+                )
+            if options.palette is not None:
+                planned.append(hardcopy_palette_command(options.palette))
+            if options.layout is not None:
+                planned.append(hardcopy_layout_command(options.layout))
+            planned.append(hardcopy_screen_dump_data_query(format_name))
+        else:
+            planned = [
+                hardcopy_inksaver_command(hardcopy_inksaver_for_background(background)),
+                screenshot_data_query(),
+            ]
+        result = {
+            "format": {"png": "PNG", "bmp": "BMP", "bmp8bit": "BMP8bit"}[format_name],
+            "background": background,
+            "ink_saver": options.ink_saver,
+            "palette": options.palette,
+            "layout": options.layout,
+            "options": {
+                "format": options.format,
+                "ink_saver": options.ink_saver,
+                "palette": options.palette,
+                "layout": options.layout,
+            },
+            "timeout_ms": SCREENSHOT_TIMEOUT_MS,
+            "files": files,
+            "image_path": str(output_path),
+        }
+        if format_name == "png":
+            result["png_path"] = str(output_path)
+        return planned + [":SYSTem:ERRor?"], files, result
     if command == "smoke":
         output_dir = Path(args.output_dir) if args.output_dir is not None else Path("data") / "hardware_smoke" / "DRY-RUN"
         files = _smoke_file_list(output_dir)
@@ -4999,6 +5133,7 @@ def _capabilities_json(capabilities: ScopeCapabilities | None) -> dict[str, obje
         "supports_measurements": capabilities.supports_measurements,
         "supports_delay_measurement": capabilities.supports_delay_measurement,
         "supports_screenshot": capabilities.supports_screenshot,
+        "supports_screenshot_format_pack": capabilities.supports_screenshot_format_pack,
         "supports_segmented_memory": capabilities.supports_segmented_memory,
         "supports_serial_decode": capabilities.supports_serial_decode,
         "reference_waveforms": capabilities.reference_waveforms,
@@ -7874,10 +8009,6 @@ def _cmd_screenshot(args: argparse.Namespace) -> int:
 
     _configure_scpi_logging(args)
 
-    output_path = (
-        Path(args.output_path) if args.output_path is not None else _default_screenshot_path()
-    )
-
     with _open_scope(args, resource) as scope:
         idn = scope.query_idn()
         _json_record_scope(scope, idn)
@@ -7888,29 +8019,98 @@ def _cmd_screenshot(args: argparse.Namespace) -> int:
             print("Capabilities: unavailable for this model")
             return 1
 
-        background = args.background
-        print(f"Planned capture: current screen PNG image with {background} background")
+        if args.query_hardcopy:
+            state = scope.query_hardcopy_state()
+            hardcopy = {
+                "area": state.area,
+                "ink_saver": state.ink_saver,
+                "palette": state.palette,
+                "layout": state.layout,
+                "format": state.format,
+                "raw_area": state.raw_area,
+                "raw_ink_saver": state.raw_ink_saver,
+                "raw_palette": state.raw_palette,
+                "raw_layout": state.raw_layout,
+                "raw_format": state.raw_format,
+            }
+            _json_update_result(operation="query", hardcopy=hardcopy)
+            print(f"Area: {state.area} (raw: {state.raw_area})")
+            print(f"Ink saver: {state.ink_saver} (raw: {state.raw_ink_saver})")
+            print(f"Palette: {state.palette} (raw: {state.raw_palette})")
+            print(f"Layout: {state.layout} (raw: {state.raw_layout})")
+            print(f"Format: {state.format} (raw: {state.raw_format})")
+            entry = scope.query_system_error()
+            _json_record_system_error(entry)
+            print(f"System error: {entry.format()}")
+            return 1 if entry.is_error else 0
+
+        options = _screenshot_options(args)
+        format_name = options.format or "png"
+        output_path = _screenshot_output_path(args, format_name)
+        background = args.background or DEFAULT_SCREENSHOT_BACKGROUND
+        display_format = {"png": "PNG", "bmp": "BMP", "bmp8bit": "BMP8bit"}[
+            format_name
+        ]
+        print(
+            f"Planned capture: current screen {display_format} image with {background} background"
+        )
         print(f"Screenshot timeout ms: {SCREENSHOT_TIMEOUT_MS} (temporary)")
-        capture = scope.capture_screenshot_png(background=background)
-        print(f"Command: {hardcopy_inksaver_command(hardcopy_inksaver_for_background(background))}")
-        print(f"Command: {screenshot_data_query()}")
-        written_png = _write_screenshot_png(capture, output_path)
-        files = [{"kind": "png", "path": str(written_png)}]
+        if _uses_screenshot_format_pack(args):
+            capture = scope.capture_screenshot(options=options, background=background)
+            if options.ink_saver is not None:
+                print(f"Command: {hardcopy_inksaver_command(options.ink_saver)}")
+            else:
+                print(
+                    "Command: "
+                    + hardcopy_inksaver_command(
+                        hardcopy_inksaver_for_background(background)
+                    )
+                )
+            if options.palette is not None:
+                print(f"Command: {hardcopy_palette_command(options.palette)}")
+            if options.layout is not None:
+                print(f"Command: {hardcopy_layout_command(options.layout)}")
+            print(f"Command: {hardcopy_screen_dump_data_query(format_name)}")
+            written_image = _write_screenshot(capture, output_path, format_name)
+        else:
+            capture = scope.capture_screenshot_png(background=background)
+            print(
+                f"Command: {hardcopy_inksaver_command(hardcopy_inksaver_for_background(background))}"
+            )
+            print(f"Command: {screenshot_data_query()}")
+            written_image = _write_screenshot_png(capture, output_path)
+        file_kind = "png" if format_name == "png" else "bmp"
+        files = [{"kind": file_kind, "path": str(written_image)}]
         _json_set_files(files)
-        _json_update_result(
+        result = dict(
             format=capture.format_name,
-            palette=capture.palette,
+            palette=(options.palette if _uses_screenshot_format_pack(args) else capture.palette),
             background=capture.background,
+            ink_saver=options.ink_saver,
+            layout=options.layout,
+            options={
+                "format": options.format,
+                "ink_saver": options.ink_saver,
+                "palette": options.palette,
+                "layout": options.layout,
+            },
             byte_count=len(capture.data),
             timeout_ms=SCREENSHOT_TIMEOUT_MS,
-            png_path=str(written_png),
+            image_path=str(written_image),
             files=files,
         )
+        if format_name == "png":
+            result["png_path"] = str(written_image)
+        _json_update_result(**result)
         print(f"Format: {capture.format_name}")
-        print(f"Palette: {capture.palette}")
+        if capture.palette is not None:
+            print(f"Palette: {capture.palette}")
         print(f"Background: {capture.background}")
         print(f"Bytes: {len(capture.data)}")
-        print(f"PNG: {written_png}")
+        if format_name == "png":
+            print(f"PNG: {written_image}")
+        else:
+            print(f"BMP: {written_image}")
         entry = scope.query_system_error()
         _json_record_system_error(entry)
         print(f"System error: {entry.format()}")
@@ -8465,7 +8665,9 @@ def _default_capture_csv_path(now: datetime | None = None) -> Path:
     return Path("data") / capture_time.strftime("%Y-%m-%d-%H-%M-%S.csv")
 
 
-def _default_screenshot_path(now: datetime | None = None) -> Path:
+def _default_screenshot_path(
+    now: datetime | None = None, *, extension: str = ".png"
+) -> Path:
     if now is None:
         capture_time = datetime.now(_CAPTURE_DEFAULT_TIMEZONE)
     elif now.tzinfo is None:
@@ -8473,7 +8675,15 @@ def _default_screenshot_path(now: datetime | None = None) -> Path:
     else:
         capture_time = now.astimezone(_CAPTURE_DEFAULT_TIMEZONE)
 
-    return Path("data") / capture_time.strftime("%Y-%m-%d-%H-%M-%S.png")
+    return Path("data") / (capture_time.strftime("%Y-%m-%d-%H-%M-%S") + extension)
+
+
+def _screenshot_output_path(args: argparse.Namespace, format_name: str) -> Path:
+    if args.output_path is not None:
+        return Path(args.output_path)
+    if format_name == "png":
+        return _default_screenshot_path()
+    return _default_screenshot_path(extension=".bmp")
 
 
 def _smoke_file_list(output_dir: Path) -> list[dict[str, str]]:
@@ -9008,6 +9218,16 @@ def _write_screenshot_png(capture, output_path: Path) -> Path:
     except OSError as exc:
         raise KeysightScopeError(
             _format_output_file_error("screenshot PNG", output_path, exc)
+        ) from exc
+
+
+def _write_screenshot(capture, output_path: Path, format_name: str) -> Path:
+    try:
+        return write_screenshot(capture, output_path)
+    except OSError as exc:
+        label = "screenshot PNG" if format_name == "png" else "screenshot BMP"
+        raise KeysightScopeError(
+            _format_output_file_error(label, output_path, exc)
         ) from exc
 
 

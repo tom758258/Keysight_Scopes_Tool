@@ -359,6 +359,7 @@ def parse_domain_command(
     job_dir: Path | None = None,
 ) -> argparse.Namespace:
     arguments = _normalize_system_status_worker_arguments(command, arguments)
+    arguments = _normalize_screenshot_worker_arguments(command, arguments)
     _validate_display_worker_arguments(command, arguments)
     arguments = _normalize_measurement_reference_worker_arguments(
         command, arguments, runtime
@@ -1159,6 +1160,62 @@ def _normalize_trigger_common_worker_arguments(
     return arguments
 
 
+def _normalize_screenshot_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command != "screenshot":
+        return arguments
+    allowed = {
+        "output",
+        "background",
+        "format",
+        "ink_saver",
+        "palette",
+        "layout",
+        "query_hardcopy",
+    }
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for screenshot: {sorted(unknown)[0]}"
+        )
+    if "query_hardcopy" in arguments:
+        if arguments.get("query_hardcopy") is not True:
+            raise KeysightScopeError(
+                "screenshot argument query_hardcopy must be exactly true"
+            )
+        if set(arguments) != {"query_hardcopy"}:
+            raise KeysightScopeError(
+                "screenshot query_hardcopy cannot be combined with capture arguments"
+            )
+        return dict(arguments)
+    for key in ("output", "background", "format", "palette", "layout"):
+        if key in arguments and not isinstance(arguments[key], str):
+            raise KeysightScopeError(f"screenshot argument {key} must be a string")
+    if "ink_saver" in arguments and not isinstance(arguments["ink_saver"], bool):
+        raise KeysightScopeError("screenshot argument ink_saver must be a boolean")
+    if arguments.get("format") not in {None, "png", "bmp", "bmp8bit"}:
+        raise KeysightScopeError(
+            "screenshot argument format must be one of: png, bmp, bmp8bit"
+        )
+    if arguments.get("background") not in {None, "black", "white"}:
+        raise KeysightScopeError(
+            "screenshot argument background must be one of: black, white"
+        )
+    if arguments.get("palette") not in {None, "color", "grayscale", "none"}:
+        raise KeysightScopeError(
+            "screenshot argument palette must be one of: color, grayscale, none"
+        )
+    if arguments.get("layout") not in {None, "landscape", "portrait"}:
+        raise KeysightScopeError(
+            "screenshot argument layout must be one of: landscape, portrait"
+        )
+    normalized = dict(arguments)
+    if "ink_saver" in normalized:
+        normalized["ink_saver"] = "true" if normalized["ink_saver"] else "false"
+    return normalized
+
+
 def _normalize_dvm_worker_arguments(
     command: str, arguments: dict[str, Any], runtime: WorkerRuntime
 ) -> dict[str, Any]:
@@ -1600,8 +1657,12 @@ def _apply_worker_job_paths(args: argparse.Namespace, job_dir: Path) -> None:
         if plot_value is not None:
             setattr(args, "plot_path", str(_worker_path(job_dir, plot_value, None)))
     elif command == "screenshot":
-        output_path = _worker_path(job_dir, getattr(args, "output_path", None), "screen.png")
-        setattr(args, "output_path", str(output_path))
+        if not getattr(args, "query_hardcopy", False):
+            default_name = "screen.png" if getattr(args, "format", None) in {None, "png"} else "screen.bmp"
+            output_path = _worker_path(
+                job_dir, getattr(args, "output_path", None), default_name
+            )
+            setattr(args, "output_path", str(output_path))
     elif command in {"capture-batch", "measure-log", "smoke", "acquisition-check"}:
         output_dir = _worker_path(job_dir, getattr(args, "output_dir", None), ".")
         setattr(args, "output_dir", str(output_dir))
@@ -1632,6 +1693,8 @@ def _planned_artifact_paths(args: argparse.Namespace) -> list[Path]:
             paths.append(Path(args.plot_path))
         return paths
     if command == "screenshot":
+        if getattr(args, "query_hardcopy", False):
+            return []
         return [Path(args.output_path)]
     if command == "capture-batch":
         output_dir = Path(args.output_dir)

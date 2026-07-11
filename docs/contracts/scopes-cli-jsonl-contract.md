@@ -347,8 +347,12 @@ Measurement and artifact-producing flows:
 - `capture-batch`: `status`, `channels`, `format`, `requested_count`,
   `completed_count`, `manifest_path`, `scpi_log_path`, and compact capture
   entries.
-- `screenshot`: `format`, `palette`, `background`, `byte_count`,
-  `timeout_ms`, `png_path`, and `files`.
+- `screenshot` capture: `format`, `palette`, `background`, `ink_saver`,
+  `layout`, canonical `options`, `byte_count`, `timeout_ms`, `image_path`,
+  optional `png_path`, and `files`. Query-only `--query-hardcopy` instead
+  returns `operation: "query"`
+  and `hardcopy` with canonical and raw area, ink saver, palette, layout, and
+  format fields; it returns no files.
 - `smoke`: `status`, `output_dir`, `report_path`, `scpi_log_path`, `files`,
   `doctor`, `measurements`, `capture`, `screenshot`, `warnings`, and optional
   `error`.
@@ -365,6 +369,7 @@ Capability JSON currently includes `series`, `analog_channels`,
 `default_waveform_points`, `safe_max_waveform_points`,
 `supports_word_format`, `supports_raw_points_mode`, `supports_measurements`,
 `supports_delay_measurement`, `supports_screenshot`,
+`supports_screenshot_format_pack`,
 `supports_segmented_memory`, `supports_serial_decode`,
 `supports_channel_label`, `channel_label_max_length`,
 `supports_display_label`, `supports_annotation`,

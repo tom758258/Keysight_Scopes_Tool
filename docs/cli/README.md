@@ -1782,6 +1782,10 @@ Capture the current oscilloscope screen as a color PNG image:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --output data\screen.png --log-scpi
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --background white --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --format png --output data\screen.png --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --format bmp --output data\screen.bmp --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --format bmp8bit --ink-saver false --palette grayscale --layout landscape --output data\screen-8bit.bmp --log-scpi
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --query-hardcopy --json --log-scpi
 ```
 
 The `screenshot` command first queries `*IDN?`, sets `:HARDcopy:INKSaver` for
@@ -1796,6 +1800,24 @@ than normal query responses, screenshot capture temporarily sets the VISA
 timeout to 10000 ms for the image transfer and restores the previous timeout
 afterward. It does not change acquisition state, trigger settings, display
 state, the default timeout, or return-to-local behavior.
+
+On a 4000X profile, `--format png|bmp|bmp8bit` uses
+`:HCOPY:SDUMp:DATA? <format>` and validates the returned PNG or BMP signature.
+PNG output uses `.png`; BMP and BMP8bit output use `.bmp`. An explicit output
+path with the wrong extension is rejected before opening the backend.
+`--ink-saver true|false`, `--palette color|grayscale|none`, and
+`--layout landscape|portrait` send the corresponding hardcopy settings before
+the image query. These explicit settings remain in instrument state. When
+`--ink-saver` is omitted, the existing background-based temporary ink saver
+behavior is preserved.
+
+`--query-hardcopy` is query-only: it returns canonical area, ink saver,
+palette, layout, and format state with raw readbacks, captures no image bytes,
+and creates no artifact. It cannot be combined with capture or setting
+options. Screenshot Format Pack v1 is not exposed on 2000X or 3000X profiles;
+their existing PNG screenshot behavior is unchanged. Printer jobs,
+scope-internal image save, hardcopy area selection, and network printer
+support are outside this pack.
 
 ## Tests
 

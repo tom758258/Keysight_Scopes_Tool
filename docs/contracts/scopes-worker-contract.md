@@ -175,6 +175,39 @@ accepted as JSON keys, for example:
 }
 ```
 
+The existing `screenshot` worker command accepts only canonical `output`,
+`background`, `format`, `ink_saver`, `palette`, `layout`, and
+`query_hardcopy` keys. Screenshot Format Pack v1 examples are:
+
+```json
+{
+  "command": "screenshot",
+  "arguments": {
+    "format": "bmp8bit",
+    "ink_saver": false,
+    "palette": "grayscale",
+    "layout": "landscape",
+    "output": "screen-8bit.bmp"
+  }
+}
+```
+
+```json
+{
+  "command": "screenshot",
+  "arguments": {
+    "query_hardcopy": true
+  }
+}
+```
+
+Enum values must be canonical strings and `ink_saver` must be a JSON boolean.
+`query_hardcopy` must be exactly `true` and cannot be combined with capture or
+setting fields. Unknown keys, aliases, wrong JSON types, invalid values, and
+mixed query/capture forms are rejected before enqueue, accepted counters,
+artifact creation, backend open, or SCPI. The format pack is available only
+when the worker's selected model has a 4000X capability profile.
+
 Triggered capture is an explicit opt-in extension of `capture`; it is not a new
 worker command:
 
@@ -1393,7 +1426,9 @@ recorded as absolute paths. Default worker outputs are:
 - `capture`: `capture.csv` and `capture_meta.json` in the job directory; a
   plot is created only when a path string is supplied. With `wait_trigger`,
   these artifacts are written only when the trigger outcome allows capture.
-- `screenshot`: `screen.png` in the job directory.
+- `screenshot`: `screen.png` in the job directory for default or PNG capture,
+  and `screen.bmp` for BMP or BMP8bit capture. Query-only `query_hardcopy`
+  creates no screenshot artifact.
 - `capture-batch`, `measure-log`, `smoke`, and `acquisition-check`: the job
   directory is the default `output_dir`.
 

@@ -38,7 +38,7 @@ from .measurements import (
 from .reference import ReferenceWaveformController, ReferenceWaveformState
 from .search import SearchController, SearchCountState, SearchModeState, SearchState
 from .scpi import SCPIBackend, SCPIClient
-from .screenshot import ScreenshotCapture, ScreenshotController
+from .screenshot import HardcopyState, ScreenshotCapture, ScreenshotController, ScreenshotOptions
 from .status import (
     OperationCompleteState,
     StatusController,
@@ -1027,6 +1027,18 @@ class KeysightScope:
         """Capture the current screen as a color PNG image."""
 
         return self._screenshot_controller().capture_png(background=background)
+
+    def capture_screenshot(
+        self, *, options: ScreenshotOptions, background: str = "black"
+    ) -> ScreenshotCapture:
+        """Capture a screen image with optional hardcopy controls."""
+
+        return self._screenshot_controller().capture(options=options, background=background)
+
+    def query_hardcopy_state(self) -> HardcopyState:
+        """Query the current hardcopy and screen-dump settings."""
+
+        return self._screenshot_controller().query_hardcopy_state()
 
     def set_acquisition_type(self, acquisition_type: str) -> None:
         """Set the acquisition type."""

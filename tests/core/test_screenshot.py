@@ -1,18 +1,31 @@
-﻿import pytest
+import pytest
 
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.errors import ParameterValidationError, ScreenshotResponseError
 from keysight_scope_core.fake_backend import FakeBackend
 from keysight_scope_core.scpi import SCPIClient
 from keysight_scope_core.screenshot import (
+    BMP_SIGNATURE,
+    HardcopyState,
     PNG_SIGNATURE,
     ScreenshotCapture,
     ScreenshotController,
+    ScreenshotOptions,
+    hardcopy_screen_dump_data_query,
+    hardcopy_layout_command,
+    hardcopy_palette_command,
     hardcopy_inksaver_command,
     hardcopy_inksaver_for_background,
     hardcopy_inksaver_query,
+    normalize_hardcopy_layout,
+    normalize_hardcopy_palette,
+    normalize_screenshot_format,
     normalize_screenshot_background,
+    parse_hardcopy_area,
+    parse_hardcopy_layout,
+    parse_hardcopy_palette,
     parse_hardcopy_inksaver,
+    parse_screenshot_format,
     screenshot_bytes_from_values,
     screenshot_data_query,
     write_screenshot_png,
@@ -46,6 +59,70 @@ def test_parse_hardcopy_inksaver():
     assert parse_hardcopy_inksaver("1") is True
     with pytest.raises(ScreenshotResponseError):
         parse_hardcopy_inksaver("ON")
+
+
+@pytest.mark.parametrize(
+    ("parser", "response", "expected"),
+    [
+        (parse_hardcopy_inksaver, "INKS 1", True),
+        (parse_hardcopy_inksaver, "0", False),
+        (parse_hardcopy_palette, "COL", "color"),
+        (parse_hardcopy_palette, "GRAY", "grayscale"),
+        (parse_hardcopy_palette, "NONE", "none"),
+        (parse_hardcopy_layout, "LAND", "landscape"),
+        (parse_hardcopy_layout, "PORT", "portrait"),
+        (parse_hardcopy_area, "SCR", "screen"),
+        (parse_screenshot_format, "BMP8bit", "bmp8bit"),
+    ],
+)
+def test_hardcopy_parsers_accept_compact_readbacks(parser, response, expected):
+    assert parser(response) == expected
+
+
+@pytest.mark.parametrize(
+    ("parser", "response"),
+    [
+        (parse_hardcopy_inksaver, "ON"),
+        (parse_hardcopy_palette, "RAINBOW"),
+        (parse_hardcopy_layout, "SQUARE"),
+        (parse_hardcopy_area, "PLOT"),
+        (parse_screenshot_format, "JPEG"),
+    ],
+)
+def test_hardcopy_parsers_reject_malformed_readbacks(parser, response):
+    with pytest.raises(ScreenshotResponseError):
+        parser(response)
+
+
+def test_screenshot_option_normalizers_are_strict():
+    assert normalize_screenshot_format("BMP8BIT") == "bmp8bit"
+    assert normalize_hardcopy_palette("GRAYScale") == "grayscale"
+    assert normalize_hardcopy_layout("LANDSCAPE") == "landscape"
+    with pytest.raises(ParameterValidationError):
+        normalize_screenshot_format("jpeg")
+
+
+@pytest.mark.parametrize(
+    ("palette", "command"),
+    [
+        ("color", ":HARDcopy:PALette COLor"),
+        ("grayscale", ":HARDcopy:PALette GRAYscale"),
+        ("none", ":HARDcopy:PALette NONE"),
+    ],
+)
+def test_hardcopy_palette_commands(palette, command):
+    assert hardcopy_palette_command(palette) == command
+
+
+@pytest.mark.parametrize(
+    ("layout", "command"),
+    [
+        ("landscape", ":HARDcopy:LAYout LANDscape"),
+        ("portrait", ":HARDcopy:LAYout PORTrait"),
+    ],
+)
+def test_hardcopy_layout_commands(layout, command):
+    assert hardcopy_layout_command(layout) == command
 
 
 def test_screenshot_bytes_from_values_validates_png_signature():
@@ -104,6 +181,83 @@ def test_screenshot_controller_supports_white_background():
         ":DISPlay:DATA? PNG, COLor",
         ":HARDcopy:INKSaver OFF",
     ]
+
+
+@pytest.mark.parametrize(
+    ("format_name", "payload", "query"),
+    [
+        ("png", PNG_BYTES, ":HCOPY:SDUMp:DATA? PNG"),
+        ("bmp", BMP_SIGNATURE + b"bmp", ":HCOPY:SDUMp:DATA? BMP"),
+        ("bmp8bit", BMP_SIGNATURE + b"bmp8", ":HCOPY:SDUMp:DATA? BMP8bit"),
+    ],
+)
+def test_screenshot_controller_uses_explicit_4000x_screen_dump_format(
+    format_name, payload, query
+):
+    backend = FakeBackend(
+        responses={":HARDcopy:INKSaver?": "0"},
+        binary_responses={query: list(payload)},
+    )
+    controller = ScreenshotController(
+        SCPIClient(backend), capabilities_for_model("DSOX4024A")
+    )
+
+    capture = controller.capture(options=ScreenshotOptions(format=format_name))
+
+    assert capture.data == payload
+    assert query in backend.history
+    assert hardcopy_screen_dump_data_query(format_name) == query
+
+
+def test_screenshot_controller_applies_hardcopy_appearance_before_capture():
+    query = ":HCOPY:SDUMp:DATA? PNG"
+    backend = FakeBackend(binary_responses={query: list(PNG_BYTES)})
+    controller = ScreenshotController(
+        SCPIClient(backend), capabilities_for_model("DSOX4024A")
+    )
+
+    controller.capture(
+        options=ScreenshotOptions(
+            ink_saver=True, palette="grayscale", layout="landscape"
+        )
+    )
+
+    assert backend.history == [
+        ":HARDcopy:INKSaver ON",
+        ":HARDcopy:PALette GRAYscale",
+        ":HARDcopy:LAYout LANDscape",
+        query,
+    ]
+
+
+def test_screenshot_controller_queries_structured_hardcopy_state():
+    backend = FakeBackend(
+        responses={
+            ":HARDcopy:AREA?": "SCR",
+            ":HARDcopy:INKSaver?": "INKS 1",
+            ":HARDcopy:PALette?": "COL",
+            ":HARDcopy:LAYout?": "PORT",
+            ":HCOPY:SDUMp:FORMat?": "BMP8bit",
+        }
+    )
+    controller = ScreenshotController(
+        SCPIClient(backend), capabilities_for_model("DSOX4024A")
+    )
+
+    state = controller.query_hardcopy_state()
+
+    assert state == HardcopyState(
+        area="screen",
+        ink_saver=True,
+        palette="color",
+        layout="portrait",
+        format="bmp8bit",
+        raw_area="SCR",
+        raw_ink_saver="INKS 1",
+        raw_palette="COL",
+        raw_layout="PORT",
+        raw_format="BMP8bit",
+    )
 
 
 def test_screenshot_controller_rejects_disabled_capability():

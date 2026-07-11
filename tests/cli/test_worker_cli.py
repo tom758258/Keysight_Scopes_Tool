@@ -246,6 +246,58 @@ def test_worker_request_rejects_unknown_command():
         worker.validate_command_request({"command": "list-resources", "arguments": {}})
 
 
+def test_worker_screenshot_accepts_canonical_format_pack_arguments(tmp_path):
+    parsed = worker.parse_domain_command(
+        "screenshot",
+        {
+            "format": "bmp8bit",
+            "ink_saver": False,
+            "palette": "grayscale",
+            "layout": "landscape",
+        },
+        _runtime(tmp_path),
+    )
+
+    assert parsed.format == "bmp8bit"
+    assert parsed.ink_saver is False
+    assert parsed.palette == "grayscale"
+    assert parsed.layout == "landscape"
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        {"image_format": "png"},
+        {"format": 1},
+        {"ink_saver": "false"},
+        {"query_hardcopy": False},
+        {"query_hardcopy": True, "output": "screen.png"},
+    ],
+)
+def test_worker_screenshot_rejects_noncanonical_arguments_before_artifacts(
+    tmp_path, arguments
+):
+    runtime = _runtime(tmp_path)
+
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command("screenshot", arguments, runtime)
+
+    assert not any(tmp_path.iterdir())
+
+
+def test_worker_screenshot_query_has_no_artifact_path(tmp_path):
+    job_dir = tmp_path / "job"
+    parsed = worker.parse_domain_command(
+        "screenshot",
+        {"query_hardcopy": True},
+        _runtime(tmp_path),
+        job_dir,
+    )
+
+    assert parsed.query_hardcopy is True
+    assert worker._planned_artifact_paths(parsed) == []
+
+
 @pytest.mark.parametrize(
     "command",
     (

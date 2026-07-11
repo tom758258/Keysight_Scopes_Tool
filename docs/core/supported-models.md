@@ -49,11 +49,16 @@ All supported series profiles currently expose:
 
 Series-specific differences:
 
-| Series | Search Basic Pack v1 modes |
-| --- | --- |
-| 2000X | `serial1` |
-| 3000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2` |
-| 4000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2`, `peak` |
+| Series | Search Basic Pack v1 modes | Screenshot Format Pack v1 |
+| --- | --- | --- |
+| 2000X | `serial1` | No; existing PNG capture remains supported |
+| 3000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2` | No; existing PNG capture remains supported |
+| 4000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2`, `peak` | PNG, BMP, BMP8bit, appearance controls, and state query |
+
+Screenshot Format Pack v1 is capability-gated to 4000X because its explicit
+format transfer uses the documented `:HCOPY:SDUMp` command family. This is
+hardware-free support only; no live instrument validation has been run for the
+pack.
 
 All three profiles support `search-state` and query-only `search-count`.
 `search-mode` enables search before setting the mode. Search event navigation,

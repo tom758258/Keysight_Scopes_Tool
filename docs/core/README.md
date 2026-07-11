@@ -54,6 +54,9 @@ Core owns runtime behavior:
   save/recall and reference scale, skew, offset, and range controls are not
   implemented.
 - Read-only analog acquisition sample rate query helpers.
+- Screenshot Format Pack v1 helpers for 4000X screen-dump PNG, BMP, and
+  8-bit BMP capture plus hardcopy ink saver, palette, layout, and aggregate
+  state queries. Existing cross-series color PNG capture remains unchanged.
 - Read-only acquisition points and record-length query helpers, separate from
   waveform transfer points.
 - Explicit triggered-capture wait helpers that arm `:SINGle`, poll

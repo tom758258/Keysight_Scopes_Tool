@@ -665,6 +665,29 @@ def test_simulator_screenshot_png_reflects_model_label_deterministically():
     assert _png_dimensions(different_model) == (480, 272)
 
 
+def test_simulator_hardcopy_format_pack_state_and_binary_payloads():
+    backend = SimulatorBackend(model="DSOX4024A")
+
+    assert backend.query(":HARDcopy:AREA?") == "SCR"
+    assert backend.query(":HARDcopy:INKSaver?") == "0"
+    assert backend.query(":HARDcopy:PALette?") == "NONE"
+    assert backend.query(":HARDcopy:LAYout?") == "PORT"
+    assert backend.query(":HCOPY:SDUMp:FORMat?") == "PNG"
+
+    backend.write(":HARDcopy:INKSaver ON")
+    backend.write(":HARDcopy:PALette GRAYscale")
+    backend.write(":HARDcopy:LAYout LANDscape")
+    assert backend.query(":HARDcopy:PALette?") == "GRAY"
+    assert backend.query(":HARDcopy:LAYout?") == "LAND"
+    assert bytes(backend.query_binary_values(":HCOPY:SDUMp:DATA? PNG")).startswith(
+        PNG_SIGNATURE
+    )
+    assert bytes(backend.query_binary_values(":HCOPY:SDUMp:DATA? BMP")).startswith(b"BM")
+    assert bytes(
+        backend.query_binary_values(":HCOPY:SDUMp:DATA? BMP8bit")
+    ).startswith(b"BM")
+
+
 def test_simulator_supports_configured_signal_shapes_and_measurements():
     backend = SimulatorBackend(
         signals={

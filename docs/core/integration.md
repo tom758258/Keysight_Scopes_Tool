@@ -90,8 +90,10 @@ names are intended for package consumers and tests:
 - `MeasureSweepRequest`
 - `SmokeRequest`
 - `AcquisitionCheckRequest`
+- `HardcopyState`
 - `ScreenshotCapture`
 - `ScreenshotController`
+- `ScreenshotOptions`
 - `ScopeCapabilities`
 - `SystemErrorEntry`
 - `StatusController`
@@ -144,6 +146,29 @@ opening VISA. Operation runners execute against the selected backend.
 Core should remain independent from command-line parser types and WebUI
 controller concepts. Package adapters may call Core, but Core should not import
 from adapter packages.
+
+For 4000X Screenshot Format Pack v1 capture and hardcopy state queries:
+
+```python
+from keysight_scope_core import ScreenshotOptions
+
+capture = scope.capture_screenshot(
+    options=ScreenshotOptions(
+        format="bmp8bit",
+        ink_saver=False,
+        palette="grayscale",
+        layout="landscape",
+    )
+)
+state = scope.query_hardcopy_state()
+```
+
+An explicit format uses `:HCOPY:SDUMp:DATA? PNG|BMP|BMP8bit`. The query state
+contains canonical `area`, `ink_saver`, `palette`, `layout`, and `format`
+values plus the corresponding raw instrument readbacks. The existing
+`capture_screenshot_png(background=...)` API and its
+`:DISPlay:DATA? PNG, COLor` behavior remain available for 2000X, 3000X, and
+4000X compatibility.
 
 System/Status Pack v1 is available through `KeysightScope.clear_status()`,
 `query_operation_complete()`, `query_status_byte()`,

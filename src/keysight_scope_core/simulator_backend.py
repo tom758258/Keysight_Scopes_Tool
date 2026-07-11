@@ -130,6 +130,9 @@ class SimulatorBackend:
     waveform_byte_order: str = "MSBFirst"
     waveform_unsigned: bool = True
     hardcopy_inksaver: bool = False
+    hardcopy_format: str = "PNG"
+    hardcopy_palette: str = "NONE"
+    hardcopy_layout: str = "PORTrait"
     acquisition_type: str = "NORMal"
     acquisition_count: int = 8
     sample_rate_hz: float = 5e9
@@ -305,6 +308,25 @@ class SimulatorBackend:
             self.waveform_points = points
         elif upper.startswith(":HARDCOPY:INKSAVER "):
             self.hardcopy_inksaver = upper.endswith(" ON")
+        elif upper.startswith(":HARDCOPY:PALETTE "):
+            value = command.split(" ", 1)[1]
+            canonical = {
+                "COLOR": "COLor",
+                "GRAYSCALE": "GRAYscale",
+                "NONE": "NONE",
+            }.get(value.upper())
+            if canonical is None:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.hardcopy_palette = canonical
+        elif upper.startswith(":HARDCOPY:LAYOUT "):
+            value = command.split(" ", 1)[1]
+            canonical = {
+                "LANDSCAPE": "LANDscape",
+                "PORTRAIT": "PORTrait",
+            }.get(value.upper())
+            if canonical is None:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.hardcopy_layout = canonical
         elif upper.startswith(":DISPLAY:LABEL "):
             self.display_label = upper.endswith(" ON")
         elif upper == ":DISPLAY:CLEAR":
@@ -765,6 +787,14 @@ class SimulatorBackend:
             return self._waveform_preamble()
         if upper == ":HARDCOPY:INKSAVER?":
             return "1" if self.hardcopy_inksaver else "0"
+        if upper == ":HARDCOPY:AREA?":
+            return "SCR"
+        if upper == ":HARDCOPY:PALETTE?":
+            return _abbreviate_hardcopy_palette(self.hardcopy_palette)
+        if upper == ":HARDCOPY:LAYOUT?":
+            return _abbreviate_hardcopy_layout(self.hardcopy_layout)
+        if upper == ":HCOPY:SDUMP:FORMAT?":
+            return self.hardcopy_format
         if upper == ":DISPLAY:LABEL?":
             return "1" if self.display_label else "0"
         if upper == ":DISPLAY:PERSISTENCE?":
@@ -1010,6 +1040,17 @@ class SimulatorBackend:
             return self.binary_overrides[command]
         if command.upper().startswith(":DISPLAY:DATA?"):
             return tuple(_simulated_screenshot_png(self.model, white_background=self.hardcopy_inksaver))
+        if command.upper().startswith(":HCOPY:SDUMP:DATA?"):
+            format_name = command.split("?", 1)[1].strip().upper()
+            if format_name == "PNG":
+                return tuple(
+                    _simulated_screenshot_png(
+                        self.model, white_background=self.hardcopy_inksaver
+                    )
+                )
+            if format_name in {"BMP", "BMP8BIT"}:
+                return tuple(_simulated_screenshot_bmp(format_name == "BMP8BIT"))
+            raise SimulatorBackendError(f"Unsupported simulator binary query: {command}")
         if not command.upper().startswith(":WAVEFORM:DATA?"):
             return self._handle_unknown("binary query", command)
         self._validate_waveform_points()
@@ -2128,6 +2169,31 @@ _FONT_5X7 = {
     "Y": ("10001", "10001", "01010", "00100", "00100", "00100", "00100"),
     "Z": ("11111", "00001", "00010", "00100", "01000", "10000", "11111"),
 }
+
+
+def _abbreviate_hardcopy_palette(value: str) -> str:
+    return {"COLOR": "COL", "GRAYSCALE": "GRAY", "NONE": "NONE"}[value.upper()]
+
+
+def _abbreviate_hardcopy_layout(value: str) -> str:
+    return {"LANDSCAPE": "LAND", "PORTRAIT": "PORT"}[value.upper()]
+
+
+def _simulated_screenshot_bmp(eight_bit: bool) -> bytes:
+    """Return a deterministic valid 1x1 BMP payload."""
+
+    if eight_bit:
+        palette = b"".join(bytes((value, value, value, 0)) for value in range(256))
+        pixel_offset = 14 + 40 + len(palette)
+        pixels = b"\x7f\x00\x00\x00"
+        dib = struct.pack("<IIIHHIIIIII", 40, 1, 1, 1, 8, 0, len(pixels), 0, 0, 256, 0)
+        size = pixel_offset + len(pixels)
+        return struct.pack("<2sIHHI", b"BM", size, 0, 0, pixel_offset) + dib + palette + pixels
+    pixels = b"\x00\xd6\xff\x00"
+    pixel_offset = 14 + 40
+    dib = struct.pack("<IIIHHIIIIII", 40, 1, 1, 1, 24, 0, len(pixels), 0, 0, 0, 0)
+    size = pixel_offset + len(pixels)
+    return struct.pack("<2sIHHI", b"BM", size, 0, 0, pixel_offset) + dib + pixels
 
 
 def _simulated_screenshot_png(model: str, *, white_background: bool) -> bytes:
