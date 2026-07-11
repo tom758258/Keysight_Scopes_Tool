@@ -126,6 +126,11 @@ Current implemented scope:
   safe 4000X delay measurements with explicit invalid-sentinel handling.
 - Rebuild front-panel quick measurements and query measurement statistics with
   `measure-stats`.
+- Control common measurement subsystem state with `measure-clear`,
+  `measure-show`, `measure-source`, and `measure-window`.
+- Save, display, label, clear, or query reference waveform slots 1 and 2 with
+  `reference-save`, `reference-display`, `reference-label`,
+  `reference-clear`, and `reference-query`.
 - Collect read-only diagnostic snapshots with `doctor`.
 - Query multi-channel and optional pair measurement sweeps with
   continue-and-summarize failure handling.
@@ -1353,6 +1358,46 @@ Worker usage:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-or --arguments-json "{\"query\":true}" --json
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli send-command --port 8765 --command trigger-or --arguments-json "{\"pattern\":\"XXXR\"}" --json
 ```
+
+Control common measurement subsystem state:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-clear --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-show --on --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-show --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-source --source-channel 1 --source2-channel 2 --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-source --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-window --window gate --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli measure-window --query --simulate --json
+```
+
+`measure-clear` clears installed screen measurements. `measure-show` supports
+ON and query only; OFF is intentionally not exposed because the common
+2000X/3000X behavior documents always-on measurement markers. `measure-source`
+accepts one or two analog channels validated against the selected model
+profile. Digital, math/function, and reference measurement sources are not
+accepted. `measure-window` accepts `main`, `zoom`, `auto`, or `gate`.
+
+Control reference waveform slots:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli reference-save --slot 1 --source-channel 1 --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli reference-display --slot 1 --state on --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli reference-label --slot 1 --text BASELINE --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli reference-query --slot 1 --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli reference-clear --slot 1 --simulate --json
+```
+
+Reference Waveform Pack v1 supports slots 1 and 2. `reference-save` accepts an
+analog channel source only. `reference-display` configures or queries slot
+display state, `reference-label` configures or queries a 1-10 character
+printable ASCII label without double quotes, and `reference-query` reads both
+display and label state while preserving raw readbacks in JSON. File-based
+`:SAVE:WMEMory`/`:RECall:WMEMory` workflows and reference skew, offset, range,
+and scale controls are not implemented. These paths have hardware-free
+validation only; live hardware and LAN validation have not been run. The
+simulator tracks the two display states independently and does not emulate the
+4000X rule that displaying one reference may hide the other.
 
 Query read-only measurements:
 

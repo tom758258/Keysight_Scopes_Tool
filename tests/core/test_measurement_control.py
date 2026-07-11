@@ -1,0 +1,84 @@
+import pytest
+
+from keysight_scope_core.capabilities import capabilities_for_model
+from keysight_scope_core.errors import ParameterValidationError
+from keysight_scope_core.fake_backend import FakeBackend
+from keysight_scope_core.measurements import (
+    MeasurementController,
+    measurement_source_command,
+    measurement_window_command,
+    parse_measurement_show,
+    parse_measurement_source,
+    parse_measurement_window,
+)
+from keysight_scope_core.scpi import SCPIClient
+from keysight_scope_core.scope import KeysightScope
+from keysight_scope_core.simulator_backend import SimulatorBackend
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("1", True), ("0", False), ("ON", True), ("OFF", False)])
+def test_parse_measurement_show(raw, expected):
+    assert parse_measurement_show(raw) is expected
+
+
+@pytest.mark.parametrize(
+    ("raw", "channels"),
+    [("CHAN1", (1, None)), ("CHANnel1", (1, None)), ("CHANNEL1", (1, None)), ("CHAN1,CHAN2", (1, 2))],
+)
+def test_parse_measurement_source_preserves_raw(raw, channels):
+    state = parse_measurement_source(raw)
+    assert (state.source1_channel, state.source2_channel) == channels
+    assert state.raw == raw
+
+
+@pytest.mark.parametrize(("raw", "expected"), [("MAIN", "MAIN"), ("ZOO", "ZOOM"), ("AUTO", "AUTO"), ("GAT", "GATE")])
+def test_parse_measurement_window(raw, expected):
+    assert parse_measurement_window(raw) == expected
+
+
+def test_measurement_control_builders_validate_channels_and_values():
+    capabilities = capabilities_for_model("DSOX2022A")
+    assert measurement_source_command(1, 2, capabilities=capabilities) == ":MEASure:SOURce CHANnel1,CHANnel2"
+    assert measurement_window_command("gate") == ":MEASure:WINDow GATE"
+    with pytest.raises(ParameterValidationError):
+        measurement_source_command(3, capabilities=capabilities)
+
+
+def test_measurement_controller_command_order_and_raw_state():
+    backend = FakeBackend(
+        responses={
+            ":MEASure:SHOW?": " ON ",
+            ":MEASure:SOURce?": "CHAN1,CHAN2",
+            ":MEASure:WINDow?": "ZOOM",
+        }
+    )
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
+    controller.clear()
+    controller.set_show_on()
+    controller.set_source(1, 2)
+    controller.set_window("zoom")
+    assert controller.query_show().raw_enabled == "ON"
+    assert controller.query_source().raw == "CHAN1,CHAN2"
+    assert controller.query_window().raw_window == "ZOOM"
+    assert backend.history == [
+        ":MEASure:CLEar",
+        ":MEASure:SHOW ON",
+        ":MEASure:SOURce CHANnel1,CHANnel2",
+        ":MEASure:WINDow ZOOM",
+        ":MEASure:SHOW?",
+        ":MEASure:SOURce?",
+        ":MEASure:WINDow?",
+    ]
+
+
+def test_measurement_control_simulator_roundtrip():
+    backend = SimulatorBackend(model="DSOX4024A")
+    scope = KeysightScope(backend)
+    scope.query_idn()
+    scope.configure_measurement_show()
+    scope.configure_measurement_source(1, 2)
+    scope.configure_measurement_window("gate")
+    assert scope.query_measurement_show().enabled is True
+    assert scope.query_measurement_source().source2_channel == 2
+    assert scope.query_measurement_window().window == "GATE"
+

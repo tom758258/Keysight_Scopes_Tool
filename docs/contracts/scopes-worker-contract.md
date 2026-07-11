@@ -126,7 +126,10 @@ Worker `/command` supports the existing Scopes capability surface:
 - `acquisition`, `acquisition-check`, `sample-rate`, `acquisition-points`,
   `record-length`
 - `capture`, `capture-batch`, `screenshot`, `smoke`
-- `measure`, `measure-stats`, `measure-sweep`, `measure-log`
+- `measure`, `measure-stats`, `measure-sweep`, `measure-log`, `measure-clear`,
+  `measure-show`, `measure-source`, `measure-window`
+- `reference-save`, `reference-display`, `reference-label`,
+  `reference-clear`, `reference-query`
 - `channel-display`, `channel-label`, `channel-scale`, `channel-offset`,
   `channel-coupling`, `channel-probe`, `channel-bandwidth-limit`,
   `channel-impedance`, `channel-invert`, `channel-range`, `channel-units`,
@@ -1105,6 +1108,57 @@ creation, VISA open, or SCPI. Boolean `query` and `on` keys must be exactly
 `true`; false or null values are rejected instead of being ignored.
 `display-persistence-clear` is not a v1 common worker command.
 
+### Measurement Control And Reference Waveform Commands
+
+The worker accepts the common v1 measurement control commands:
+
+```json
+{"command": "measure-clear", "arguments": {}}
+```
+
+```json
+{"command": "measure-show", "arguments": {"on": true}}
+```
+
+```json
+{"command": "measure-source", "arguments": {"source_channel": 1, "source2_channel": 2}}
+```
+
+```json
+{"command": "measure-window", "arguments": {"window": "main"}}
+```
+
+Query forms use `{"query": true}`. Measurement marker OFF is not accepted.
+Measurement sources are limited to one or two analog channels, and measurement
+windows are `main`, `zoom`, `auto`, or `gate`.
+
+The worker also accepts the common v1 reference waveform commands:
+
+```json
+{"command": "reference-save", "arguments": {"slot": 1, "source_channel": 1}}
+```
+
+```json
+{"command": "reference-display", "arguments": {"slot": 1, "state": "on"}}
+```
+
+```json
+{"command": "reference-label", "arguments": {"slot": 1, "text": "BASELINE"}}
+```
+
+```json
+{"command": "reference-clear", "arguments": {"slot": 1}}
+```
+
+```json
+{"command": "reference-query", "arguments": {"slot": 1}}
+```
+
+Reference display and label also support query forms with `query: true`.
+Slots are limited to 1 and 2; save sources are analog channels only; labels
+are 1-10 printable ASCII characters without double quotes. Unknown keys and
+invalid values are rejected before enqueue and artifact creation.
+
 ### Label And Annotation Commands
 
 The worker supports the same one-shot label and annotation commands as the CLI:
@@ -1239,6 +1293,9 @@ recorded as absolute paths. Default worker outputs are:
 `trigger-pattern`, `trigger-or`, `trigger-sweep`, `trigger-noise-reject`,
 `trigger-hf-reject`, `display-clear`, `display-persistence`,
 `display-intensity`, and `display-vectors` do not create command artifacts.
+The `measure-clear`, `measure-show`, `measure-source`, `measure-window`,
+`reference-save`, `reference-display`, `reference-label`, `reference-clear`,
+and `reference-query` commands also do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
 includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.

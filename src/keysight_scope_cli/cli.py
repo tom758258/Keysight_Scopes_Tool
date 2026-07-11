@@ -162,9 +162,17 @@ from keysight_scope_core.errors import KeysightScopeError, ParameterValidationEr
 from keysight_scope_core.idn import normalize_model_key, parse_idn
 from keysight_scope_core.measurements import (
     MEASUREMENT_ITEM_CHOICES,
+    MEASUREMENT_WINDOW_CHOICES,
     MeasurementStatisticsResult,
     is_pair_measurement_item,
+    measurement_clear_command,
     measurement_query,
+    measurement_show_command,
+    measurement_show_query,
+    measurement_source_command,
+    measurement_source_query,
+    measurement_window_command,
+    measurement_window_query,
     normalize_measurement_item,
     parse_statistics_results,
     pair_measurement_query,
@@ -173,6 +181,17 @@ from keysight_scope_core.measurements import (
     validate_statistics_items,
     validate_statistics_max_count,
     validate_statistics_settle_seconds,
+)
+from keysight_scope_core.reference import (
+    reference_clear_command,
+    reference_display_command,
+    reference_display_query,
+    reference_label_command,
+    reference_label_query,
+    reference_query_commands,
+    reference_save_command,
+    validate_reference_label,
+    validate_reference_slot,
 )
 from keysight_scope_core.screenshot import (
     DEFAULT_SCREENSHOT_BACKGROUND,
@@ -869,6 +888,73 @@ def _build_parser() -> argparse.ArgumentParser:
         "--on", action="store_true", help="turn display vectors on"
     )
     display_vectors_parser.add_argument("--off", action="store_true", help=argparse.SUPPRESS)
+
+    measure_clear_parser = subparsers.add_parser(
+        "measure-clear", help="clear installed screen measurements"
+    )
+    _add_scope_connection_args(measure_clear_parser)
+
+    measure_show_parser = subparsers.add_parser(
+        "measure-show", help="turn measurement markers on or query their state"
+    )
+    _add_scope_connection_args(measure_show_parser)
+    measure_show_action = measure_show_parser.add_mutually_exclusive_group(required=True)
+    measure_show_action.add_argument("--on", action="store_true")
+    measure_show_action.add_argument("--query", action="store_true")
+    measure_show_action.add_argument("--off", action="store_true", help=argparse.SUPPRESS)
+
+    measure_source_parser = subparsers.add_parser(
+        "measure-source", help="set or query default analog measurement sources"
+    )
+    _add_scope_connection_args(measure_source_parser)
+    measure_source_parser.add_argument("--query", action="store_true")
+    measure_source_parser.add_argument("--source-channel", type=_positive_int)
+    measure_source_parser.add_argument("--source2-channel", type=_positive_int)
+
+    measure_window_parser = subparsers.add_parser(
+        "measure-window", help="set or query the measurement window"
+    )
+    _add_scope_connection_args(measure_window_parser)
+    measure_window_action = measure_window_parser.add_mutually_exclusive_group(required=True)
+    measure_window_action.add_argument("--query", action="store_true")
+    measure_window_action.add_argument("--window", choices=MEASUREMENT_WINDOW_CHOICES)
+
+    reference_save_parser = subparsers.add_parser(
+        "reference-save", help="copy an analog channel into a reference waveform slot"
+    )
+    _add_scope_connection_args(reference_save_parser)
+    reference_save_parser.add_argument("--slot", type=_positive_int, required=True)
+    reference_save_parser.add_argument("--source-channel", type=_positive_int, required=True)
+
+    reference_display_parser = subparsers.add_parser(
+        "reference-display", help="set or query reference waveform display state"
+    )
+    _add_scope_connection_args(reference_display_parser)
+    reference_display_parser.add_argument("--slot", type=_positive_int, required=True)
+    reference_display_action = reference_display_parser.add_mutually_exclusive_group(required=True)
+    reference_display_action.add_argument("--query", action="store_true")
+    reference_display_action.add_argument("--state", choices=("on", "off"))
+
+    reference_label_parser = subparsers.add_parser(
+        "reference-label", help="set or query a reference waveform label"
+    )
+    _add_scope_connection_args(reference_label_parser)
+    reference_label_parser.add_argument("--slot", type=_positive_int, required=True)
+    reference_label_action = reference_label_parser.add_mutually_exclusive_group(required=True)
+    reference_label_action.add_argument("--query", action="store_true")
+    reference_label_action.add_argument("--text")
+
+    reference_clear_parser = subparsers.add_parser(
+        "reference-clear", help="clear a reference waveform slot"
+    )
+    _add_scope_connection_args(reference_clear_parser)
+    reference_clear_parser.add_argument("--slot", type=_positive_int, required=True)
+
+    reference_query_parser = subparsers.add_parser(
+        "reference-query", help="query reference waveform display and label state"
+    )
+    _add_scope_connection_args(reference_query_parser)
+    reference_query_parser.add_argument("--slot", type=_positive_int, required=True)
 
     annotation_parser = subparsers.add_parser(
         "annotation",
@@ -2242,6 +2328,21 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         "display-vectors",
     }:
         return _cmd_display_common(args)
+    if args.command in {
+        "measure-clear",
+        "measure-show",
+        "measure-source",
+        "measure-window",
+    }:
+        return _cmd_measurement_control(args)
+    if args.command in {
+        "reference-save",
+        "reference-display",
+        "reference-label",
+        "reference-clear",
+        "reference-query",
+    }:
+        return _cmd_reference_waveform(args)
     if args.command == "annotation":
         return _cmd_annotation(args)
     if args.command == "timebase-scale":
@@ -2659,6 +2760,17 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
             )
         if getattr(args, "off", False):
             raise ParameterValidationError("display-vectors set OFF is not supported.")
+    if getattr(args, "command", None) in {
+        "measure-show",
+        "measure-source",
+        "measure-window",
+        "reference-save",
+        "reference-display",
+        "reference-label",
+        "reference-clear",
+        "reference-query",
+    }:
+        _validate_measurement_reference_args(args)
     if getattr(args, "command", None) == "trigger-edge":
         _validate_trigger_edge_args(args)
     if getattr(args, "command", None) == "trigger-edge-source":
@@ -2705,6 +2817,33 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_pattern_args(args)
     if getattr(args, "command", None) == "trigger-or":
         _validate_trigger_or_args(args)
+
+
+def _validate_measurement_reference_args(args: argparse.Namespace) -> None:
+    command = args.command
+    if command == "measure-show" and getattr(args, "off", False):
+        raise ParameterValidationError(
+            "measure-show OFF is not supported in v1; use --on or --query."
+        )
+    if command == "measure-source":
+        query = bool(getattr(args, "query", False))
+        source1 = getattr(args, "source_channel", None)
+        source2 = getattr(args, "source2_channel", None)
+        if query and (source1 is not None or source2 is not None):
+            raise ParameterValidationError(
+                "measure-source --query cannot be combined with source arguments."
+            )
+        if not query and source1 is None:
+            raise ParameterValidationError(
+                "measure-source configure requires --source-channel."
+            )
+    if command.startswith("reference-"):
+        capabilities = capabilities_for_model(args.model)
+        validate_reference_slot(args.slot, capabilities)
+        if command == "reference-save":
+            validate_analog_channel(args.source_channel, capabilities)
+        if command == "reference-label" and not args.query:
+            validate_reference_label(args.text)
 
 
 def _validate_trigger_edge_args(args: argparse.Namespace) -> None:
@@ -3432,6 +3571,23 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
     }:
         target, result = _display_common_plan(args)
         return ["*IDN?", target, ":SYSTem:ERRor?"], [], result
+    if command in {
+        "measure-clear",
+        "measure-show",
+        "measure-source",
+        "measure-window",
+    }:
+        commands, result = _measurement_control_plan(args, capabilities)
+        return ["*IDN?", *commands, ":SYSTem:ERRor?"], [], result
+    if command in {
+        "reference-save",
+        "reference-display",
+        "reference-label",
+        "reference-clear",
+        "reference-query",
+    }:
+        commands, result = _reference_waveform_plan(args, capabilities)
+        return ["*IDN?", *commands, ":SYSTem:ERRor?"], [], result
     if command == "annotation":
         operation, commands, result = _annotation_plan(args, capabilities)
         result["operation"] = operation
@@ -4259,6 +4415,69 @@ def _display_common_plan(args: argparse.Namespace) -> tuple[str, dict[str, objec
     raise ParameterValidationError(f"unsupported display command: {command}")
 
 
+def _measurement_control_plan(
+    args: argparse.Namespace, capabilities: ScopeCapabilities
+) -> tuple[list[str], dict[str, object]]:
+    if args.command == "measure-clear":
+        command = measurement_clear_command()
+        return [command], {"operation": "clear", "command": command}
+    if args.command == "measure-show":
+        command = measurement_show_query() if args.query else measurement_show_command()
+        return [command], {
+            "operation": "query" if args.query else "set",
+            "command": command,
+            "enabled": None if args.query else True,
+        }
+    if args.command == "measure-source":
+        command = (
+            measurement_source_query()
+            if args.query
+            else measurement_source_command(
+                args.source_channel, args.source2_channel, capabilities=capabilities
+            )
+        )
+        return [command], {
+            "operation": "query" if args.query else "set",
+            "command": command,
+            "source1_channel": None if args.query else args.source_channel,
+            "source2_channel": None if args.query else args.source2_channel,
+        }
+    if args.command == "measure-window":
+        command = measurement_window_query() if args.query else measurement_window_command(args.window)
+        return [command], {
+            "operation": "query" if args.query else "set",
+            "command": command,
+            "window": None if args.query else args.window.upper(),
+        }
+    raise ParameterValidationError(f"unsupported measurement control command: {args.command}")
+
+
+def _reference_waveform_plan(
+    args: argparse.Namespace, capabilities: ScopeCapabilities
+) -> tuple[list[str], dict[str, object]]:
+    slot = validate_reference_slot(args.slot, capabilities)
+    if args.command == "reference-save":
+        command = reference_save_command(slot, args.source_channel, capabilities=capabilities)
+        return [command], {"operation": "save", "command": command, "slot": slot, "source_channel": args.source_channel}
+    if args.command == "reference-display":
+        query = bool(args.query)
+        displayed = None if query else args.state == "on"
+        command = reference_display_query(slot, capabilities=capabilities) if query else reference_display_command(slot, displayed, capabilities=capabilities)
+        return [command], {"operation": "query" if query else "set", "command": command, "slot": slot, "displayed": displayed}
+    if args.command == "reference-label":
+        query = bool(args.query)
+        label = None if query else validate_reference_label(args.text)
+        command = reference_label_query(slot, capabilities=capabilities) if query else reference_label_command(slot, label, capabilities=capabilities)
+        return [command], {"operation": "query" if query else "set", "command": command, "slot": slot, "label": label}
+    if args.command == "reference-clear":
+        command = reference_clear_command(slot, capabilities=capabilities)
+        return [command], {"operation": "clear", "command": command, "slot": slot}
+    if args.command == "reference-query":
+        commands = list(reference_query_commands(slot, capabilities=capabilities))
+        return commands, {"operation": "query", "commands": commands, "slot": slot, "displayed": None, "label": None}
+    raise ParameterValidationError(f"unsupported reference waveform command: {args.command}")
+
+
 def _acquisition_check_planned_scpi(
     average_count: int,
     *,
@@ -4505,6 +4724,7 @@ def _capabilities_json(capabilities: ScopeCapabilities | None) -> dict[str, obje
         "supports_screenshot": capabilities.supports_screenshot,
         "supports_segmented_memory": capabilities.supports_segmented_memory,
         "supports_serial_decode": capabilities.supports_serial_decode,
+        "reference_waveforms": capabilities.reference_waveforms,
         "supports_channel_label": capabilities.supports_channel_label,
         "channel_label_max_length": capabilities.channel_label_max_length,
         "supports_display_label": capabilities.supports_display_label,
@@ -5363,6 +5583,100 @@ def _format_display_persistence(mode: str | None, seconds: float | None) -> str:
     if seconds is not None:
         return f"{seconds:.12g} s"
     return mode or "unknown"
+
+
+def _cmd_measurement_control(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+    _configure_scpi_logging(args)
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+        commands, result = _measurement_control_plan(args, scope.capabilities)
+        if args.command == "measure-clear":
+            scope.clear_measurements()
+        elif args.command == "measure-show":
+            if args.query:
+                state = scope.query_measurement_show()
+                result.update(enabled=state.enabled, raw_enabled=state.raw_enabled)
+            else:
+                scope.configure_measurement_show()
+        elif args.command == "measure-source":
+            if args.query:
+                state = scope.query_measurement_source()
+                result.update(
+                    source1=state.source1,
+                    source2=state.source2,
+                    source1_channel=state.source1_channel,
+                    source2_channel=state.source2_channel,
+                    raw=state.raw,
+                )
+            else:
+                scope.configure_measurement_source(args.source_channel, args.source2_channel)
+        elif args.command == "measure-window":
+            if args.query:
+                state = scope.query_measurement_window()
+                result.update(window=state.window, raw_window=state.raw_window)
+            else:
+                scope.configure_measurement_window(args.window)
+        _json_update_result(**result)
+        for command in commands:
+            print(f"Command: {command}")
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_reference_waveform(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+    _configure_scpi_logging(args)
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+        commands, result = _reference_waveform_plan(args, scope.capabilities)
+        if args.command == "reference-save":
+            scope.save_reference_waveform(args.slot, args.source_channel)
+        elif args.command == "reference-display":
+            if args.query:
+                displayed, raw = scope.query_reference_display(args.slot)
+                result.update(displayed=displayed, raw_displayed=raw)
+            else:
+                scope.configure_reference_display(args.slot, args.state == "on")
+        elif args.command == "reference-label":
+            if args.query:
+                label, raw = scope.query_reference_label(args.slot)
+                result.update(label=label, raw_label=raw)
+            else:
+                scope.configure_reference_label(args.slot, args.text)
+        elif args.command == "reference-clear":
+            scope.clear_reference_waveform(args.slot)
+        elif args.command == "reference-query":
+            state = scope.query_reference_waveform(args.slot)
+            result.update(
+                displayed=state.displayed,
+                raw_displayed=state.raw_displayed,
+                label=state.label,
+                raw_label=state.raw_label,
+            )
+        _json_update_result(**result)
+        for command in commands:
+            print(f"Command: {command}")
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
 
 
 def _cmd_annotation(args: argparse.Namespace) -> int:

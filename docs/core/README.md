@@ -20,6 +20,16 @@ Core owns runtime behavior:
 - Analog channel advanced setting helpers for impedance, invert, full-scale
   range, units, vernier, and probe skew.
 - Simulator and fake backend support for hardware-free tests.
+- Measurement Control Pack v1 helpers for clearing screen measurements,
+  enabling or querying measurement markers, selecting one or two analog
+  measurement source channels, and selecting `MAIN`, `ZOOM`, `AUTO`, or
+  `GATE` measurement windows. Marker OFF is intentionally not exposed in v1.
+- Reference Waveform Pack v1 helpers for saving an analog channel to reference
+  slot 1 or 2, configuring or querying display and label state, clearing a
+  slot, and querying aggregate display/label state. Labels are limited to
+  1-10 printable ASCII characters without double quotes. File-based reference
+  save/recall and reference scale, skew, offset, and range controls are not
+  implemented.
 - Read-only analog acquisition sample rate query helpers.
 - Read-only acquisition points and record-length query helpers, separate from
   waveform transfer points.

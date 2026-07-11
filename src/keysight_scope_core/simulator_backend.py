@@ -223,8 +223,20 @@ class SimulatorBackend:
     marker_y1: float = 0.0
     marker_y2: float = 0.5
     measurement_source: int = 1
+    measurement_source2: int | None = None
+    measurement_show: bool = True
+    measurement_window: str = "MAIN"
     measurement_statistics_mode: str = "ALL"
     measurement_statistics_items: list[str] = field(default_factory=list)
+    reference_saved_source: dict[int, int | None] = field(
+        default_factory=lambda: {1: None, 2: None}
+    )
+    reference_display: dict[int, bool] = field(
+        default_factory=lambda: {1: False, 2: False}
+    )
+    reference_label: dict[int, str] = field(
+        default_factory=lambda: {1: "", 2: ""}
+    )
     setup_targets: dict[str, str] = field(default_factory=dict)
     fft_functions: dict[int, dict[str, Any]] = field(default_factory=dict)
     invalid_measurement_channels: set[int] = field(default_factory=set)
@@ -598,8 +610,25 @@ class SimulatorBackend:
             self.marker_y2 = value
         elif upper == ":MEASURE:CLEAR":
             self.measurement_statistics_items.clear()
+        elif upper == ":MEASURE:SHOW ON":
+            self.measurement_show = True
         elif upper.startswith(":MEASURE:SOURCE CHANNEL"):
-            self.measurement_source = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
+            match = re.fullmatch(
+                r":MEASure:SOURce\s+CHAN(?:nel)?(\d+)(?:\s*,\s*CHAN(?:nel)?(\d+))?",
+                command,
+                re.IGNORECASE,
+            )
+            if match is None:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.measurement_source = self._validate_channel(int(match.group(1)))
+            self.measurement_source2 = (
+                self._validate_channel(int(match.group(2))) if match.group(2) else None
+            )
+        elif upper.startswith(":MEASURE:WINDOW "):
+            value = command.split(" ", 1)[1].upper()
+            if value not in {"MAIN", "ZOOM", "AUTO", "GATE"}:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.measurement_window = value
         elif upper.startswith(":MEASURE:STATISTICS:COUNT "):
             pass
         elif upper == ":MEASURE:STATISTICS:RESET":
@@ -608,6 +637,31 @@ class SimulatorBackend:
             self.measurement_statistics_mode = command.rsplit(" ", 1)[1].upper()
         elif self._apply_measurement_install(command):
             pass
+        elif re.fullmatch(r":WMEMORY[12]:SAVE CHANNEL\d+", upper):
+            match = re.fullmatch(
+                r":WMEMory([12]):SAVE\s+CHAN(?:nel)?(\d+)", command, re.IGNORECASE
+            )
+            assert match is not None
+            slot = int(match.group(1))
+            self.reference_saved_source[slot] = self._validate_channel(int(match.group(2)))
+        elif re.fullmatch(r":WMEMORY[12]:DISPLAY (?:ON|OFF)", upper):
+            match = re.fullmatch(
+                r":WMEMory([12]):DISPlay\s+(ON|OFF)", command, re.IGNORECASE
+            )
+            assert match is not None
+            self.reference_display[int(match.group(1))] = match.group(2).upper() == "ON"
+        elif re.fullmatch(r':WMEMORY[12]:LABEL ".*"', upper):
+            match = re.fullmatch(
+                r':WMEMory([12]):LABel\s+"([^\"]*)"', command, re.IGNORECASE
+            )
+            if match is None:
+                raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+            self.reference_label[int(match.group(1))] = match.group(2)
+        elif re.fullmatch(r":WMEMORY[12]:CLEAR", upper):
+            slot = int(re.search(r"WMEMORY([12])", upper).group(1))
+            self.reference_saved_source[slot] = None
+            self.reference_display[slot] = False
+            self.reference_label[slot] = ""
         elif upper.startswith(":AUTOSCALE"):
             pass
         elif upper.startswith(":SAVE:SETUP "):
@@ -646,6 +700,21 @@ class SimulatorBackend:
             return str(self.display_intensity)
         if upper == ":DISPLAY:VECTORS?":
             return "ON" if self.display_vectors else "OFF"
+        if upper == ":MEASURE:SHOW?":
+            return "1" if self.measurement_show else "0"
+        if upper == ":MEASURE:SOURCE?":
+            value = f"CHAN{self.measurement_source}"
+            if self.measurement_source2 is not None:
+                value += f",CHAN{self.measurement_source2}"
+            return value
+        if upper == ":MEASURE:WINDOW?":
+            return self.measurement_window
+        reference_match = re.fullmatch(r":WMEMORY([12]):(DISPLAY|LABEL)\?", upper)
+        if reference_match is not None:
+            slot = int(reference_match.group(1))
+            if reference_match.group(2) == "DISPLAY":
+                return "1" if self.reference_display[slot] else "0"
+            return f'"{self.reference_label[slot]}"'
         annotation_response = self._query_annotation(command)
         if annotation_response is not None:
             return annotation_response

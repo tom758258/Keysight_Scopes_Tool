@@ -52,6 +52,7 @@ def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
         "supports_screenshot": True,
         "supports_segmented_memory": False,
         "supports_serial_decode": False,
+        "reference_waveforms": 2,
         "supports_channel_label": True,
         "channel_label_max_length": 32,
         "supports_display_label": True,

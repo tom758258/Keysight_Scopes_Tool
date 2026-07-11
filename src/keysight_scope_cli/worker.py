@@ -46,6 +46,15 @@ DOMAIN_COMMANDS = {
     "measure-stats",
     "measure-sweep",
     "measure-log",
+    "measure-clear",
+    "measure-show",
+    "measure-source",
+    "measure-window",
+    "reference-save",
+    "reference-display",
+    "reference-label",
+    "reference-clear",
+    "reference-query",
     "channel-display",
     "channel-label",
     "channel-scale",
@@ -335,6 +344,9 @@ def parse_domain_command(
     job_dir: Path | None = None,
 ) -> argparse.Namespace:
     _validate_display_worker_arguments(command, arguments)
+    arguments = _normalize_measurement_reference_worker_arguments(
+        command, arguments, runtime
+    )
     arguments = _normalize_trigger_edge_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_source_worker_arguments(
         command, arguments, runtime
@@ -403,6 +415,49 @@ def _validate_display_worker_arguments(command: str, arguments: dict[str, Any]) 
     for key in ("query", "on"):
         if key in arguments and arguments[key] is not True:
             raise KeysightScopeError(f"{command} argument {key} must be exactly true")
+
+
+def _normalize_measurement_reference_worker_arguments(
+    command: str, arguments: dict[str, Any], runtime: WorkerRuntime
+) -> dict[str, Any]:
+    allowed_by_command = {
+        "measure-clear": set(),
+        "measure-show": {"on", "query"},
+        "measure-source": {"source_channel", "source2_channel", "query"},
+        "measure-window": {"window", "query"},
+        "reference-save": {"slot", "source_channel"},
+        "reference-display": {"slot", "state", "query"},
+        "reference-label": {"slot", "text", "query"},
+        "reference-clear": {"slot"},
+        "reference-query": {"slot"},
+    }
+    if command not in allowed_by_command:
+        return arguments
+    unknown = set(arguments) - allowed_by_command[command]
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
+    if command == "measure-clear" and arguments:
+        raise KeysightScopeError("measure-clear does not accept arguments")
+    for key in ("on", "query"):
+        if key in arguments and arguments[key] is not True:
+            raise KeysightScopeError(f"{command} argument {key} must be exactly true")
+    capabilities = capabilities_for_model(runtime.model)
+    if "slot" in arguments:
+        slot = arguments["slot"]
+        if not isinstance(slot, int) or isinstance(slot, bool):
+            raise KeysightScopeError(f"{command} argument slot must be an integer")
+        if slot < 1 or slot > capabilities.reference_waveforms:
+            raise KeysightScopeError(
+                f"reference waveform slot must be in range 1-{capabilities.reference_waveforms}."
+            )
+    for key in ("source_channel", "source2_channel"):
+        if key not in arguments:
+            continue
+        channel = arguments[key]
+        if not isinstance(channel, int) or isinstance(channel, bool):
+            raise KeysightScopeError(f"{command} argument {key} must be an integer")
+        validate_analog_channel(channel, capabilities)
+    return dict(arguments)
 
 
 def _normalize_trigger_edge_worker_arguments(

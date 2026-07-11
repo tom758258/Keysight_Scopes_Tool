@@ -10,7 +10,14 @@ from .channel import (
 )
 from .display import AnnotationState, DisplayController, DisplayPersistence, parse_display_label
 from .idn import IDN, detect_series, parse_idn
-from .measurements import MeasurementController, MeasurementResult
+from .measurements import (
+    MeasurementController,
+    MeasurementResult,
+    MeasurementShowState,
+    MeasurementSourceState,
+    MeasurementWindowState,
+)
+from .reference import ReferenceWaveformController, ReferenceWaveformState
 from .operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
@@ -155,6 +162,11 @@ __all__ = [
     "KeysightScope",
     "MeasurementController",
     "MeasurementResult",
+    "MeasurementShowState",
+    "MeasurementSourceState",
+    "MeasurementWindowState",
+    "ReferenceWaveformController",
+    "ReferenceWaveformState",
     "MultiChannelWaveformCapture",
     "OperationPlan",
     "OperationResult",

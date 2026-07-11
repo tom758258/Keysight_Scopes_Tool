@@ -60,6 +60,11 @@ names are intended for package consumers and tests:
 - `KeysightScope`
 - `MeasurementController`
 - `MeasurementResult`
+- `MeasurementShowState`
+- `MeasurementSourceState`
+- `MeasurementWindowState`
+- `ReferenceWaveformController`
+- `ReferenceWaveformState`
 - `MultiChannelWaveformCapture`
 - `OperationPlan`
 - `OperationResult`

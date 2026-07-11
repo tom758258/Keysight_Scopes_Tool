@@ -150,6 +150,7 @@ SINGLE_CHANNEL_MEASUREMENT_ITEMS = (
 PAIR_MEASUREMENT_ITEMS = tuple(_PAIR_MEASUREMENT_QUERY_TEMPLATES)
 SUPPORTED_MEASUREMENT_ITEMS = SINGLE_CHANNEL_MEASUREMENT_ITEMS + PAIR_MEASUREMENT_ITEMS
 MEASUREMENT_ITEM_CHOICES = SUPPORTED_MEASUREMENT_ITEMS + tuple(_MEASUREMENT_ALIASES)
+MEASUREMENT_WINDOW_CHOICES = ("main", "zoom", "auto", "gate")
 
 
 @dataclass(frozen=True)
@@ -190,12 +191,67 @@ class MeasurementStatisticsResult:
     raw_response: str
 
 
+@dataclass(frozen=True)
+class MeasurementShowState:
+    enabled: bool
+    raw_enabled: str
+
+
+@dataclass(frozen=True)
+class MeasurementSourceState:
+    source1: str
+    source2: str | None
+    source1_channel: int | None
+    source2_channel: int | None
+    raw: str
+
+
+@dataclass(frozen=True)
+class MeasurementWindowState:
+    window: str
+    raw_window: str
+
+
 class MeasurementController:
     """Read-only measurement query controls."""
 
     def __init__(self, scpi: SCPIClient, capabilities: ScopeCapabilities) -> None:
         self.scpi = scpi
         self.capabilities = capabilities
+
+    def clear(self) -> None:
+        validate_measurements_supported(self.capabilities)
+        self.scpi.write(measurement_clear_command())
+
+    def set_show_on(self) -> None:
+        validate_measurements_supported(self.capabilities)
+        self.scpi.write(measurement_show_command())
+
+    def query_show(self) -> MeasurementShowState:
+        validate_measurements_supported(self.capabilities)
+        raw = self.scpi.query(measurement_show_query()).strip()
+        return MeasurementShowState(parse_measurement_show(raw), raw)
+
+    def set_source(self, source1_channel: int, source2_channel: int | None = None) -> None:
+        self.scpi.write(
+            measurement_source_command(
+                source1_channel, source2_channel, capabilities=self.capabilities
+            )
+        )
+
+    def query_source(self) -> MeasurementSourceState:
+        validate_measurements_supported(self.capabilities)
+        raw = self.scpi.query(measurement_source_query()).strip()
+        return parse_measurement_source(raw)
+
+    def set_window(self, window: str) -> None:
+        validate_measurements_supported(self.capabilities)
+        self.scpi.write(measurement_window_command(window))
+
+    def query_window(self) -> MeasurementWindowState:
+        validate_measurements_supported(self.capabilities)
+        raw = self.scpi.query(measurement_window_query()).strip()
+        return MeasurementWindowState(parse_measurement_window(raw), raw)
 
     def query(
         self,
@@ -290,6 +346,108 @@ class MeasurementController:
             items=normalized_items,
             mode=mode,
         )
+
+
+def measurement_clear_command() -> str:
+    return ":MEASure:CLEar"
+
+
+def measurement_show_command(enabled: bool = True) -> str:
+    if enabled is not True:
+        raise ParameterValidationError(
+            "measure-show OFF is not supported in v1; use ON or query."
+        )
+    return ":MEASure:SHOW ON"
+
+
+def measurement_show_query() -> str:
+    return ":MEASure:SHOW?"
+
+
+def parse_measurement_show(raw: str) -> bool:
+    normalized = raw.strip().upper()
+    if normalized in {"1", "+1", "ON"}:
+        return True
+    if normalized in {"0", "+0", "OFF"}:
+        return False
+    raise MeasurementResponseError(
+        f"Could not parse measurement show response: {raw!r}"
+    )
+
+
+def measurement_source_command(
+    source1_channel: int,
+    source2_channel: int | None = None,
+    *,
+    capabilities: ScopeCapabilities,
+) -> str:
+    validate_measurements_supported(capabilities)
+    source1_channel = validate_analog_channel(source1_channel, capabilities)
+    token = f"CHANnel{source1_channel}"
+    if source2_channel is not None:
+        source2_channel = validate_analog_channel(source2_channel, capabilities)
+        token += f",CHANnel{source2_channel}"
+    return f":MEASure:SOURce {token}"
+
+
+def measurement_source_query() -> str:
+    return ":MEASure:SOURce?"
+
+
+def parse_measurement_source(raw: str) -> MeasurementSourceState:
+    value = raw.strip()
+    parts = [part.strip() for part in value.split(",")]
+    if len(parts) not in {1, 2} or any(not part for part in parts):
+        raise MeasurementResponseError(
+            f"Could not parse measurement source response: {raw!r}"
+        )
+    parsed = [_parse_measurement_source_token(part) for part in parts]
+    return MeasurementSourceState(
+        source1=parsed[0][0],
+        source2=parsed[1][0] if len(parsed) == 2 else None,
+        source1_channel=parsed[0][1],
+        source2_channel=parsed[1][1] if len(parsed) == 2 else None,
+        raw=value,
+    )
+
+
+def _parse_measurement_source_token(value: str) -> tuple[str, int | None]:
+    normalized = value.strip().upper()
+    for prefix in ("CHANNEL", "CHAN"):
+        if normalized.startswith(prefix):
+            suffix = normalized[len(prefix) :]
+            if suffix.isdigit() and int(suffix) >= 1:
+                channel = int(suffix)
+                return f"CHANnel{channel}", channel
+    return value.strip(), None
+
+
+def normalize_measurement_window(window: str) -> str:
+    normalized = str(window).strip().upper()
+    aliases = {"MAI": "MAIN", "ZOO": "ZOOM", "AUT": "AUTO", "GAT": "GATE"}
+    normalized = aliases.get(normalized, normalized)
+    if normalized not in {"MAIN", "ZOOM", "AUTO", "GATE"}:
+        raise ParameterValidationError(
+            "measurement window must be one of: main, zoom, auto, gate."
+        )
+    return normalized
+
+
+def measurement_window_command(window: str) -> str:
+    return f":MEASure:WINDow {normalize_measurement_window(window)}"
+
+
+def measurement_window_query() -> str:
+    return ":MEASure:WINDow?"
+
+
+def parse_measurement_window(raw: str) -> str:
+    try:
+        return normalize_measurement_window(raw)
+    except ParameterValidationError as exc:
+        raise MeasurementResponseError(
+            f"Could not parse measurement window response: {raw!r}"
+        ) from exc
 
 
 def normalize_measurement_item(item: str) -> str:

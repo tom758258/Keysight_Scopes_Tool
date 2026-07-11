@@ -18,7 +18,15 @@ from .channel import ChannelController
 from .display import AnnotationState, DisplayController, DisplayPersistence
 from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
-from .measurements import MeasurementController, MeasurementResult, MeasurementStatisticsResult
+from .measurements import (
+    MeasurementController,
+    MeasurementResult,
+    MeasurementShowState,
+    MeasurementSourceState,
+    MeasurementStatisticsResult,
+    MeasurementWindowState,
+)
+from .reference import ReferenceWaveformController, ReferenceWaveformState
 from .scpi import SCPIBackend, SCPIClient
 from .screenshot import ScreenshotCapture, ScreenshotController
 from .status import SystemErrorEntry, parse_system_error
@@ -753,6 +761,50 @@ class KeysightScope:
             item,
         )
 
+    def clear_measurements(self) -> None:
+        self._measurement_controller().clear()
+
+    def configure_measurement_show(self) -> None:
+        self._measurement_controller().set_show_on()
+
+    def query_measurement_show(self) -> MeasurementShowState:
+        return self._measurement_controller().query_show()
+
+    def configure_measurement_source(
+        self, source1_channel: int, source2_channel: int | None = None
+    ) -> None:
+        self._measurement_controller().set_source(source1_channel, source2_channel)
+
+    def query_measurement_source(self) -> MeasurementSourceState:
+        return self._measurement_controller().query_source()
+
+    def configure_measurement_window(self, window: str) -> None:
+        self._measurement_controller().set_window(window)
+
+    def query_measurement_window(self) -> MeasurementWindowState:
+        return self._measurement_controller().query_window()
+
+    def save_reference_waveform(self, slot: int, source_channel: int) -> None:
+        self._reference_waveform_controller().save(slot, source_channel)
+
+    def configure_reference_display(self, slot: int, enabled: bool) -> None:
+        self._reference_waveform_controller().set_display(slot, enabled)
+
+    def query_reference_display(self, slot: int) -> tuple[bool, str]:
+        return self._reference_waveform_controller().query_display(slot)
+
+    def configure_reference_label(self, slot: int, label: str) -> None:
+        self._reference_waveform_controller().set_label(slot, label)
+
+    def query_reference_label(self, slot: int) -> tuple[str, str]:
+        return self._reference_waveform_controller().query_label(slot)
+
+    def clear_reference_waveform(self, slot: int) -> None:
+        self._reference_waveform_controller().clear(slot)
+
+    def query_reference_waveform(self, slot: int) -> ReferenceWaveformState:
+        return self._reference_waveform_controller().query(slot)
+
     def configure_cursor(
         self,
         source_channel: int,
@@ -1061,6 +1113,13 @@ class KeysightScope:
                 "Measurement operations require known capabilities; call query_idn() first."
             )
         return MeasurementController(self.scpi, self.capabilities)
+
+    def _reference_waveform_controller(self) -> ReferenceWaveformController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Reference waveform operations require known capabilities; call query_idn() first."
+            )
+        return ReferenceWaveformController(self.scpi, self.capabilities)
 
     def _cursor_controller(self) -> CursorController:
         if self.capabilities is None:

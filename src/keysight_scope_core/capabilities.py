@@ -24,6 +24,7 @@ class ScopeCapabilities:
     supports_screenshot: bool
     supports_segmented_memory: bool
     supports_serial_decode: bool
+    reference_waveforms: int = 0
     supports_channel_label: bool = False
     channel_label_max_length: int = 0
     supports_display_label: bool = False
@@ -47,6 +48,7 @@ _BASE_PROFILES = {
         supports_screenshot=True,
         supports_segmented_memory=False,
         supports_serial_decode=False,
+        reference_waveforms=2,
         supports_channel_label=True,
         channel_label_max_length=10,
         supports_display_label=True,
@@ -68,6 +70,7 @@ _BASE_PROFILES = {
         supports_screenshot=True,
         supports_segmented_memory=False,
         supports_serial_decode=False,
+        reference_waveforms=2,
         supports_channel_label=True,
         channel_label_max_length=10,
         supports_display_label=True,
@@ -89,6 +92,7 @@ _BASE_PROFILES = {
         supports_screenshot=True,
         supports_segmented_memory=False,
         supports_serial_decode=False,
+        reference_waveforms=2,
         supports_channel_label=True,
         channel_label_max_length=32,
         supports_display_label=True,
