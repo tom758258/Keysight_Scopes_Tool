@@ -39,7 +39,14 @@ from .reference import ReferenceWaveformController, ReferenceWaveformState
 from .search import SearchController, SearchCountState, SearchModeState, SearchState
 from .scpi import SCPIBackend, SCPIClient
 from .screenshot import ScreenshotCapture, ScreenshotController
-from .status import SystemErrorEntry, parse_system_error
+from .status import (
+    OperationCompleteState,
+    StatusController,
+    StatusRegisterState,
+    SystemErrorEntry,
+    SystemOptionsState,
+    parse_system_error,
+)
 from .timebase import TimebaseController
 from .trigger import (
     DelayTriggerController,
@@ -140,6 +147,36 @@ class KeysightScope:
             if not entry.is_error:
                 break
         return tuple(entries)
+
+    def clear_status(self) -> None:
+        """Clear status and event data with `*CLS`."""
+
+        self._status_controller().clear_status()
+
+    def query_operation_complete(self) -> OperationCompleteState:
+        """Query successful completion with `*OPC?`."""
+
+        return self._status_controller().query_operation_complete()
+
+    def query_status_byte(self) -> StatusRegisterState:
+        """Query the status byte with `*STB?`."""
+
+        return self._status_controller().query_status_byte()
+
+    def query_standard_event_status(self) -> StatusRegisterState:
+        """Destructively read the standard event status register with `*ESR?`."""
+
+        return self._status_controller().query_standard_event_status()
+
+    def query_operation_status(self) -> StatusRegisterState:
+        """Query the operation condition register."""
+
+        return self._status_controller().query_operation_status()
+
+    def query_system_options(self) -> SystemOptionsState:
+        """Query installed option tokens with `*OPT?`."""
+
+        return self._status_controller().query_system_options()
 
     def run(self) -> None:
         """Start repetitive acquisitions."""
@@ -1034,6 +1071,9 @@ class KeysightScope:
                 "Display operations require known capabilities; call query_idn() first."
             )
         return DisplayController(self.scpi, self.capabilities)
+
+    def _status_controller(self) -> StatusController:
+        return StatusController(self.scpi)
 
     def _timebase_controller(self) -> TimebaseController:
         if self.capabilities is None:

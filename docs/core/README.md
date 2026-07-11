@@ -20,6 +20,14 @@ Core owns runtime behavior:
 - Analog channel advanced setting helpers for impedance, invert, full-scale
   range, units, vernier, and probe skew.
 - Simulator and fake backend support for hardware-free tests.
+- System/Status Pack v1 helpers for `*CLS`, `*OPC?`, `*STB?`, destructive
+  `*ESR?`, `:OPERegister:CONDition?`, and `*OPT?`. Parsers preserve raw
+  responses, expose bounded integer register values and stable set-bit indexes,
+  and preserve trimmed option tokens including a raw no-option-style `0`.
+  `:RSTate?`, service-request or event-enable writes, UI locking, return to
+  local, date/time, save/export behavior, and a replacement for the existing
+  system-error helpers are not implemented. Coverage is hardware-free; no live
+  hardware validation was performed, and no WebUI runtime behavior was added.
 - Measurement Control Pack v1 helpers for clearing screen measurements,
   enabling or querying measurement markers, selecting one or two analog
   measurement source channels, and selecting `MAIN`, `ZOOM`, `AUTO`, or

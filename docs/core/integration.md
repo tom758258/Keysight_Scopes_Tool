@@ -79,6 +79,7 @@ names are intended for package consumers and tests:
 - `SearchModeState`
 - `SearchState`
 - `MultiChannelWaveformCapture`
+- `OperationCompleteState`
 - `OperationPlan`
 - `OperationResult`
 - `ResolvedRunConfig`
@@ -93,6 +94,9 @@ names are intended for package consumers and tests:
 - `ScreenshotController`
 - `ScopeCapabilities`
 - `SystemErrorEntry`
+- `StatusController`
+- `StatusRegisterState`
+- `SystemOptionsState`
 - `TimebaseController`
 - `TriggerWaitConfig`
 - `TriggerWaitResult`
@@ -108,7 +112,10 @@ names are intended for package consumers and tests:
 - `parse_channel_units`
 - `parse_display_label`
 - `parse_idn`
+- `parse_operation_complete`
+- `parse_status_register`
 - `parse_system_error`
+- `parse_system_options`
 - `resolve_run_mode`
 - `resolve_resource`
 - `require_resource`
@@ -137,3 +144,13 @@ opening VISA. Operation runners execute against the selected backend.
 Core should remain independent from command-line parser types and WebUI
 controller concepts. Package adapters may call Core, but Core should not import
 from adapter packages.
+
+System/Status Pack v1 is available through `KeysightScope.clear_status()`,
+`query_operation_complete()`, `query_status_byte()`,
+`query_standard_event_status()`, `query_operation_status()`, and
+`query_system_options()`. These methods do not require an IDN or capability
+profile. `query_standard_event_status()` performs the destructive `*ESR?`
+event-register read. `query_operation_status()` uses
+`:OPERegister:CONDition?`; it does not introduce the intentionally unsupported
+`:RSTate?` query. Existing `query_system_error()` and `drain_system_errors()`
+remain the APIs for `:SYSTem:ERRor?`.

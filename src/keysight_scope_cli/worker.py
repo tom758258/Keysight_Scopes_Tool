@@ -28,6 +28,12 @@ from . import cli as scope_cli
 DOMAIN_COMMANDS = {
     "identify",
     "check-error",
+    "system-clear-status",
+    "system-opc",
+    "system-status-byte",
+    "system-standard-event",
+    "system-operation-status",
+    "system-options",
     "doctor",
     "run",
     "single",
@@ -352,6 +358,7 @@ def parse_domain_command(
     runtime: WorkerRuntime,
     job_dir: Path | None = None,
 ) -> argparse.Namespace:
+    arguments = _normalize_system_status_worker_arguments(command, arguments)
     _validate_display_worker_arguments(command, arguments)
     arguments = _normalize_measurement_reference_worker_arguments(
         command, arguments, runtime
@@ -406,6 +413,28 @@ def parse_domain_command(
     )
     scope_cli._dry_run_payload(dry_args)
     return parsed
+
+
+def _normalize_system_status_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    if command == "system-clear-status":
+        if arguments:
+            raise KeysightScopeError("system-clear-status accepts only an empty object")
+        return {}
+
+    query_commands = {
+        "system-opc",
+        "system-status-byte",
+        "system-standard-event",
+        "system-operation-status",
+        "system-options",
+    }
+    if command not in query_commands:
+        return arguments
+    if set(arguments) != {"query"} or arguments.get("query") is not True:
+        raise KeysightScopeError(f"{command} requires exactly query=true")
+    return dict(arguments)
 
 
 def _validate_display_worker_arguments(command: str, arguments: dict[str, Any]) -> None:

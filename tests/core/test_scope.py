@@ -1,4 +1,4 @@
-﻿from keysight_scope_core.fake_backend import FakeBackend
+from keysight_scope_core.fake_backend import FakeBackend
 from keysight_scope_core.scope import KeysightScope
 from keysight_scope_core.errors import ParameterValidationError
 
@@ -44,6 +44,34 @@ def test_scope_queries_system_error():
     assert entry.code == -113
     assert entry.message == "Undefined header"
     assert backend.history == [":SYSTem:ERRor?"]
+
+
+def test_scope_system_status_methods_delegate_without_identity_query():
+    backend = FakeBackend(
+        responses={
+            "*OPC?": "1",
+            "*STB?": "0",
+            "*ESR?": "0",
+            ":OPERegister:CONDition?": "0",
+            "*OPT?": "0",
+        }
+    )
+    scope = KeysightScope(backend)
+
+    scope.clear_status()
+    assert scope.query_operation_complete().complete is True
+    assert scope.query_status_byte().value == 0
+    assert scope.query_standard_event_status().value == 0
+    assert scope.query_operation_status().value == 0
+    assert scope.query_system_options().options == ("0",)
+    assert backend.history == [
+        "*CLS",
+        "*OPC?",
+        "*STB?",
+        "*ESR?",
+        ":OPERegister:CONDition?",
+        "*OPT?",
+    ]
 
 
 def test_scope_control_methods_send_one_command_each():

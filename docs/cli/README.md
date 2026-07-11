@@ -336,6 +336,36 @@ hit:
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli check-error --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --all --log-scpi
 ```
 
+Use the low-risk System/Status Pack v1 primitives in dry-run or simulation:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli system-clear-status --dry-run --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli system-opc --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli system-status-byte --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli system-standard-event --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli system-operation-status --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli system-options --query --simulate --json
+```
+
+`system-clear-status` sends `*CLS` and takes no command-specific arguments.
+The other five commands are query-only and require explicit `--query`. They
+send `*OPC?`, `*STB?`, `*ESR?`, `:OPERegister:CONDition?`, and `*OPT?`,
+respectively. Register results preserve `raw`, return an integer `value`, and
+list set bit indexes from low to high. Options preserve `raw` and return
+trimmed comma-separated tokens; a `0` response remains `raw: "0"` with an
+`options` entry of `"0"`.
+
+`system-standard-event` is a destructive event-register read: `*ESR?` clears
+the events it returns according to SCPI behavior. `system-operation-status`
+uses `:OPERegister:CONDition?`; `:RSTate?` remains intentionally unsupported.
+Use `check-error` to read or drain `:SYSTem:ERRor?`; this pack does not replace
+that command. The CLI keeps its normal one-entry system-error post-check after
+each pack command.
+
+This pack has hardware-free Core, CLI, simulator, and worker coverage only.
+No live hardware validation was performed, and no WebUI runtime behavior was
+added.
+
 Send basic acquisition control commands:
 
 ```powershell

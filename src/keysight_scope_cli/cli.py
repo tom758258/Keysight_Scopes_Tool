@@ -215,6 +215,14 @@ from keysight_scope_core.search import (
     search_state_query,
     validate_search_mode,
 )
+from keysight_scope_core.status import (
+    system_clear_status_command,
+    system_opc_query,
+    system_operation_status_query,
+    system_options_query,
+    system_standard_event_query,
+    system_status_byte_query,
+)
 from keysight_scope_core.screenshot import (
     DEFAULT_SCREENSHOT_BACKGROUND,
     SCREENSHOT_TIMEOUT_MS,
@@ -534,6 +542,26 @@ def _build_parser() -> argparse.ArgumentParser:
         default=30,
         help="maximum reads when --all is used",
     )
+
+    system_clear_status_parser = subparsers.add_parser(
+        "system-clear-status",
+        allow_abbrev=False,
+        help="clear status and event data with *CLS",
+    )
+    _add_scope_connection_args(system_clear_status_parser)
+
+    for command, help_text in (
+        ("system-opc", "query operation completion with *OPC?"),
+        ("system-status-byte", "query the status byte with *STB?"),
+        ("system-standard-event", "destructively read the standard event register"),
+        ("system-operation-status", "query the operation condition register"),
+        ("system-options", "query installed option tokens with *OPT?"),
+    ):
+        command_parser = subparsers.add_parser(
+            command, allow_abbrev=False, help=help_text
+        )
+        _add_scope_connection_args(command_parser)
+        command_parser.add_argument("--query", action="store_true", required=True)
 
     run_parser = subparsers.add_parser("run", help="start repetitive acquisitions")
     _add_scope_connection_args(run_parser)
@@ -2371,6 +2399,15 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_verify(args)
     if args.command == "check-error":
         return _cmd_check_error(args)
+    if args.command in {
+        "system-clear-status",
+        "system-opc",
+        "system-status-byte",
+        "system-standard-event",
+        "system-operation-status",
+        "system-options",
+    }:
+        return _cmd_system_status(args)
     if args.command in _CONTROL_COMMANDS:
         return _cmd_control(args)
     if args.command == "force-trigger":
@@ -3640,6 +3677,26 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
     if command == "check-error":
         count = args.max_reads if args.drain else 1
         return [":SYSTem:ERRor?"] * count, [], {"drain": bool(args.drain), "max_reads": count, "entries": []}
+    if command == "system-clear-status":
+        target = system_clear_status_command()
+        return [target, ":SYSTem:ERRor?"], [], {
+            "operation": "clear",
+            "command": target,
+            "cleared": True,
+        }
+    system_queries = {
+        "system-opc": system_opc_query,
+        "system-status-byte": system_status_byte_query,
+        "system-standard-event": system_standard_event_query,
+        "system-operation-status": system_operation_status_query,
+        "system-options": system_options_query,
+    }
+    if command in system_queries:
+        target = system_queries[command]()
+        return [target, ":SYSTem:ERRor?"], [], {
+            "operation": "query",
+            "command": target,
+        }
     if command in _CONTROL_COMMANDS:
         action, scpi = _CONTROL_COMMANDS[command]
         return [scpi, ":SYSTem:ERRor?"], [], {"action": action, "command": scpi}
@@ -6499,6 +6556,52 @@ def _cmd_dvm(args: argparse.Namespace) -> int:
             print(f"DVM mode: {state.mode}")
             print(f"DVM auto range enabled: {state.auto_range_enabled}")
             print(f"DVM current value: {state.value}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_system_status(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+    with _open_scope(args, resource) as scope:
+        _print_session_header(scope, resource)
+        if args.command == "system-clear-status":
+            command = system_clear_status_command()
+            scope.clear_status()
+            _json_update_result(operation="clear", command=command, cleared=True)
+            print("Status cleared: true")
+        elif args.command == "system-opc":
+            command = system_opc_query()
+            state = scope.query_operation_complete()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Operation complete: {state.complete}")
+        elif args.command == "system-status-byte":
+            command = system_status_byte_query()
+            state = scope.query_status_byte()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Status byte: {state.value}")
+        elif args.command == "system-standard-event":
+            command = system_standard_event_query()
+            state = scope.query_standard_event_status()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Standard event status: {state.value}")
+        elif args.command == "system-operation-status":
+            command = system_operation_status_query()
+            state = scope.query_operation_status()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Operation condition status: {state.value}")
+        else:
+            command = system_options_query()
+            state = scope.query_system_options()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"System options: {', '.join(state.options)}")
+        print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)

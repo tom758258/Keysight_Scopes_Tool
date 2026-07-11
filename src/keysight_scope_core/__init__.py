@@ -70,7 +70,17 @@ from .run_config import (
 )
 from .screenshot import ScreenshotCapture, ScreenshotController
 from .scope import KeysightScope
-from .status import SystemErrorEntry, parse_system_error
+from .status import (
+    OperationCompleteState,
+    StatusController,
+    StatusRegisterState,
+    SystemErrorEntry,
+    SystemOptionsState,
+    parse_operation_complete,
+    parse_status_register,
+    parse_system_error,
+    parse_system_options,
+)
 from .timebase import TimebaseController
 from .trigger import (
     DelayTriggerController,
@@ -199,6 +209,7 @@ __all__ = [
     "SearchState",
     "MultiChannelWaveformCapture",
     "OperationPlan",
+    "OperationCompleteState",
     "OperationResult",
     "ResolvedRunConfig",
     "RunModeOptions",
@@ -212,6 +223,9 @@ __all__ = [
     "ScreenshotController",
     "ScopeCapabilities",
     "SystemErrorEntry",
+    "StatusController",
+    "StatusRegisterState",
+    "SystemOptionsState",
     "TimebaseController",
     "WaveformCapture",
     "WaveformPreamble",
@@ -223,7 +237,10 @@ __all__ = [
     "parse_channel_units",
     "parse_display_label",
     "parse_idn",
+    "parse_operation_complete",
+    "parse_status_register",
     "parse_system_error",
+    "parse_system_options",
     "resolve_run_mode",
     "resolve_resource",
     "require_resource",

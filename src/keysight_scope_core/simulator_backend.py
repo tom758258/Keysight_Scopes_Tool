@@ -141,6 +141,9 @@ class SimulatorBackend:
     )
     force_operation_condition_values: list[int] = field(default_factory=lambda: [0])
     operation_condition_index: int = 0
+    status_byte: int = 0
+    standard_event_status: int = 0
+    system_options: str = "0"
 
     run_state: str = "stopped"
     timebase_scale: float = 1e-3
@@ -268,7 +271,11 @@ class SimulatorBackend:
         self.history.append(command)
         self._raise_configured_failure(self.write_failures, command)
         upper = command.upper()
-        if upper in {":RUN", ":STOP", ":SINGLE"}:
+        if upper == "*CLS":
+            self.system_errors.clear()
+            self.status_byte = 0
+            self.standard_event_status = 0
+        elif upper in {":RUN", ":STOP", ":SINGLE"}:
             self.run_state = {"RUN": "running", "STOP": "stopped", "SINGLE": "single"}[upper[1:]]
             if upper == ":SINGLE":
                 self.operation_condition_index = 0
@@ -740,6 +747,16 @@ class SimulatorBackend:
         upper = command.upper()
         if upper == "*IDN?":
             return simulator_idn(self.model)
+        if upper == "*OPC?":
+            return "1"
+        if upper == "*STB?":
+            return str(self.status_byte)
+        if upper == "*ESR?":
+            value = self.standard_event_status
+            self.standard_event_status = 0
+            return str(value)
+        if upper == "*OPT?":
+            return self.system_options
         if upper == ":SYSTEM:ERROR?":
             if self.system_errors:
                 return self.system_errors.pop(0)
@@ -1066,12 +1083,16 @@ class SimulatorBackend:
         return "0"
 
     def _operation_condition_value(self) -> int:
+        if self.run_state != "single":
+            return 0
         if not self.operation_condition_values:
             return 0
         index = min(self.operation_condition_index, len(self.operation_condition_values) - 1)
         value = int(self.operation_condition_values[index])
         if self.operation_condition_index < len(self.operation_condition_values) - 1:
             self.operation_condition_index += 1
+        elif not value & OPERATION_CONDITION_RUN_MASK:
+            self.run_state = "stopped"
         return value
 
     def _waveform_preamble(self) -> str:

@@ -122,6 +122,8 @@ The worker does not implement `/trigger`, `trigger_url`, or `soft-*` endpoints.
 Worker `/command` supports the existing Scopes capability surface:
 
 - `identify`, `check-error`, `doctor`
+- `system-clear-status`, `system-opc`, `system-status-byte`,
+  `system-standard-event`, `system-operation-status`, `system-options`
 - `run`, `single`, `stop-acquisition`, `force-trigger`
 - `acquisition`, `acquisition-check`, `sample-rate`, `acquisition-points`,
   `record-length`
@@ -219,6 +221,30 @@ form:
 ```json
 {"command": "record-length", "arguments": {"query": true}}
 ```
+
+System/Status Pack v1 uses only these canonical request shapes:
+
+```json
+{"command": "system-clear-status", "arguments": {}}
+```
+
+```json
+{"command": "system-opc", "arguments": {"query": true}}
+```
+
+The same exact `{"query": true}` arguments apply to `system-status-byte`,
+`system-standard-event`, `system-operation-status`, and `system-options`.
+`system-clear-status` rejects every non-empty argument object. Query-only
+commands reject empty arguments, `query: false`, non-boolean query values,
+extra or alias keys, and missing arguments. The command envelope rejects null,
+arrays, strings, and numbers because `arguments` must be a JSON object. All
+such failures occur before enqueue, accepted counters, artifact creation,
+simulator/VISA session creation, or SCPI.
+
+`system-standard-event` maps to the destructive `*ESR?` event-register read.
+`system-operation-status` maps only to `:OPERegister:CONDition?`; `:RSTate?`
+remains unsupported. `check-error` remains the command for reading or draining
+`:SYSTem:ERRor?`.
 
 `force-trigger` is accepted only as an explicit command:
 
@@ -1372,6 +1398,8 @@ recorded as absolute paths. Default worker outputs are:
   directory is the default `output_dir`.
 
 `sample-rate`, `acquisition-points`, `record-length`, `force-trigger`,
+`system-clear-status`, `system-opc`, `system-status-byte`,
+`system-standard-event`, `system-operation-status`, `system-options`,
 `trigger-edge`, `trigger-edge-source`, `trigger-edge-slope`, `trigger-edge-level`,
 `external-trigger-range`, `trigger-edge-external-level`,
 `external-trigger-probe`, `external-trigger-units`, `external-trigger-settings`,

@@ -128,6 +128,18 @@ Discovery and identification:
 - `identify`: `idn`, `capabilities`, `backend`, `timeout_ms`.
 - `check-error`: `drain`, `max_reads`, `entries`; top-level `system_error`
   records the latest queried entry.
+- `system-clear-status`: `operation: "clear"`, `command: "*CLS"`, and
+  `cleared: true`.
+- `system-opc`: `operation: "query"`, `command: "*OPC?"`, `complete: true`,
+  and preserved `raw`.
+- `system-status-byte`, `system-standard-event`, and
+  `system-operation-status`: `operation: "query"`, exact `command`, bounded
+  integer `value`, preserved `raw`, and low-to-high integer `set_bits`.
+  `system-standard-event` is the destructive `*ESR?` read;
+  `system-operation-status` uses `:OPERegister:CONDition?`, not `:RSTate?`.
+- `system-options`: `operation: "query"`, `command: "*OPT?"`, preserved
+  `raw`, and trimmed comma-separated `options`. A raw `0` remains visible and
+  produces `options: ["0"]`.
 - `doctor`: `backend`, `timeout_ms`, `acquisition`, `channels`, `timebase`,
   and `edge_trigger`.
 

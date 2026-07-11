@@ -25,6 +25,10 @@ class SystemErrorParseError(KeysightScopeError, ValueError):
     """Raised when `:SYSTem:ERRor?` cannot be parsed."""
 
 
+class StatusResponseError(KeysightScopeError, ValueError):
+    """Raised when a system or status query response cannot be parsed."""
+
+
 class ParameterValidationError(KeysightScopeError, ValueError):
     """Raised when a setting would be invalid for the selected instrument."""
 
