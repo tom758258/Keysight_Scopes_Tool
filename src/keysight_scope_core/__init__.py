@@ -28,6 +28,13 @@ from .measurements import (
     MeasurementWindowState,
 )
 from .reference import ReferenceWaveformController, ReferenceWaveformState
+from .search import (
+    SEARCH_MODES,
+    SearchController,
+    SearchCountState,
+    SearchModeState,
+    SearchState,
+)
 from .operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
@@ -185,6 +192,11 @@ __all__ = [
     "MeasurementWindowState",
     "ReferenceWaveformController",
     "ReferenceWaveformState",
+    "SEARCH_MODES",
+    "SearchController",
+    "SearchCountState",
+    "SearchModeState",
+    "SearchState",
     "MultiChannelWaveformCapture",
     "OperationPlan",
     "OperationResult",

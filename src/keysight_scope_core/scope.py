@@ -36,6 +36,7 @@ from .measurements import (
     MeasurementWindowState,
 )
 from .reference import ReferenceWaveformController, ReferenceWaveformState
+from .search import SearchController, SearchCountState, SearchModeState, SearchState
 from .scpi import SCPIBackend, SCPIClient
 from .screenshot import ScreenshotCapture, ScreenshotController
 from .status import SystemErrorEntry, parse_system_error
@@ -541,6 +542,31 @@ class KeysightScope:
         """Query aggregate DVM Common Pack v1 state."""
 
         return self._dvm_controller().query()
+
+    def configure_search_state(self, enabled: bool) -> SearchState:
+        """Configure waveform search enable state."""
+
+        return self._search_controller().configure_state(enabled)
+
+    def query_search_state(self) -> SearchState:
+        """Query waveform search enable state."""
+
+        return self._search_controller().query_state()
+
+    def configure_search_mode(self, mode: str) -> SearchModeState:
+        """Enable search and configure a profile-supported search mode."""
+
+        return self._search_controller().configure_mode(mode)
+
+    def query_search_mode(self) -> SearchModeState:
+        """Query the current waveform search mode."""
+
+        return self._search_controller().query_mode()
+
+    def query_search_count(self) -> SearchCountState:
+        """Query the current waveform search event count."""
+
+        return self._search_controller().query_count()
 
 
     def configure_trigger_edge_coupling(self, coupling: str) -> None:
@@ -1179,6 +1205,13 @@ class KeysightScope:
                 "DVM operations require known capabilities; call query_idn() first."
             )
         return DvmController(self.scpi, self.capabilities)
+
+    def _search_controller(self) -> SearchController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "Search operations require known capabilities; call query_idn() first."
+            )
+        return SearchController(self.scpi, self.capabilities)
 
     def _reference_waveform_controller(self) -> ReferenceWaveformController:
         if self.capabilities is None:

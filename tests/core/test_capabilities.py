@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.errors import UnsupportedModelError
@@ -37,6 +37,20 @@ def test_capabilities_for_supported_models(model, series, channels):
 )
 def test_impedance_50_ohm_support_comes_from_capability_profile(model, expected):
     assert capabilities_for_model(model).supports_50_ohm_impedance is expected
+
+
+@pytest.mark.parametrize(
+    "model, modes",
+    [
+        ("DSOX2004A", {"serial1"}),
+        ("DSOX3024A", {"edge", "glitch", "runt", "transition", "serial1", "serial2"}),
+        ("DSOX4034A", {"edge", "glitch", "runt", "transition", "serial1", "serial2", "peak"}),
+    ],
+)
+def test_search_basic_support_comes_from_capability_profile(model, modes):
+    capabilities = capabilities_for_model(model)
+    assert capabilities.supports_search_basic is True
+    assert capabilities.search_modes == frozenset(modes)
 
 
 @pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A", "DSOX4024A"])

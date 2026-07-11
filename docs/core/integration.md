@@ -73,6 +73,11 @@ names are intended for package consumers and tests:
 - `MeasurementWindowState`
 - `ReferenceWaveformController`
 - `ReferenceWaveformState`
+- `SEARCH_MODES`
+- `SearchController`
+- `SearchCountState`
+- `SearchModeState`
+- `SearchState`
 - `MultiChannelWaveformCapture`
 - `OperationPlan`
 - `OperationResult`

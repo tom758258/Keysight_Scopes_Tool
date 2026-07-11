@@ -1,0 +1,125 @@
+import pytest
+
+from keysight_scope_cli import cli, worker
+from keysight_scope_core.errors import KeysightScopeError
+
+
+def _runtime(tmp_path, model="DSOX4034A"):
+    return worker.WorkerRuntime(
+        host="127.0.0.1",
+        port=0,
+        mode="simulate",
+        model=model,
+        resource=None,
+        artifact_root=tmp_path,
+        queue_max=1,
+        output_format="jsonl",
+    )
+
+
+@pytest.mark.parametrize(
+    "command, arguments",
+    [
+        ("search-state", {"query": True}),
+        ("search-state", {"enabled": True}),
+        ("search-state", {"enabled": False}),
+        ("search-mode", {"query": True}),
+        ("search-mode", {"mode": "serial1"}),
+        ("search-mode", {"mode": "serial2"}),
+        ("search-mode", {"mode": "edge"}),
+        ("search-mode", {"mode": "glitch"}),
+        ("search-mode", {"mode": "runt"}),
+        ("search-mode", {"mode": "transition"}),
+        ("search-mode", {"mode": "peak"}),
+        ("search-count", {"query": True}),
+    ],
+)
+def test_worker_search_accepts_canonical_payloads(tmp_path, command, arguments):
+    assert command in worker.DOMAIN_COMMANDS
+    parsed = worker.parse_domain_command(command, arguments, _runtime(tmp_path))
+    assert parsed.command == command
+
+
+@pytest.mark.parametrize(
+    "command, arguments",
+    [
+        ("search-state", {}),
+        ("search-state", {"query": False}),
+        ("search-state", {"query": True, "enabled": True}),
+        ("search-state", {"enabled": "true"}),
+        ("search-state", {"enabled": 1}),
+        ("search-state", {"state": True}),
+        ("search-mode", {}),
+        ("search-mode", {"query": False}),
+        ("search-mode", {"query": True, "mode": "edge"}),
+        ("search-mode", {"mode": 1}),
+        ("search-mode", {"mode": "ser1"}),
+        ("search-mode", {"mode": "ser2"}),
+        ("search-mode", {"mode": "glit"}),
+        ("search-mode", {"mode": "tran"}),
+        ("search-mode", {"mode": "pwid"}),
+        ("search-mode", {"mode": "pulse-width"}),
+        ("search-mode", {"mode": "off"}),
+        ("search-mode", {"value": "edge"}),
+        ("search-count", {}),
+        ("search-count", {"query": False}),
+        ("search-count", {"query": True, "count": 1}),
+    ],
+)
+def test_worker_search_rejects_noncanonical_payloads_before_side_effects(
+    tmp_path, command, arguments
+):
+    runtime = _runtime(tmp_path)
+    with pytest.raises(KeysightScopeError):
+        worker.parse_domain_command(command, arguments, runtime)
+    assert runtime.accepted == 0
+    assert runtime.queue.empty()
+    assert runtime.jobs == {}
+    assert not (tmp_path / runtime.run_id).exists()
+
+
+@pytest.mark.parametrize(
+    "model, mode",
+    [
+        ("DSOX2004A", "edge"),
+        ("DSOX2004A", "serial2"),
+        ("DSOX3024A", "peak"),
+    ],
+)
+def test_worker_search_rejects_unsupported_mode_before_side_effects(tmp_path, model, mode):
+    runtime = _runtime(tmp_path, model)
+    with pytest.raises(KeysightScopeError, match="not supported by the selected"):
+        worker.parse_domain_command("search-mode", {"mode": mode}, runtime)
+    assert runtime.accepted == 0
+    assert runtime.queue.empty()
+    assert runtime.jobs == {}
+    assert not (tmp_path / runtime.run_id).exists()
+
+
+def test_worker_search_profile_acceptance_matrix(tmp_path):
+    assert worker.parse_domain_command(
+        "search-mode", {"mode": "serial1"}, _runtime(tmp_path, "DSOX2004A")
+    ).mode == "serial1"
+    assert worker.parse_domain_command(
+        "search-mode", {"mode": "edge"}, _runtime(tmp_path, "DSOX3024A")
+    ).mode == "edge"
+    assert worker.parse_domain_command(
+        "search-mode", {"mode": "peak"}, _runtime(tmp_path, "DSOX4034A")
+    ).mode == "peak"
+
+
+def test_worker_search_simulator_execution(tmp_path):
+    parsed = worker.parse_domain_command(
+        "search-mode", {"mode": "peak"}, _runtime(tmp_path)
+    )
+    payload, exit_code = cli._execute_json_command(parsed)
+    assert exit_code == 0
+    assert payload["result"]["mode"] == "peak"
+    assert payload["result"]["enabled"] is True
+    assert payload["files"] == []
+    assert payload["scpi"]["sent"] == [
+        "*IDN?",
+        ":SEARch:STATe 1",
+        ":SEARch:MODE PEAK",
+        ":SYSTem:ERRor?",
+    ]

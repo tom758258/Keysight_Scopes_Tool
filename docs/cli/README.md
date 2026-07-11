@@ -131,6 +131,9 @@ Current implemented scope:
 - Save, display, label, clear, or query reference waveform slots 1 and 2 with
   `reference-save`, `reference-display`, `reference-label`,
   `reference-clear`, and `reference-query`.
+- Enable, disable, or query basic waveform search state; select a guarded
+  search mode; and query the current search event count with `search-state`,
+  `search-mode`, and `search-count`.
 - Collect read-only diagnostic snapshots with `doctor`.
 - Query multi-channel and optional pair measurement sweeps with
   continue-and-summarize failure handling.
@@ -1431,6 +1434,32 @@ and scale controls are not implemented. These paths have hardware-free
 validation only; live hardware and LAN validation have not been run. The
 simulator tracks the two display states independently and does not emulate the
 4000X rule that displaying one reference may hide the other.
+
+Control Search Basic Pack v1:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli search-state --enabled true --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli search-state --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli search-mode --mode serial1 --simulate --json --model DSOX2004A
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli search-mode --mode edge --simulate --json --model DSOX3024A
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli search-mode --mode peak --simulate --json --model DSOX4034A
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli search-mode --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli search-count --query --simulate --json
+```
+
+`search-state` accepts exactly one of `--query` or
+`--enabled true|false`. `search-mode` accepts exactly one of `--query` or one
+lowercase canonical mode. Configuring a mode sends `:SEARch:STATe 1` before
+`:SEARch:MODE <mode>`. `search-count` is query-only and requires `--query`.
+
+Runtime support is capability-profile guarded: 2000X supports `serial1` only;
+3000X supports `edge`, `glitch`, `runt`, `transition`, `serial1`, and
+`serial2`; 4000X supports those modes plus `peak`. Aliases such as `ser1`,
+`ser2`, `glit`, `tran`, and `off` are rejected. Unsupported modes are rejected
+before search SCPI is sent. Search event navigation, mode-specific search
+parameter commands, and serial search pattern configuration are not
+implemented in this pack. Tests are hardware-free; no live hardware validation
+was performed.
 
 Query read-only measurements:
 

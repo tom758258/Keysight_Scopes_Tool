@@ -31,6 +31,14 @@ Core owns runtime behavior:
   mode, the independent `:COUNter` subsystem, and `:MEASure:COUNter` are not
   implemented. Coverage is hardware-free; no live hardware validation was
   performed for this pack.
+- Search Basic Pack v1 helpers for enabling or disabling waveform search,
+  selecting a model-profile-supported basic search mode, and querying the
+  search event count. Mode configuration enables search before setting the
+  mode. DSO-X 2000X supports `serial1`; 3000X supports `edge`, `glitch`,
+  `runt`, `transition`, `serial1`, and `serial2`; 4000X additionally supports
+  `peak`. Event navigation, mode-specific search parameters, and serial search
+  pattern configuration are not implemented. Coverage is hardware-free; no
+  live hardware validation was performed for this pack.
 - Reference Waveform Pack v1 helpers for saving an analog channel to reference
   slot 1 or 2, configuring or querying display and label state, clearing a
   slot, and querying aggregate display/label state. Labels are limited to

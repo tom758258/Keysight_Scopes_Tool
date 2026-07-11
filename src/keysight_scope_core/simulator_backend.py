@@ -150,6 +150,9 @@ class SimulatorBackend:
     dvm_mode: str = "DC"
     dvm_auto_range: bool = True
     dvm_current_value: float = 0.0
+    search_enabled: bool = False
+    search_mode: str = "SERial1"
+    search_count: int = 0
     trigger_sweep: str = "AUTO"
     trigger_noise_reject: bool = False
     trigger_hf_reject: bool = False
@@ -334,6 +337,38 @@ class SimulatorBackend:
             self.dvm_mode = {"DC": "DC", "DCRMS": "DCRMs", "ACRMS": "ACRMs"}[mode]
         elif upper.startswith(":DVM:ARANGE "):
             self.dvm_auto_range = _parse_scpi_bool_write(command)
+        elif upper.startswith(":SEARCH:STATE "):
+            self.search_enabled = _parse_scpi_bool_write(command)
+        elif upper.startswith(":SEARCH:MODE "):
+            value = command.rsplit(" ", 1)[1].upper()
+            canonical_by_scpi = {
+                "SER1": "serial1",
+                "SERIAL1": "serial1",
+                "SER2": "serial2",
+                "SERIAL2": "serial2",
+                "EDGE": "edge",
+                "GLIT": "glitch",
+                "GLITCH": "glitch",
+                "RUNT": "runt",
+                "TRAN": "transition",
+                "TRANSITION": "transition",
+                "PEAK": "peak",
+            }
+            scpi_by_canonical = {
+                "serial1": "SERial1",
+                "serial2": "SERial2",
+                "edge": "EDGE",
+                "glitch": "GLITch",
+                "runt": "RUNT",
+                "transition": "TRANsition",
+                "peak": "PEAK",
+            }
+            canonical = canonical_by_scpi.get(value)
+            if canonical is None or canonical not in self._capabilities.search_modes:
+                raise SimulatorBackendError(
+                    f"Search mode {value!r} is not supported by simulator model {self.model}."
+                )
+            self.search_mode = scpi_by_canonical[canonical]
         elif upper.startswith(":TRIGGER:SWEEP "):
             value = command.rsplit(" ", 1)[1]
             if value.upper() not in {"AUTO", "NORMAL"}:
@@ -731,6 +766,12 @@ class SimulatorBackend:
             return "1" if self.dvm_auto_range else "0"
         if upper == ":DVM:CURRENT?":
             return f"{self.dvm_current_value:+.8E}"
+        if upper == ":SEARCH:STATE?":
+            return "1" if self.search_enabled else "0"
+        if upper == ":SEARCH:MODE?":
+            return self.search_mode if self.search_enabled else "OFF"
+        if upper == ":SEARCH:COUNT?":
+            return str(self.search_count)
         if upper == ":MEASURE:SHOW?":
             return "1" if self.measurement_show else "0"
         if upper == ":MEASURE:SOURCE?":

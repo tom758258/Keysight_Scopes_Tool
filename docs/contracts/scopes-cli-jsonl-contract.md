@@ -208,6 +208,17 @@ Control and setup:
 - `trigger-hf-reject`: `operation` and `command`. Configure results include
   boolean `enabled` and `state_changing: true`. Query results include
   normalized boolean `enabled` and preserved `raw_value`.
+- `search-state`: `operation` and `command`. Configure results include boolean
+  `enabled`, `raw_state: null`, and `state_changing: true`. Query results
+  include normalized boolean `enabled` and preserve `raw_state`.
+- `search-mode`: configure results include `operation: "configure"`, ordered
+  `commands` with `:SEARch:STATe 1` before `:SEARch:MODE`, canonical `mode`,
+  `enabled: true`, `raw_mode: null`, and `state_changing: true`. Query results
+  include `operation: "query"`, `command`, nullable canonical `mode`, boolean
+  `enabled`, and preserved `raw_mode`; an `OFF` readback uses `mode: null` and
+  `enabled: false`.
+- `search-count`: query-only results include `operation: "query"`, `command`,
+  integer `count`, and preserved `raw_count`.
 - `trigger-edge-coupling`: `operation` and `command`. Configure results include
   `coupling` (`ac`, `dc`, or `lf-reject`). Query results include normalized
   `coupling` and preserved `raw_value`.
@@ -347,7 +358,8 @@ Capability JSON currently includes `series`, `analog_channels`,
 `supports_display_label`, `supports_annotation`,
 `supports_annotation_position`, `annotation_slots`, and
 `supports_indexed_annotation`. Consumers must ignore unknown future capability
-fields under schema version `1`.
+fields under schema version `1`. Search Basic Pack v1 additionally reports
+`supports_search_basic` and ordered canonical `search_modes`.
 
 ## Artifact JSON
 

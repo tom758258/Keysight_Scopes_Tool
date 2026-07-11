@@ -33,6 +33,8 @@ class ScopeCapabilities:
     annotation_slots: int = 0
     supports_indexed_annotation: bool = False
     supports_50_ohm_impedance: bool = False
+    supports_search_basic: bool = False
+    search_modes: frozenset[str] = frozenset()
 
 
 _BASE_PROFILES = {
@@ -57,6 +59,8 @@ _BASE_PROFILES = {
         annotation_slots=1,
         supports_indexed_annotation=False,
         supports_50_ohm_impedance=False,
+        supports_search_basic=True,
+        search_modes=frozenset({"serial1"}),
     ),
     "3000X": ScopeCapabilities(
         series="3000X",
@@ -79,6 +83,10 @@ _BASE_PROFILES = {
         annotation_slots=1,
         supports_indexed_annotation=False,
         supports_50_ohm_impedance=True,
+        supports_search_basic=True,
+        search_modes=frozenset(
+            {"edge", "glitch", "runt", "transition", "serial1", "serial2"}
+        ),
     ),
     "4000X": ScopeCapabilities(
         series="4000X",
@@ -101,6 +109,18 @@ _BASE_PROFILES = {
         annotation_slots=10,
         supports_indexed_annotation=True,
         supports_50_ohm_impedance=True,
+        supports_search_basic=True,
+        search_modes=frozenset(
+            {
+                "edge",
+                "glitch",
+                "runt",
+                "transition",
+                "serial1",
+                "serial2",
+                "peak",
+            }
+        ),
     ),
 }
 

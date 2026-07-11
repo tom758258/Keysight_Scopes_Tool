@@ -130,6 +130,7 @@ Worker `/command` supports the existing Scopes capability surface:
   `measure-show`, `measure-source`, `measure-window`
 - `dvm-enable`, `dvm-source`, `dvm-mode`, `dvm-auto-range`, `dvm-current`,
   `dvm-query`
+- `search-state`, `search-mode`, `search-count`
 - `reference-save`, `reference-display`, `reference-label`,
   `reference-clear`, `reference-query`
 - `channel-display`, `channel-label`, `channel-scale`, `channel-offset`,
@@ -1205,6 +1206,46 @@ does not accept `dvm-frequency`, Counter command names, DVM frequency mode,
 `:COUNter` commands, or `:MEASure:COUNter`. Its validation is hardware-free;
 no live hardware validation was performed for this pack.
 
+### Search Basic Pack v1 Commands
+
+The worker accepts only these canonical argument shapes:
+
+```json
+{"command": "search-state", "arguments": {"query": true}}
+```
+
+```json
+{"command": "search-state", "arguments": {"enabled": false}}
+```
+
+```json
+{"command": "search-mode", "arguments": {"query": true}}
+```
+
+```json
+{"command": "search-mode", "arguments": {"mode": "edge"}}
+```
+
+```json
+{"command": "search-count", "arguments": {"query": true}}
+```
+
+`search-state` accepts exactly `query: true` or one JSON boolean `enabled`.
+`search-mode` accepts exactly `query: true` or one lowercase canonical mode:
+`serial1`, `serial2`, `edge`, `glitch`, `runt`, `transition`, or `peak`.
+`search-count` is query-only. Configuring `search-mode` sends
+`:SEARch:STATe 1` before `:SEARch:MODE`.
+
+The startup model profile guards mode support before enqueue, accepted
+counters, job or artifact creation, simulator/VISA session open, or SCPI.
+DSO-X 2000X accepts only `serial1`; 3000X accepts `edge`, `glitch`, `runt`,
+`transition`, `serial1`, and `serial2`; 4000X additionally accepts `peak`.
+Empty arguments, `query: false`, query/configure mixes, unknown keys, wrong
+types, aliases, uppercase values, and unsupported profile modes are rejected.
+Search event navigation, mode-specific search parameters, and serial search
+pattern configuration are not implemented. This pack has hardware-free
+validation only; no live hardware validation was performed.
+
 ### Label And Annotation Commands
 
 The worker supports the same one-shot label and annotation commands as the CLI:
@@ -1342,7 +1383,8 @@ recorded as absolute paths. Default worker outputs are:
 The `measure-clear`, `measure-show`, `measure-source`, `measure-window`,
 `reference-save`, `reference-display`, `reference-label`, `reference-clear`,
 `reference-query`, `dvm-enable`, `dvm-source`, `dvm-mode`, `dvm-auto-range`,
-`dvm-current`, and `dvm-query` commands also do not create command artifacts.
+`dvm-current`, `dvm-query`, `search-state`, `search-mode`, and `search-count`
+commands also do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
 includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.

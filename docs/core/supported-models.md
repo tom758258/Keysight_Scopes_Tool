@@ -38,6 +38,8 @@ All supported series profiles currently expose:
   DVM can be option/license dependent. This pack has hardware-free validation
   only and does not implement DVM frequency, independent `:COUNter`, or
   `:MEASure:COUNter` support.
+- Search Basic Pack v1 state and count queries plus profile-guarded mode
+  configuration. Unsupported modes are rejected before search SCPI is sent.
 - Analog channel labels, display labels, and display annotation.
 - Hardware-free Core/CLI/simulator/worker support for the documented one-shot
   trigger packs, including `trigger-tv` basic TV / video trigger configure and
@@ -46,6 +48,17 @@ All supported series profiles currently expose:
   Operation Status Condition Run bit.
 
 Series-specific differences:
+
+| Series | Search Basic Pack v1 modes |
+| --- | --- |
+| 2000X | `serial1` |
+| 3000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2` |
+| 4000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2`, `peak` |
+
+All three profiles support `search-state` and query-only `search-count`.
+`search-mode` enables search before setting the mode. Search event navigation,
+mode-specific search parameter commands, and serial search pattern
+configuration are outside Search Basic Pack v1.
 
 - 2000X and 3000X channel labels allow up to 10 printable ASCII characters.
 - 4000X channel labels allow up to 32 printable ASCII characters.

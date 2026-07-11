@@ -18,6 +18,12 @@ configuration uses canonical `--enabled true|false`; `dvm-current` and
 `dvm-query` require `--query`. The adapter does not expose DVM frequency,
 independent Counter, or `:MEASure:COUNter` commands.
 
+Search Basic Pack v1 adapter commands are `search-state`, `search-mode`, and
+query-only `search-count`. Boolean configuration uses canonical
+`--enabled true|false`; search modes use lowercase canonical values and are
+validated against the selected model capability profile before search SCPI.
+Mode configuration enables search before selecting the mode.
+
 These fields are adapter behavior, not Core schema. Core receives normalized
 requests and returns runtime data; the CLI decides how to render human text,
 JSON stdout, stderr logs, and exit codes.

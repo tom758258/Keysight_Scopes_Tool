@@ -56,6 +56,9 @@ DOMAIN_COMMANDS = {
     "dvm-auto-range",
     "dvm-current",
     "dvm-query",
+    "search-state",
+    "search-mode",
+    "search-count",
     "reference-save",
     "reference-display",
     "reference-label",
@@ -354,6 +357,7 @@ def parse_domain_command(
         command, arguments, runtime
     )
     arguments = _normalize_dvm_worker_arguments(command, arguments, runtime)
+    arguments = _normalize_search_worker_arguments(command, arguments, runtime)
     arguments = _normalize_trigger_edge_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_source_worker_arguments(
         command, arguments, runtime
@@ -1182,6 +1186,68 @@ def _normalize_dvm_worker_arguments(
     if value not in {"dc", "dc-rms", "ac-rms"}:
         raise KeysightScopeError(
             "dvm-mode argument mode must be one of: dc, dc-rms, ac-rms"
+        )
+    return dict(arguments)
+
+
+def _normalize_search_worker_arguments(
+    command: str, arguments: dict[str, Any], runtime: WorkerRuntime
+) -> dict[str, Any]:
+    if command not in {"search-state", "search-mode", "search-count"}:
+        return arguments
+
+    if command == "search-count":
+        if set(arguments) != {"query"} or arguments.get("query") is not True:
+            raise KeysightScopeError("search-count requires exactly query=true")
+        return dict(arguments)
+
+    configure_key = "enabled" if command == "search-state" else "mode"
+    allowed = {"query", configure_key}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for {command}: {sorted(unknown)[0]}"
+        )
+    if arguments.get("query") is True:
+        if set(arguments) != {"query"}:
+            raise KeysightScopeError(
+                f"{command} query cannot be combined with configure arguments"
+            )
+        return dict(arguments)
+    if "query" in arguments:
+        raise KeysightScopeError(f"{command} argument query must be exactly true")
+    if set(arguments) != {configure_key}:
+        raise KeysightScopeError(
+            f"{command} configure requires exactly {configure_key}"
+        )
+
+    value = arguments[configure_key]
+    if command == "search-state":
+        if not isinstance(value, bool):
+            raise KeysightScopeError("search-state argument enabled must be a boolean")
+        return {"enabled": "true" if value else "false"}
+
+    if not isinstance(value, str):
+        raise KeysightScopeError("search-mode argument mode must be a string")
+    canonical_modes = {
+        "serial1",
+        "serial2",
+        "edge",
+        "glitch",
+        "runt",
+        "transition",
+        "peak",
+    }
+    if value not in canonical_modes:
+        raise KeysightScopeError(
+            "search-mode argument mode must be one of: serial1, serial2, edge, "
+            "glitch, runt, transition, peak"
+        )
+    capabilities = capabilities_for_model(runtime.model)
+    if value not in capabilities.search_modes:
+        raise KeysightScopeError(
+            f"Search mode {value!r} is not supported by the selected "
+            f"{capabilities.series} model profile."
         )
     return dict(arguments)
 

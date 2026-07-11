@@ -206,6 +206,15 @@ from keysight_scope_core.reference import (
     validate_reference_label,
     validate_reference_slot,
 )
+from keysight_scope_core.search import (
+    SEARCH_MODES,
+    search_count_query,
+    search_mode_command,
+    search_mode_query,
+    search_state_command,
+    search_state_query,
+    validate_search_mode,
+)
 from keysight_scope_core.screenshot import (
     DEFAULT_SCREENSHOT_BACKGROUND,
     SCREENSHOT_TIMEOUT_MS,
@@ -971,6 +980,26 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_scope_connection_args(dvm_query_parser)
     dvm_query_parser.add_argument("--query", action="store_true", required=True)
+
+    search_state_parser = subparsers.add_parser(
+        "search-state", allow_abbrev=False, help="configure or query waveform search state"
+    )
+    _add_scope_connection_args(search_state_parser)
+    search_state_parser.add_argument("--query", action="store_true")
+    search_state_parser.add_argument("--enabled", type=_strict_bool_arg)
+
+    search_mode_parser = subparsers.add_parser(
+        "search-mode", allow_abbrev=False, help="configure or query waveform search mode"
+    )
+    _add_scope_connection_args(search_mode_parser)
+    search_mode_parser.add_argument("--query", action="store_true")
+    search_mode_parser.add_argument("--mode", choices=SEARCH_MODES)
+
+    search_count_parser = subparsers.add_parser(
+        "search-count", allow_abbrev=False, help="query waveform search event count"
+    )
+    _add_scope_connection_args(search_count_parser)
+    search_count_parser.add_argument("--query", action="store_true", required=True)
 
     reference_save_parser = subparsers.add_parser(
         "reference-save", help="copy an analog channel into a reference waveform slot"
@@ -2397,6 +2426,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         "dvm-query",
     }:
         return _cmd_dvm(args)
+    if args.command in {"search-state", "search-mode", "search-count"}:
+        return _cmd_search(args)
     if args.command in {
         "reference-save",
         "reference-display",
@@ -2840,6 +2871,12 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         "dvm-auto-range",
     }:
         _validate_dvm_args(args)
+    if getattr(args, "command", None) in {
+        "search-state",
+        "search-mode",
+        "search-count",
+    }:
+        _validate_search_args(args)
     if getattr(args, "command", None) == "trigger-edge":
         _validate_trigger_edge_args(args)
     if getattr(args, "command", None) == "trigger-edge-source":
@@ -2910,6 +2947,32 @@ def _validate_dvm_args(args: argparse.Namespace) -> None:
         )
     if command == "dvm-source":
         validate_analog_channel(value, capabilities_for_model(args.model))
+
+
+def _validate_search_args(args: argparse.Namespace) -> None:
+    command = args.command
+    capabilities = capabilities_for_model(args.model)
+    if not capabilities.supports_search_basic:
+        raise ParameterValidationError(
+            "Search Basic Pack v1 is not supported by the selected model profile."
+        )
+    if command == "search-count":
+        return
+    query = bool(getattr(args, "query", False))
+    configure_key = "enabled" if command == "search-state" else "mode"
+    value = getattr(args, configure_key, None)
+    if query:
+        if value is not None:
+            raise ParameterValidationError(
+                f"{command} --query cannot be combined with configure options."
+            )
+        return
+    if value is None:
+        raise ParameterValidationError(
+            f"{command} configure requires --{configure_key}."
+        )
+    if command == "search-mode":
+        validate_search_mode(value, capabilities)
 
 
 def _validate_measurement_reference_args(args: argparse.Namespace) -> None:
@@ -3716,6 +3779,34 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         return [*commands, ":SYSTem:ERRor?"], [], {
             "operation": "query",
             "commands": commands,
+        }
+    if command == "search-state":
+        target = search_state_query() if args.query else search_state_command(args.enabled)
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if not args.query:
+            result.update(enabled=args.enabled, state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
+    if command == "search-mode":
+        if args.query:
+            target = search_mode_query()
+            return [target, ":SYSTem:ERRor?"], [], {
+                "operation": "query",
+                "command": target,
+            }
+        mode = validate_search_mode(args.mode, capabilities)
+        commands = [search_state_command(True), search_mode_command(mode)]
+        return [*commands, ":SYSTem:ERRor?"], [], {
+            "operation": "configure",
+            "commands": commands,
+            "mode": mode,
+            "enabled": True,
+            "state_changing": True,
+        }
+    if command == "search-count":
+        target = search_count_query()
+        return [target, ":SYSTem:ERRor?"], [], {
+            "operation": "query",
+            "command": target,
         }
     if command == "annotation":
         operation, commands, result = _annotation_plan(args, capabilities)
@@ -4862,6 +4953,8 @@ def _capabilities_json(capabilities: ScopeCapabilities | None) -> dict[str, obje
         "annotation_slots": capabilities.annotation_slots,
         "supports_indexed_annotation": capabilities.supports_indexed_annotation,
         "supports_50_ohm_impedance": capabilities.supports_50_ohm_impedance,
+        "supports_search_basic": capabilities.supports_search_basic,
+        "search_modes": [mode for mode in SEARCH_MODES if mode in capabilities.search_modes],
     }
 
 
@@ -6406,6 +6499,70 @@ def _cmd_dvm(args: argparse.Namespace) -> int:
             print(f"DVM mode: {state.mode}")
             print(f"DVM auto range enabled: {state.auto_range_enabled}")
             print(f"DVM current value: {state.value}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_search(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.command == "search-state":
+            if args.query:
+                command = search_state_query()
+                state = scope.query_search_state()
+                _json_update_result(operation="query", command=command, **state.to_json())
+            else:
+                command = search_state_command(args.enabled)
+                state = scope.configure_search_state(args.enabled)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    **state.to_json(),
+                    state_changing=True,
+                )
+            print(f"Command: {command}")
+            print(f"Search enabled: {state.enabled}")
+        elif args.command == "search-mode":
+            if args.query:
+                command = search_mode_query()
+                state = scope.query_search_mode()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"Command: {command}")
+            else:
+                state = scope.configure_search_mode(args.mode)
+                commands = [search_state_command(True), search_mode_command(args.mode)]
+                _json_update_result(
+                    operation="configure",
+                    commands=commands,
+                    **state.to_json(),
+                    state_changing=True,
+                )
+                for command in commands:
+                    print(f"Command: {command}")
+            print(f"Search enabled: {state.enabled}")
+            print(f"Search mode: {state.mode}")
+        else:
+            command = search_count_query()
+            state = scope.query_search_count()
+            _json_update_result(operation="query", command=command, **state.to_json())
+            print(f"Command: {command}")
+            print(f"Search count: {state.count}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)

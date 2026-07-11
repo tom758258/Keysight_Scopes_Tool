@@ -49,6 +49,10 @@ class DvmResponseError(KeysightScopeError, ValueError):
     """Raised when a DVM query response cannot be parsed."""
 
 
+class SearchResponseError(KeysightScopeError, ValueError):
+    """Raised when a waveform search query response cannot be parsed."""
+
+
 class WaveformResponseError(KeysightScopeError, ValueError):
     """Raised when waveform data or metadata cannot be parsed."""
 
