@@ -93,6 +93,95 @@ def test_simulator_edge_level_updates_active_analog_level_only_for_active_channe
     assert backend.query(":TRIGger:EDGE:LEVel? CHANnel2") == "0"
 
 
+def test_simulator_unqualified_edge_level_write_syncs_active_analog_channel():
+    backend = SimulatorBackend(model="DSOX4034A")
+
+    backend.write(":TRIGger:EDGE:SOURce CHANnel1")
+    backend.write(":TRIGger:EDGE:LEVel 0.5,CHANnel1")
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel1") == "0.5"
+
+    backend.write(":TRIGger:EDGE:LEVel 0.2")
+
+    assert backend.trigger_level == 0.2
+    assert backend.trigger_levels[1] == 0.2
+    assert backend.query(":TRIGger:EDGE:LEVel?") == "0.2"
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel1") == "0.2"
+    assert backend.trigger_edge_source_raw == "CHANnel1"
+    assert backend.history == [
+        ":TRIGger:EDGE:SOURce CHANnel1",
+        ":TRIGger:EDGE:LEVel 0.5,CHANnel1",
+        ":TRIGger:EDGE:LEVel? CHANnel1",
+        ":TRIGger:EDGE:LEVel 0.2",
+        ":TRIGger:EDGE:LEVel?",
+        ":TRIGger:EDGE:LEVel? CHANnel1",
+    ]
+
+
+def test_simulator_analog_source_switch_activates_stored_channel_level():
+    backend = SimulatorBackend(model="DSOX4034A")
+
+    backend.write(":TRIGger:EDGE:SOURce CHANnel1")
+    backend.write(":TRIGger:EDGE:LEVel 0.1")
+    backend.write(":TRIGger:EDGE:LEVel 0.8,CHANnel2")
+    assert backend.trigger_level == 0.1
+
+    backend.write(":TRIGger:EDGE:SOURce CHANnel2")
+
+    assert backend.trigger_edge_source_raw == "CHANnel2"
+    assert backend.trigger_level == 0.8
+    assert backend.query(":TRIGger:EDGE:LEVel?") == "0.8"
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel1") == "0.1"
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel2") == "0.8"
+    assert backend.history == [
+        ":TRIGger:EDGE:SOURce CHANnel1",
+        ":TRIGger:EDGE:LEVel 0.1",
+        ":TRIGger:EDGE:LEVel 0.8,CHANnel2",
+        ":TRIGger:EDGE:SOURce CHANnel2",
+        ":TRIGger:EDGE:LEVel?",
+        ":TRIGger:EDGE:LEVel? CHANnel1",
+        ":TRIGger:EDGE:LEVel? CHANnel2",
+    ]
+
+
+def test_simulator_analog_source_switch_without_stored_level_keeps_global_fallback():
+    backend = SimulatorBackend(model="DSOX4034A")
+
+    backend.write(":TRIGger:EDGE:LEVel 0.1")
+    backend.write(":TRIGger:EDGE:SOURce CHANnel2")
+
+    assert backend.trigger_levels == {1: 0.1}
+    assert backend.trigger_level == 0.1
+    assert backend.query(":TRIGger:EDGE:LEVel?") == "0.1"
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel1") == "0.1"
+    # A channel without storage continues to use the legacy global fallback.
+    assert backend.query(":TRIGger:EDGE:LEVel? CHANnel2") == "0.1"
+    assert backend.history == [
+        ":TRIGger:EDGE:LEVel 0.1",
+        ":TRIGger:EDGE:SOURce CHANnel2",
+        ":TRIGger:EDGE:LEVel?",
+        ":TRIGger:EDGE:LEVel? CHANnel1",
+        ":TRIGger:EDGE:LEVel? CHANnel2",
+    ]
+
+
+def test_simulator_unqualified_level_write_with_non_analog_source_does_not_update_storage():
+    backend = SimulatorBackend(model="DSOX4034A")
+    backend.write(":TRIGger:EDGE:LEVel 0.5,CHANnel1")
+    stored_levels = copy.deepcopy(backend.trigger_levels)
+
+    backend.write(":TRIGger:EDGE:SOURce EXTernal")
+    backend.write(":TRIGger:EDGE:LEVel 0.2")
+
+    assert backend.trigger_level == 0.2
+    assert backend.trigger_levels == stored_levels
+    assert backend.trigger_edge_source_raw == "EXT"
+    assert backend.history == [
+        ":TRIGger:EDGE:LEVel 0.5,CHANnel1",
+        ":TRIGger:EDGE:SOURce EXTernal",
+        ":TRIGger:EDGE:LEVel 0.2",
+    ]
+
+
 def test_simulator_edge_level_rejects_invalid_channel_and_nonfinite_value():
     backend = SimulatorBackend(model="DSOX2004A")
 

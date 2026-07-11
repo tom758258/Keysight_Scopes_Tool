@@ -322,6 +322,8 @@ class SimulatorBackend:
             channel = self._validate_channel(int(command.rsplit("CHANnel", 1)[1]))
             self.trigger_source = channel
             self.trigger_edge_source_raw = f"CHANnel{channel}"
+            if channel in self.trigger_levels:
+                self.trigger_level = self.trigger_levels[channel]
         elif upper == ":TRIGGER:EDGE:SOURCE EXTERNAL":
             self.trigger_edge_source_raw = "EXT"
         elif upper == ":TRIGGER:EDGE:SOURCE LINE":
@@ -341,6 +343,9 @@ class SimulatorBackend:
                 if not math.isfinite(value):
                     raise SimulatorBackendError("SCPI numeric parameter must be finite.")
                 self.trigger_level = value
+                active_channel = self._active_edge_analog_channel()
+                if active_channel is not None:
+                    self.trigger_levels[active_channel] = value
         elif upper.startswith(":TRIGGER:EDGE:SLOPE "):
             value = command.rsplit(" ", 1)[1]
             if value.upper() not in {"POSITIVE", "NEGATIVE", "EITHER", "ALTERNATE"}:
@@ -821,6 +826,17 @@ class SimulatorBackend:
     def _ensure_open(self) -> None:
         if self.closed:
             raise BackendClosedError("Simulator backend is closed.")
+
+    def _active_edge_analog_channel(self) -> int | None:
+        match = re.fullmatch(
+            r"CHAN(?:NEL)?(\d+)", self.trigger_edge_source_raw.strip(), re.IGNORECASE
+        )
+        if match is None:
+            return None
+        try:
+            return self._validate_channel(int(match.group(1)))
+        except SimulatorBackendError:
+            return None
 
     def _queue_marker_range_error(self, value: float) -> None:
         visible_half_span = self.timebase_scale * 4.5

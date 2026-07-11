@@ -172,3 +172,46 @@ def test_worker_atomic_trigger_simulator_execution_isolated(tmp_path):
     assert payload["scpi"]["sent"] == [
         "*IDN?", ":TRIGger:EDGE:LEVel -0.25,CHANnel2", ":SYSTem:ERRor?"
     ]
+
+
+def test_worker_trigger_edge_slope_query_executes_in_simulator(tmp_path):
+    runtime = _runtime(tmp_path, "DSOX4034A")
+    parsed = worker.parse_domain_command("trigger-edge-slope", {"query": True}, runtime)
+
+    payload, exit_code = cli._execute_json_command(parsed)
+
+    assert exit_code == 0
+    assert {key: payload["result"][key] for key in (
+        "operation", "command", "slope", "raw_slope"
+    )} == {
+        "operation": "query",
+        "command": ":TRIGger:EDGE:SLOPe?",
+        "slope": "positive",
+        "raw_slope": "POS",
+    }
+    assert payload["scpi"]["sent"] == [
+        "*IDN?", ":TRIGger:EDGE:SLOPe?", ":SYSTem:ERRor?"
+    ]
+
+
+def test_worker_trigger_edge_level_query_executes_in_simulator(tmp_path):
+    runtime = _runtime(tmp_path, "DSOX4034A")
+    parsed = worker.parse_domain_command(
+        "trigger-edge-level", {"query": True, "source_channel": 1}, runtime
+    )
+
+    payload, exit_code = cli._execute_json_command(parsed)
+
+    assert exit_code == 0
+    assert {key: payload["result"][key] for key in (
+        "operation", "command", "source_channel", "level_volts", "raw_level"
+    )} == {
+        "operation": "query",
+        "command": ":TRIGger:EDGE:LEVel? CHANnel1",
+        "source_channel": 1,
+        "level_volts": 0.0,
+        "raw_level": "0",
+    }
+    assert payload["scpi"]["sent"] == [
+        "*IDN?", ":TRIGger:EDGE:LEVel? CHANnel1", ":SYSTem:ERRor?"
+    ]
