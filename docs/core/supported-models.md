@@ -28,6 +28,11 @@ All supported series profiles currently expose:
 
 - BYTE and WORD waveform capture with a conservative 10,000-point safe maximum.
 - Read-only measurement helpers and screenshot capture.
+- Measurement Control Pack v1 helpers for clearing measurements, enabling or
+  querying measurement markers, selecting analog measurement sources, and
+  selecting the MAIN, ZOOM, AUTO, or GATE measurement window.
+- Reference Waveform Pack v1 helpers for runtime-managed reference waveform
+  slots 1 and 2.
 - Analog channel labels, display labels, and display annotation.
 - Hardware-free Core/CLI/simulator/worker support for the documented one-shot
   trigger packs, including `trigger-tv` basic TV / video trigger configure and
@@ -50,6 +55,10 @@ Series-specific differences:
 Capability flags for raw waveform points mode, segmented memory, and serial
 decode are currently disabled. Do not treat those future surfaces as supported
 CLI, worker, or Core workflows.
+
+These common pack entries describe runtime capability support. They do not
+imply live hardware validation on every supported model, firmware, or USB/LAN
+transport.
 
 ## Live Validation Summary
 

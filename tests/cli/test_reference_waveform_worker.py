@@ -44,3 +44,16 @@ def test_reference_worker_accepts_maps_and_routes_simulator(tmp_path, command, a
 def test_reference_worker_rejects_invalid_arguments(tmp_path, command, arguments):
     with pytest.raises(KeysightScopeError):
         worker.parse_domain_command(command, arguments, _runtime(tmp_path))
+
+
+@pytest.mark.parametrize("text", [123, True])
+def test_reference_label_worker_rejects_non_string_text(tmp_path, text):
+    with pytest.raises(
+        KeysightScopeError,
+        match="reference-label argument text must be a string",
+    ):
+        worker.parse_domain_command(
+            "reference-label",
+            {"slot": 1, "text": text},
+            _runtime(tmp_path),
+        )

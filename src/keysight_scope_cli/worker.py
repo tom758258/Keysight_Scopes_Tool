@@ -441,6 +441,9 @@ def _normalize_measurement_reference_worker_arguments(
     for key in ("on", "query"):
         if key in arguments and arguments[key] is not True:
             raise KeysightScopeError(f"{command} argument {key} must be exactly true")
+    if command == "reference-label" and "text" in arguments:
+        if not isinstance(arguments["text"], str):
+            raise KeysightScopeError("reference-label argument text must be a string")
     capabilities = capabilities_for_model(runtime.model)
     if "slot" in arguments:
         slot = arguments["slot"]
