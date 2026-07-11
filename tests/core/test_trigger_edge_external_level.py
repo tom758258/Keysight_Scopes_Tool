@@ -35,7 +35,9 @@ def test_external_edge_level_controller_preserves_scientific_query_readback():
     assert state.to_json() == {"level_volts": -0.5, "raw_level": "-5.00000000E-01"}
 
 
-@pytest.mark.parametrize("value", [True, False, math.nan, math.inf, -math.inf, "0.5"])
+@pytest.mark.parametrize(
+    "value", [True, False, math.nan, math.inf, -math.inf, "0.5", 10**309, -(10**309)]
+)
 def test_external_edge_level_rejects_nonfinite_or_nonreal_values(value):
     with pytest.raises(ParameterValidationError):
         edge_trigger_external_level_command(value)

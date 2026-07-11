@@ -584,12 +584,15 @@ def _normalize_external_trigger_range_worker_arguments(
     if "range_volts" not in arguments:
         raise KeysightScopeError("external-trigger-range configure requires range_volts")
     range_volts = arguments["range_volts"]
-    if (
-        isinstance(range_volts, bool)
-        or not isinstance(range_volts, (int, float))
-        or not math.isfinite(float(range_volts))
-        or range_volts <= 0
-    ):
+    if isinstance(range_volts, bool) or not isinstance(range_volts, (int, float)):
+        raise KeysightScopeError(
+            "external-trigger-range argument range_volts must be a positive finite number"
+        )
+    try:
+        finite_range_volts = math.isfinite(float(range_volts))
+    except (TypeError, ValueError, OverflowError):
+        finite_range_volts = False
+    if not finite_range_volts or range_volts <= 0:
         raise KeysightScopeError(
             "external-trigger-range argument range_volts must be a positive finite number"
         )
@@ -622,11 +625,15 @@ def _normalize_trigger_edge_external_level_worker_arguments(
             "trigger-edge-external-level configure requires level_volts"
         )
     level_volts = arguments["level_volts"]
-    if (
-        isinstance(level_volts, bool)
-        or not isinstance(level_volts, (int, float))
-        or not math.isfinite(float(level_volts))
-    ):
+    if isinstance(level_volts, bool) or not isinstance(level_volts, (int, float)):
+        raise KeysightScopeError(
+            "trigger-edge-external-level argument level_volts must be a finite number"
+        )
+    try:
+        finite_level_volts = math.isfinite(float(level_volts))
+    except (TypeError, ValueError, OverflowError):
+        finite_level_volts = False
+    if not finite_level_volts:
         raise KeysightScopeError(
             "trigger-edge-external-level argument level_volts must be a finite number"
         )

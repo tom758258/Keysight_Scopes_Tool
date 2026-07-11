@@ -78,6 +78,7 @@ def test_worker_external_commands_accept_canonical_json_and_map_argv(tmp_path, c
         ("external-trigger-range", {"range_volts": "8.0"}),
         ("external-trigger-range", {"range_volts": float("nan")}),
         ("external-trigger-range", {"range_volts": float("inf")}),
+        ("external-trigger-range", {"range_volts": 10**309}),
         ("external-trigger-range", {"range": 8.0}),
         ("external-trigger-range", {"volts": 8.0}),
         ("external-trigger-range", {"value": 8.0}),
@@ -91,6 +92,8 @@ def test_worker_external_commands_accept_canonical_json_and_map_argv(tmp_path, c
         ("trigger-edge-external-level", {"level_volts": "0.5"}),
         ("trigger-edge-external-level", {"level_volts": float("nan")}),
         ("trigger-edge-external-level", {"level_volts": float("-inf")}),
+        ("trigger-edge-external-level", {"level_volts": 10**309}),
+        ("trigger-edge-external-level", {"level_volts": -(10**309)}),
         ("trigger-edge-external-level", {"level": 0.5}),
         ("trigger-edge-external-level", {"volts": 0.5}),
         ("trigger-edge-external-level", {"trigger_level": 0.5}),
@@ -111,7 +114,9 @@ def test_worker_external_commands_reject_invalid_forms_before_execution(tmp_path
     [
         {"command": "external-trigger-range", "arguments": {"range": 8.0}},
         {"command": "external-trigger-range", "arguments": {"range_volts": 0}},
+        {"command": "external-trigger-range", "arguments": {"range_volts": 10**309}},
         {"command": "trigger-edge-external-level", "arguments": {"level_volts": True}},
+        {"command": "trigger-edge-external-level", "arguments": {"level_volts": -(10**309)}},
         {"command": "trigger-edge-external-level", "arguments": {"source": "external", "level_volts": 0.5}},
     ],
 )
@@ -122,6 +127,8 @@ def test_worker_external_command_validation_happens_before_enqueue_or_artifacts(
 
     assert status == 400
     assert payload["status"] == "error"
+    assert payload["command"] == body["command"]
+    assert payload["error"] == "validation_error"
     assert runtime.accepted == 0
     assert runtime.queue.empty()
     assert runtime.jobs == {}

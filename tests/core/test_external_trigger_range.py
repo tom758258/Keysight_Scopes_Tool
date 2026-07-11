@@ -32,7 +32,9 @@ def test_external_trigger_range_controller_preserves_scientific_query_readback()
     assert state.to_json() == {"range_volts": 8.0, "raw_range": "8.00000000E+00"}
 
 
-@pytest.mark.parametrize("value", [0, -1.0, True, False, math.nan, math.inf, -math.inf, "8"])
+@pytest.mark.parametrize(
+    "value", [0, -1.0, True, False, math.nan, math.inf, -math.inf, "8", 10**309]
+)
 def test_external_trigger_range_rejects_nonpositive_or_nonreal_values(value):
     with pytest.raises(ParameterValidationError):
         external_trigger_range_command(value)

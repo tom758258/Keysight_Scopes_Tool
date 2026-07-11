@@ -1587,7 +1587,7 @@ def validate_trigger_level(level_volts: float) -> float:
 
     try:
         value = float(level_volts)
-    except (TypeError, ValueError) as exc:
+    except (TypeError, ValueError, OverflowError) as exc:
         raise ParameterValidationError("trigger level must be a number.") from exc
     if not math.isfinite(value):
         raise ParameterValidationError("trigger level must be a finite number.")
@@ -1607,7 +1607,12 @@ def validate_external_trigger_range(range_volts: float) -> float:
 
     if isinstance(range_volts, bool) or not isinstance(range_volts, (int, float)):
         raise ParameterValidationError("External trigger range must be a real number.")
-    value = float(range_volts)
+    try:
+        value = float(range_volts)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ParameterValidationError(
+            "External trigger range must be a real number."
+        ) from exc
     if not math.isfinite(value) or value <= 0:
         raise ParameterValidationError(
             "External trigger range must be a positive finite number."
