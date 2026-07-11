@@ -2119,7 +2119,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     screenshot_parser = subparsers.add_parser(
         "screenshot",
-        help="capture the current oscilloscope screen to a PNG file",
+        help="capture the current oscilloscope screen to an image file",
     )
     _add_scope_connection_args(screenshot_parser)
     screenshot_parser.add_argument(
@@ -4529,19 +4529,38 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         output_path = _screenshot_output_path(args, format_name)
         file_kind = "png" if format_name == "png" else "bmp"
         files = [{"kind": file_kind, "path": str(output_path)}]
+        ink_saver_plan = None
         if _uses_screenshot_format_pack(args):
             planned = []
             if options.ink_saver is not None:
                 planned.append(hardcopy_inksaver_command(options.ink_saver))
+                ink_saver_plan = {
+                    "mode": "explicit",
+                    "target": options.ink_saver,
+                    "restore": None,
+                }
             else:
-                planned.append(
-                    hardcopy_inksaver_command(hardcopy_inksaver_for_background(background))
+                background_ink_saver = hardcopy_inksaver_for_background(background)
+                planned.extend(
+                    [
+                        hardcopy_inksaver_query(),
+                        hardcopy_inksaver_command(background_ink_saver),
+                    ]
                 )
+                ink_saver_plan = {
+                    "mode": "temporary_background",
+                    "target": background_ink_saver,
+                    "restore": "queried_state_if_changed",
+                }
             if options.palette is not None:
                 planned.append(hardcopy_palette_command(options.palette))
             if options.layout is not None:
                 planned.append(hardcopy_layout_command(options.layout))
             planned.append(hardcopy_screen_dump_data_query(format_name))
+            if options.ink_saver is None:
+                planned.append(
+                    ":HARDcopy:INKSaver <restore queried state if changed>"
+                )
         else:
             planned = [
                 hardcopy_inksaver_command(hardcopy_inksaver_for_background(background)),
@@ -4565,6 +4584,8 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         }
         if format_name == "png":
             result["png_path"] = str(output_path)
+        if ink_saver_plan is not None:
+            result["ink_saver_plan"] = ink_saver_plan
         return planned + [":SYSTem:ERRor?"], files, result
     if command == "smoke":
         output_dir = Path(args.output_dir) if args.output_dir is not None else Path("data") / "hardware_smoke" / "DRY-RUN"

@@ -148,8 +148,8 @@ Current implemented scope:
 - Capture a finite batch of waveforms with `capture-batch`, writing per-capture
   CSV and metadata files, `manifest.json`, and `scpi.log` into one run
   directory.
-- Capture the current oscilloscope screen as a color PNG image, with an
-  optional default timestamped output path under `data`.
+- Capture the current oscilloscope screen as a PNG, BMP, or BMP8bit image,
+  with an optional default timestamped output path under `data`.
 - Provide hardware-free tests through `FakeBackend`.
 - Force one trigger event explicitly with `force-trigger` / `:TRIGger:FORCe`,
   without changing the standalone `single` or default `capture` behavior.
@@ -1776,7 +1776,7 @@ for a trigger, poll for acquisition completion, change VISA timeout defaults,
 perform return-to-local behavior, start background threads, or run an infinite
 recorder loop.
 
-Capture the current oscilloscope screen as a color PNG image:
+Capture the current oscilloscope screen as an image file:
 
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_scope_cli.cli screenshot --resource "$env:KEYSIGHT_SCOPE_RESOURCE" --log-scpi

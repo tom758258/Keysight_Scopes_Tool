@@ -2058,8 +2058,6 @@ def test_screenshot_format_pack_dry_run_plans_without_backend(capsys, tmp_path):
                 "--json",
                 "--format",
                 "bmp8bit",
-                "--ink-saver",
-                "false",
                 "--palette",
                 "color",
                 "--layout",
@@ -2073,13 +2071,59 @@ def test_screenshot_format_pack_dry_run_plans_without_backend(capsys, tmp_path):
     payload = _json_stdout(capsys)
     assert payload["scpi"]["sent"] == []
     assert payload["scpi"]["planned"] == [
+        ":HARDcopy:INKSaver?",
         ":HARDcopy:INKSaver OFF",
         ":HARDcopy:PALette COLor",
         ":HARDcopy:LAYout PORTrait",
         ":HCOPY:SDUMp:DATA? BMP8bit",
+        ":HARDcopy:INKSaver <restore queried state if changed>",
         ":SYSTem:ERRor?",
     ]
+    assert payload["result"]["ink_saver_plan"] == {
+        "mode": "temporary_background",
+        "target": False,
+        "restore": "queried_state_if_changed",
+    }
     assert not output_path.exists()
+
+
+def test_screenshot_format_pack_dry_run_explicit_ink_saver_has_no_restore(capsys):
+    assert (
+        cli.main(
+            [
+                "screenshot",
+                "--dry-run",
+                "--json",
+                "--format",
+                "bmp",
+                "--ink-saver",
+                "false",
+            ]
+        )
+        == 0
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["scpi"]["planned"] == [
+        ":HARDcopy:INKSaver OFF",
+        ":HCOPY:SDUMp:DATA? BMP",
+        ":SYSTem:ERRor?",
+    ]
+    assert payload["result"]["ink_saver_plan"] == {
+        "mode": "explicit",
+        "target": False,
+        "restore": None,
+    }
+
+
+def test_screenshot_help_describes_general_image_output(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["--help"])
+
+    assert excinfo.value.code == 0
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert "capture the current oscilloscope screen to an image file" in help_text
+    assert "capture the current oscilloscope screen to a PNG file" not in help_text
 
 
 def test_screenshot_format_pack_rejects_invalid_values_before_backend(monkeypatch):
