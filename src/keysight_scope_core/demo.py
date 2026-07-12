@@ -44,6 +44,25 @@ DEMO_FUNCTION_TOKENS = {
 }
 DEMO_FUNCTIONS = tuple(DEMO_FUNCTION_TOKENS)
 _DEMO_TOKEN_FUNCTIONS = {token: name for name, token in DEMO_FUNCTION_TOKENS.items()}
+_DEMO_FUNCTION_READBACK_ALIASES = {
+    "SINGL": "single",
+    "CANLIN": "can-lin",
+    "ARINC": "arinc",
+    "FLEXRAY": "flexray",
+    "TRANSITION": "transition",
+    "RFBURST": "rf-burst",
+    "FMBURST": "fm-burst",
+    "HARMONICS": "harmonics",
+    "COUPLING": "coupling",
+    "RINGING": "ringing",
+    "BURST": "burst",
+    "GLITCH": "glitch",
+    "LFSINE": "lf-sine",
+    "SINUSOID": "sine",
+    "NOISY": "noisy",
+    "PHASE": "phase",
+    "SHOLD": "setup-hold",
+}
 
 
 @dataclass(frozen=True)
@@ -216,7 +235,12 @@ def parse_demo_bool(raw: str) -> bool:
 def parse_demo_function(raw: str) -> tuple[str | None, str | None]:
     token = raw.strip().upper()
     function = _DEMO_TOKEN_FUNCTIONS.get(token)
-    return (function, token if function is not None else None)
+    if function is not None:
+        return function, token
+    function = _DEMO_FUNCTION_READBACK_ALIASES.get(token)
+    if function is None:
+        return None, None
+    return function, DEMO_FUNCTION_TOKENS[function]
 
 
 def parse_demo_phase(raw: str) -> float:

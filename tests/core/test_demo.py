@@ -60,6 +60,32 @@ def test_demo_function_readback_normalization_and_unknown_preservation():
     assert parse_demo_function("FUTURE") == (None, None)
 
 
+@pytest.mark.parametrize(
+    "raw, expected",
+    [
+        ("SINGl", ("single", "SING")),
+        ("CANLin", ("can-lin", "CANL")),
+        ("ARINc", ("arinc", "ARIN")),
+        ("FLEXray", ("flexray", "FLEX")),
+        ("TRANSition", ("transition", "TRAN")),
+        ("RFBurst", ("rf-burst", "RFB")),
+        ("FMBurst", ("fm-burst", "FMB")),
+        ("HARMonics", ("harmonics", "HARM")),
+        ("COUPling", ("coupling", "COUP")),
+        ("RINGing", ("ringing", "RING")),
+        ("BURSt", ("burst", "BURS")),
+        ("GLITch", ("glitch", "GLIT")),
+        ("LFSine", ("lf-sine", "LFS")),
+        ("SINusoid", ("sine", "SIN")),
+        ("NOISy", ("noisy", "NOIS")),
+        ("PHASe", ("phase", "PHAS")),
+        ("SHOLd", ("setup-hold", "SHOL")),
+    ],
+)
+def test_demo_function_long_readback_alias_normalization(raw, expected):
+    assert parse_demo_function(raw) == expected
+
+
 def test_demo_aggregate_query_preserves_unknown_function_raw():
     backend = FakeBackend(
         responses={
