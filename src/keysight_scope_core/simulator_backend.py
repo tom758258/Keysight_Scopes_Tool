@@ -163,6 +163,17 @@ class SimulatorBackend:
     search_enabled: bool = False
     search_mode: str = "SERial1"
     search_count: int = 0
+    save_pwd: str = ""
+    save_filename: str = "scope"
+    save_image_format: str = "PNG"
+    save_image_palette: str = "COLor"
+    save_image_ink_saver: bool = False
+    save_image_factors: bool = False
+    save_waveform_format: str = "CSV"
+    save_waveform_length: int = 1000
+    save_waveform_length_max: bool = False
+    last_save_image_filename: str | None = None
+    last_save_waveform_filename: str | None = None
     trigger_sweep: str = "AUTO"
     trigger_noise_reject: bool = False
     trigger_hf_reject: bool = False
@@ -426,6 +437,69 @@ class SimulatorBackend:
                     f"Search mode {value!r} is not supported by simulator model {self.model}."
                 )
             self.search_mode = scpi_by_canonical[canonical]
+        elif upper.startswith(":SAVE:PWD "):
+            self.save_pwd = _parse_quoted_scpi_argument(command, ":SAVE:PWD")
+        elif upper.startswith(":SAVE:FILENAME "):
+            self.save_filename = _parse_quoted_scpi_argument(
+                command, ":SAVE:FILename"
+            )
+        elif upper.startswith(":SAVE:IMAGE:FORMAT "):
+            value = command.rsplit(" ", 1)[1].upper()
+            try:
+                self.save_image_format = {
+                    "PNG": "PNG",
+                    "BMP": "BMP",
+                    "BMP8BIT": "BMP8bit",
+                    "BMP24BIT": "BMP24bit",
+                    "NONE": "NONE",
+                }[value]
+            except KeyError as exc:
+                raise SimulatorBackendError(
+                    f"Unsupported simulator write: {command}"
+                ) from exc
+        elif upper.startswith(":SAVE:IMAGE:PALETTE "):
+            value = command.rsplit(" ", 1)[1].upper()
+            try:
+                self.save_image_palette = {
+                    "COLOR": "COLor",
+                    "GRAYSCALE": "GRAYscale",
+                }[value]
+            except KeyError as exc:
+                raise SimulatorBackendError(
+                    f"Unsupported simulator write: {command}"
+                ) from exc
+        elif upper.startswith(":SAVE:IMAGE:INKSAVER "):
+            self.save_image_ink_saver = _parse_scpi_bool_write(command)
+        elif upper.startswith(":SAVE:IMAGE:FACTORS "):
+            self.save_image_factors = _parse_scpi_bool_write(command)
+        elif upper.startswith(":SAVE:IMAGE "):
+            self.last_save_image_filename = _parse_quoted_scpi_argument(
+                command, ":SAVE:IMAGe"
+            )
+        elif upper.startswith(":SAVE:WAVEFORM:FORMAT "):
+            value = command.rsplit(" ", 1)[1].upper()
+            try:
+                self.save_waveform_format = {
+                    "ASCIIXY": "ASCiixy",
+                    "CSV": "CSV",
+                    "BINARY": "BINary",
+                    "NONE": "NONE",
+                }[value]
+            except KeyError as exc:
+                raise SimulatorBackendError(
+                    f"Unsupported simulator write: {command}"
+                ) from exc
+        elif upper.startswith(":SAVE:WAVEFORM:LENGTH "):
+            points = int(command.rsplit(" ", 1)[1])
+            if points < 100:
+                raise SimulatorBackendError(
+                    "Simulator SAVE waveform length must be at least 100."
+                )
+            self.save_waveform_length = points
+        elif upper.startswith(":SAVE:WAVEFORM "):
+            self.last_save_waveform_filename = _parse_quoted_scpi_argument(
+                command, ":SAVE:WAVeform"
+            )
         elif upper.startswith(":TRIGGER:SWEEP "):
             value = command.rsplit(" ", 1)[1]
             if value.upper() not in {"AUTO", "NORMAL"}:
@@ -853,6 +927,24 @@ class SimulatorBackend:
             return self.search_mode if self.search_enabled else "OFF"
         if upper == ":SEARCH:COUNT?":
             return str(self.search_count)
+        if upper == ":SAVE:PWD?":
+            return f'"{self.save_pwd}"'
+        if upper == ":SAVE:FILENAME?":
+            return f'"{self.save_filename}"'
+        if upper == ":SAVE:IMAGE:FORMAT?":
+            return self.save_image_format
+        if upper == ":SAVE:IMAGE:PALETTE?":
+            return self.save_image_palette
+        if upper == ":SAVE:IMAGE:INKSAVER?":
+            return "1" if self.save_image_ink_saver else "0"
+        if upper == ":SAVE:IMAGE:FACTORS?":
+            return "1" if self.save_image_factors else "0"
+        if upper == ":SAVE:WAVEFORM:FORMAT?":
+            return self.save_waveform_format
+        if upper == ":SAVE:WAVEFORM:LENGTH?":
+            return str(self.save_waveform_length)
+        if upper == ":SAVE:WAVEFORM:LENGTH:MAX?":
+            return "1" if self.save_waveform_length_max else "0"
         if upper == ":MEASURE:SHOW?":
             return "1" if self.measurement_show else "0"
         if upper == ":MEASURE:SOURCE?":
@@ -2013,6 +2105,17 @@ def _parse_scpi_bool_write(command: str) -> bool:
     if value in {"0", "OFF"}:
         return False
     raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+
+
+def _parse_quoted_scpi_argument(command: str, prefix: str) -> str:
+    match = re.fullmatch(
+        rf'{re.escape(prefix)}\s+"([^";\r\n]*)"',
+        command,
+        flags=re.IGNORECASE,
+    )
+    if match is None or not match.group(1).strip():
+        raise SimulatorBackendError(f"Unsupported simulator write: {command}")
+    return match.group(1)
 
 
 def _abbreviate_trigger_mode(value: str) -> str:

@@ -134,6 +134,10 @@ Worker `/command` supports the existing Scopes capability surface:
   `dvm-query`
 - `demo-query`, `demo-output`, `demo-function`, `demo-phase`
 - `search-state`, `search-mode`, `search-count`
+- `save-pwd`, `save-filename`, `save-image-format`, `save-image-palette`,
+  `save-image-ink-saver`, `save-image-factors`, `save-image`,
+  `save-waveform-format`, `save-waveform-length`,
+  `save-waveform-length-max`, `save-waveform`
 - `reference-save`, `reference-display`, `reference-label`,
   `reference-clear`, `reference-query`
 - `channel-display`, `channel-label`, `channel-scale`, `channel-offset`,
@@ -1357,6 +1361,63 @@ Search event navigation, mode-specific search parameters, and serial search
 pattern configuration are not implemented. This pack has hardware-free
 validation only; no live hardware validation was performed.
 
+### Save/Export Pack v1 Commands
+
+Save/Export Pack v1 is instrument-side file saving. It sends `:SAVE...` SCPI
+so the oscilloscope writes to its current save directory, internal storage, or
+attached USB storage. It does not create host-side image or waveform files,
+does not resolve instrument filenames under the worker job directory, and does
+not replace the PC-side `capture`, `capture-batch`, or `screenshot` workflows.
+
+The only accepted request shapes are:
+
+```json
+{"command": "save-pwd", "arguments": {"query": true}}
+```
+
+```json
+{"command": "save-pwd", "arguments": {"path": "USB:\\captures"}}
+```
+
+`save-filename` accepts exactly `{"query": true}` or `{"name": "scope_01"}`.
+`save-image-format` accepts exactly `{"query": true}` or one canonical
+`format`: `png`, `bmp`, `bmp8`, `bmp24`, or `none`. `save-image-palette`
+accepts exactly `{"query": true}` or one canonical `palette`: `color` or
+`grayscale`. `save-image-ink-saver` and `save-image-factors` accept exactly
+`{"query": true}` or `{"enabled": true|false}` with a JSON boolean.
+
+Start commands require an explicit filename:
+
+```json
+{"command": "save-image", "arguments": {"filename": "USB:/captures/screen.png"}}
+```
+
+```json
+{"command": "save-waveform", "arguments": {"filename": "USB:/captures/wave.csv"}}
+```
+
+`save-waveform-format` accepts exactly `{"query": true}` or one canonical
+`format`: `ascii-xy`, `csv`, `binary`, or `none`. `save-waveform-length`
+accepts exactly `{"query": true}` or integer `points` of at least 100. The
+actual maximum is instrument/model dependent. `save-waveform-length-max`
+accepts only `{"query": true}` and queries the instrument's maximum-length
+mode setting.
+
+Every quoted string must be a non-empty printable ASCII JSON string without
+double quotes, control characters, CR/LF, or semicolons. Paths and explicit
+start filenames may contain `/`, `\`, and `:`. `save-filename` is base-name
+only and additionally rejects path and drive separators. The worker never
+trims, sanitizes, escapes, or appends an extension. Start commands send
+`*OPC?` after the SAVE command before reporting success.
+
+Unknown keys, aliases, empty arguments, `query: false`, query/configure mixes,
+string or numeric booleans, wrong string types, non-integer points, and values
+below 100 are rejected before enqueue, accepted counters, artifact creation,
+simulator/VISA session open, or SCPI. Results, lister, mask, multi, power,
+arbitrary, compliance, segmented, setup changes, and WMEMory export are not
+included. This worker surface has hardware-free validation only; live hardware
+validation was not performed.
+
 ### Label And Annotation Commands
 
 The worker supports the same one-shot label and annotation commands as the CLI:
@@ -1501,6 +1562,12 @@ The `measure-clear`, `measure-show`, `measure-source`, `measure-window`,
 `dvm-current`, `dvm-query`, `demo-query`, `demo-output`, `demo-function`,
 `demo-phase`, `search-state`, `search-mode`, and `search-count`
 commands also do not create command artifacts.
+The `save-pwd`, `save-filename`, `save-image-format`, `save-image-palette`,
+`save-image-ink-saver`, `save-image-factors`, `save-image`,
+`save-waveform-format`, `save-waveform-length`,
+`save-waveform-length-max`, and `save-waveform` commands likewise create no
+command artifacts; standard worker `request.json` and terminal `result.json`
+still apply.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that
 includes `query_kind: "maximum"` and `maximum_sample_rate_hz`.

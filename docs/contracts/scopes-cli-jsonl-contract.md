@@ -231,6 +231,15 @@ Control and setup:
   `enabled: false`.
 - `search-count`: query-only results include `operation: "query"`, `command`,
   integer `count`, and preserved `raw_count`.
+- Save/Export Pack v1 setting queries include `instrument_side: true`,
+  `operation: "query"`, the target `command`, a canonical lowercase or boolean
+  value, and preserved `raw_response`. Configure results use
+  `operation: "configure"`, the canonical input value, and
+  `state_changing: true`.
+  `save-image` and `save-waveform` results use `instrument_side: true`, their
+  command name as `operation`, explicit `filename`, executed `command`,
+  `operation_complete: true`, and preserved `raw_operation_complete`. These
+  commands create no host-side command files.
 - `trigger-edge-coupling`: `operation` and `command`. Configure results include
   `coupling` (`ac`, `dc`, or `lf-reject`). Query results include normalized
   `coupling` and preserved `raw_value`.

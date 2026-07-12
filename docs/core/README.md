@@ -25,9 +25,18 @@ Core owns runtime behavior:
   responses, expose bounded integer register values and stable set-bit indexes,
   and preserve trimmed option tokens including a raw no-option-style `0`.
   `:RSTate?`, service-request or event-enable writes, UI locking, return to
-  local, date/time, save/export behavior, and a replacement for the existing
+  local, date/time, and a replacement for the existing
   system-error helpers are not implemented. Coverage is hardware-free; no live
   hardware validation was performed, and no WebUI runtime behavior was added.
+- Save/Export Pack v1 helpers for common 2000X/3000X/4000X instrument-side
+  image and waveform file saving. The pack configures the current save
+  directory, base filename, image format/palette/ink-saver/factors, and
+  waveform format/length; it can then start an image or waveform save with an
+  explicit filename and wait with `*OPC?`. It does not retrieve bytes or create
+  host-side files. Existing capture and screenshot APIs remain PC-side
+  workflows. Results, lister, mask, multi, power, arbitrary, compliance,
+  segmented, setup, and WMEMory export are outside v1. Coverage is
+  hardware-free; no live hardware validation was performed.
 - Measurement Control Pack v1 helpers for clearing screen measurements,
   enabling or querying measurement markers, selecting one or two analog
   measurement source channels, and selecting `MAIN`, `ZOOM`, `AUTO`, or

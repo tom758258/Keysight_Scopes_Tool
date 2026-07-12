@@ -22,6 +22,14 @@ from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.channel import validate_analog_channel
 from keysight_scope_core.demo import validate_demo_function, validate_demo_phase
+from keysight_scope_core.save_export import (
+    SAVE_IMAGE_FORMATS,
+    SAVE_IMAGE_PALETTES,
+    SAVE_WAVEFORM_FORMATS,
+    validate_save_filename_base,
+    validate_save_quoted_string,
+    validate_save_waveform_length,
+)
 
 from . import cli as scope_cli
 
@@ -70,6 +78,17 @@ DOMAIN_COMMANDS = {
     "search-state",
     "search-mode",
     "search-count",
+    "save-pwd",
+    "save-filename",
+    "save-image-format",
+    "save-image-palette",
+    "save-image-ink-saver",
+    "save-image-factors",
+    "save-image",
+    "save-waveform-format",
+    "save-waveform-length",
+    "save-waveform-length-max",
+    "save-waveform",
     "reference-save",
     "reference-display",
     "reference-label",
@@ -372,6 +391,7 @@ def parse_domain_command(
     arguments = _normalize_dvm_worker_arguments(command, arguments, runtime)
     arguments = _normalize_demo_worker_arguments(command, arguments, runtime)
     arguments = _normalize_search_worker_arguments(command, arguments, runtime)
+    arguments = _normalize_save_export_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_source_worker_arguments(
         command, arguments, runtime
@@ -1388,6 +1408,103 @@ def _normalize_search_worker_arguments(
             f"Search mode {value!r} is not supported by the selected "
             f"{capabilities.series} model profile."
         )
+    return dict(arguments)
+
+
+def _normalize_save_export_worker_arguments(
+    command: str, arguments: dict[str, Any]
+) -> dict[str, Any]:
+    configure_keys = {
+        "save-pwd": "path",
+        "save-filename": "name",
+        "save-image-format": "format",
+        "save-image-palette": "palette",
+        "save-image-ink-saver": "enabled",
+        "save-image-factors": "enabled",
+        "save-waveform-format": "format",
+        "save-waveform-length": "points",
+    }
+    start_commands = {"save-image", "save-waveform"}
+    query_only_commands = {"save-waveform-length-max"}
+    if command not in set(configure_keys) | start_commands | query_only_commands:
+        return arguments
+
+    if command in query_only_commands:
+        if set(arguments) != {"query"} or arguments.get("query") is not True:
+            raise KeysightScopeError(f"{command} requires exactly query=true")
+        return {"query": True}
+
+    if command in start_commands:
+        if set(arguments) != {"filename"}:
+            unknown = set(arguments) - {"filename"}
+            if unknown:
+                raise KeysightScopeError(
+                    f"unknown argument for {command}: {sorted(unknown)[0]}"
+                )
+            raise KeysightScopeError(f"{command} requires exactly filename")
+        filename = arguments["filename"]
+        if not isinstance(filename, str):
+            raise KeysightScopeError(f"{command} argument filename must be a string")
+        validate_save_quoted_string(filename, label=f"{command} filename")
+        return dict(arguments)
+
+    configure_key = configure_keys[command]
+    allowed = {"query", configure_key}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(
+            f"unknown argument for {command}: {sorted(unknown)[0]}"
+        )
+    if arguments.get("query") is True:
+        if set(arguments) != {"query"}:
+            raise KeysightScopeError(
+                f"{command} query cannot be combined with configure arguments"
+            )
+        return {"query": True}
+    if "query" in arguments:
+        raise KeysightScopeError(f"{command} argument query must be exactly true")
+    if set(arguments) != {configure_key}:
+        raise KeysightScopeError(
+            f"{command} configure requires exactly {configure_key}"
+        )
+
+    value = arguments[configure_key]
+    if command == "save-pwd":
+        if not isinstance(value, str):
+            raise KeysightScopeError("save-pwd argument path must be a string")
+        validate_save_quoted_string(value, label="Save path")
+    elif command == "save-filename":
+        if not isinstance(value, str):
+            raise KeysightScopeError("save-filename argument name must be a string")
+        validate_save_filename_base(value)
+    elif command == "save-image-format":
+        if not isinstance(value, str) or value not in SAVE_IMAGE_FORMATS:
+            raise KeysightScopeError(
+                "save-image-format argument format must be one of: "
+                + ", ".join(SAVE_IMAGE_FORMATS)
+            )
+    elif command == "save-image-palette":
+        if not isinstance(value, str) or value not in SAVE_IMAGE_PALETTES:
+            raise KeysightScopeError(
+                "save-image-palette argument palette must be one of: "
+                + ", ".join(SAVE_IMAGE_PALETTES)
+            )
+    elif command in {"save-image-ink-saver", "save-image-factors"}:
+        if not isinstance(value, bool):
+            raise KeysightScopeError(f"{command} argument enabled must be a boolean")
+        return {"enabled": "true" if value else "false"}
+    elif command == "save-waveform-format":
+        if not isinstance(value, str) or value not in SAVE_WAVEFORM_FORMATS:
+            raise KeysightScopeError(
+                "save-waveform-format argument format must be one of: "
+                + ", ".join(SAVE_WAVEFORM_FORMATS)
+            )
+    else:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise KeysightScopeError(
+                "save-waveform-length argument points must be an integer"
+            )
+        validate_save_waveform_length(value)
     return dict(arguments)
 
 

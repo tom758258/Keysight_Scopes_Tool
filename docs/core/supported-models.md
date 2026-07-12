@@ -44,6 +44,11 @@ All supported series profiles currently expose:
   authoritative for missing options or hardware.
 - Search Basic Pack v1 state and count queries plus profile-guarded mode
   configuration. Unsupported modes are rejected before search SCPI is sent.
+- Save/Export Pack v1 common instrument-side SAVE commands for current save
+  directory and base name, image settings and start, and waveform settings and
+  start. All three profiles also expose the query-only maximum-length mode
+  readback. The configured waveform length minimum is 100 points; the actual
+  maximum remains instrument/model dependent.
 - Analog channel labels, display labels, and display annotation.
 - Hardware-free Core/CLI/simulator/worker support for the documented one-shot
   trigger packs, including `trigger-tv` basic TV / video trigger configure and
@@ -96,6 +101,11 @@ CLI, worker, or Core workflows.
 These common pack entries describe runtime capability support. They do not
 imply live hardware validation on every supported model, firmware, or USB/LAN
 transport.
+
+Save/Export Pack v1 has hardware-free Core, simulator, CLI, and worker
+coverage only. It does not claim live validation and does not include results,
+lister, mask, multi, power, arbitrary, compliance, segmented, setup, or
+WMEMory export.
 
 ## Live Validation Summary
 

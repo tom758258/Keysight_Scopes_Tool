@@ -80,6 +80,18 @@ names are intended for package consumers and tests:
 - `MeasurementWindowState`
 - `ReferenceWaveformController`
 - `ReferenceWaveformState`
+- `SAVE_IMAGE_FORMATS`
+- `SAVE_IMAGE_PALETTES`
+- `SAVE_WAVEFORM_FORMATS`
+- `SaveBooleanState`
+- `SaveExportController`
+- `SaveFilenameState`
+- `SaveImageFormatState`
+- `SaveImagePaletteState`
+- `SaveOperationResult`
+- `SavePwdState`
+- `SaveWaveformFormatState`
+- `SaveWaveformLengthState`
 - `SEARCH_MODES`
 - `SearchController`
 - `SearchCountState`
@@ -186,3 +198,15 @@ event-register read. `query_operation_status()` uses
 `:OPERegister:CONDition?`; it does not introduce the intentionally unsupported
 `:RSTate?` query. Existing `query_system_error()` and `drain_system_errors()`
 remain the APIs for `:SYSTem:ERRor?`.
+
+Save/Export Pack v1 is available through the focused
+`KeysightScope.configure_save_*()` and `KeysightScope.query_save_*()` methods,
+plus `save_image(filename)` and `save_waveform(filename)`. These methods send
+`:SAVE...` commands so the oscilloscope writes to its current instrument-side
+storage location. The start methods require an explicit printable-ASCII
+filename, reject unsafe quoted-SCPI characters, and wait with `*OPC?` before
+returning `SaveOperationResult`. They do not create or inspect host-side files.
+`capture_waveform_*()` and screenshot capture remain separate PC-side byte
+transfer APIs. The maximum accepted configured save length is model-, option-,
+and instrument-state-dependent; Core enforces the common minimum of 100 points
+and preserves the raw length readback.

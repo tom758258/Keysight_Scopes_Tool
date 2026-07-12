@@ -134,6 +134,10 @@ Current implemented scope:
 - Enable, disable, or query basic waveform search state; select a guarded
   search mode; and query the current search event count with `search-state`,
   `search-mode`, and `search-count`.
+- Configure/query common instrument-side SAVE settings and start image or
+  waveform saves with the Save/Export Pack v1 commands. These commands make the
+  oscilloscope write to its own current save directory or storage device; they
+  do not create host-side files.
 - Query or configure the option-dependent built-in DEMO subsystem with
   `demo-query`, `demo-output`, `demo-function`, and `demo-phase`.
 - Collect read-only diagnostic snapshots with `doctor`.
@@ -1527,6 +1531,46 @@ parameter commands, and serial search pattern configuration are not
 implemented in this pack. Tests are hardware-free; no live hardware validation
 was performed.
 
+Use Save/Export Pack v1 for instrument-side file saving:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-pwd --path "USB:\captures" --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-pwd --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-filename --name scope_01 --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-image-format --format png --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-image-palette --palette color --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-image-ink-saver --enabled false --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-image-factors --enabled true --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-image --filename "USB:\captures\screen.png" --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-waveform-format --format csv --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-waveform-length --points 1000 --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-waveform-length-max --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli save-waveform --filename "USB:\captures\wave.csv" --simulate --json
+```
+
+Query-capable commands require exactly `--query` or their setting argument.
+Image formats are `png`, `bmp`, `bmp8`, `bmp24`, and `none`; palettes are
+`color` and `grayscale`; waveform formats are `ascii-xy`, `csv`, `binary`, and
+`none`. Boolean settings require explicit `true|false`. Waveform length must be
+an integer of at least 100 points; the actual maximum is instrument/model
+dependent. `save-waveform-length-max` is query-only.
+
+All quoted SAVE strings must be printable ASCII and cannot contain double
+quotes, controls, CR/LF, or semicolons. `save-filename --name` is a base name
+only and also rejects path and drive separators. Instrument paths and explicit
+image/waveform file specifications may contain `/`, `\`, and `:`. Values are
+not trimmed, sanitized, escaped, or given automatic extensions. `save-image`
+and `save-waveform` require an explicit filename in v1 for agent safety and
+wait for `*OPC?` after starting the save.
+
+These commands send `:SAVE...` SCPI so the oscilloscope writes to its own
+current save directory, internal storage, or attached USB storage. They do not
+create or check host-side files. Existing `capture`, `capture-batch`, and
+`screenshot` continue to retrieve bytes and write PC-side artifacts. Save/
+Export Pack v1 excludes results, lister, mask, multi, power, arbitrary,
+compliance, segmented, setup changes, and WMEMory export. It has hardware-free
+validation only; live hardware validation was not performed.
+
 Query read-only measurements:
 
 ```powershell
@@ -1852,8 +1896,9 @@ palette, layout, and format state with raw readbacks, captures no image bytes,
 and creates no artifact. It cannot be combined with capture or setting
 options. Screenshot Format Pack v1 is not exposed on 2000X or 3000X profiles;
 their existing PNG screenshot behavior is unchanged. Printer jobs,
-scope-internal image save, hardcopy area selection, and network printer
-support are outside this pack.
+hardcopy area selection, and network printer support are outside this pack.
+Instrument-side image saving is a separate Save/Export Pack v1 workflow and
+does not change screenshot's PC-side byte retrieval behavior.
 
 ## Tests
 

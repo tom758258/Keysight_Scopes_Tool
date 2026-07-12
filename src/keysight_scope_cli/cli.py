@@ -100,6 +100,33 @@ from keysight_scope_core.run_config import (
     resolve_resource,
     resolve_run_mode,
 )
+from keysight_scope_core.save_export import (
+    SAVE_IMAGE_FORMATS,
+    SAVE_IMAGE_PALETTES,
+    SAVE_WAVEFORM_FORMATS,
+    save_filename_command,
+    save_filename_query,
+    save_image_command,
+    save_image_factors_command,
+    save_image_factors_query,
+    save_image_format_command,
+    save_image_format_query,
+    save_image_ink_saver_command,
+    save_image_ink_saver_query,
+    save_image_palette_command,
+    save_image_palette_query,
+    save_pwd_command,
+    save_pwd_query,
+    save_waveform_command,
+    save_waveform_format_command,
+    save_waveform_format_query,
+    save_waveform_length_command,
+    save_waveform_length_max_query,
+    save_waveform_length_query,
+    validate_save_filename_base,
+    validate_save_quoted_string,
+    validate_save_waveform_length,
+)
 from keysight_scope_core.capabilities import ScopeCapabilities, capabilities_for_model
 from keysight_scope_core.channel import (
     channel_bandwidth_limit_command,
@@ -1080,6 +1107,100 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_scope_connection_args(search_count_parser)
     search_count_parser.add_argument("--query", action="store_true", required=True)
+
+    save_pwd_parser = subparsers.add_parser(
+        "save-pwd", allow_abbrev=False, help="configure or query the instrument save directory"
+    )
+    _add_scope_connection_args(save_pwd_parser)
+    save_pwd_action = save_pwd_parser.add_mutually_exclusive_group(required=True)
+    save_pwd_action.add_argument("--query", action="store_true")
+    save_pwd_action.add_argument("--path")
+
+    save_filename_parser = subparsers.add_parser(
+        "save-filename", allow_abbrev=False, help="configure or query the instrument save base name"
+    )
+    _add_scope_connection_args(save_filename_parser)
+    save_filename_action = save_filename_parser.add_mutually_exclusive_group(required=True)
+    save_filename_action.add_argument("--query", action="store_true")
+    save_filename_action.add_argument("--name")
+
+    save_image_format_parser = subparsers.add_parser(
+        "save-image-format", allow_abbrev=False, help="configure or query instrument image save format"
+    )
+    _add_scope_connection_args(save_image_format_parser)
+    save_image_format_action = save_image_format_parser.add_mutually_exclusive_group(
+        required=True
+    )
+    save_image_format_action.add_argument("--query", action="store_true")
+    save_image_format_action.add_argument("--format", choices=SAVE_IMAGE_FORMATS)
+
+    save_image_palette_parser = subparsers.add_parser(
+        "save-image-palette", allow_abbrev=False, help="configure or query instrument image palette"
+    )
+    _add_scope_connection_args(save_image_palette_parser)
+    save_image_palette_action = save_image_palette_parser.add_mutually_exclusive_group(
+        required=True
+    )
+    save_image_palette_action.add_argument("--query", action="store_true")
+    save_image_palette_action.add_argument("--palette", choices=SAVE_IMAGE_PALETTES)
+
+    for command, help_text in (
+        ("save-image-ink-saver", "configure or query instrument image ink saver"),
+        ("save-image-factors", "configure or query instrument image factors"),
+    ):
+        setting_parser = subparsers.add_parser(
+            command, allow_abbrev=False, help=help_text
+        )
+        _add_scope_connection_args(setting_parser)
+        action = setting_parser.add_mutually_exclusive_group(required=True)
+        action.add_argument("--query", action="store_true")
+        action.add_argument("--enabled", type=_strict_bool_arg)
+
+    save_image_parser = subparsers.add_parser(
+        "save-image", allow_abbrev=False, help="save an image on instrument-side storage"
+    )
+    _add_scope_connection_args(save_image_parser)
+    save_image_parser.add_argument("--filename", required=True)
+
+    save_waveform_format_parser = subparsers.add_parser(
+        "save-waveform-format",
+        allow_abbrev=False,
+        help="configure or query instrument waveform save format",
+    )
+    _add_scope_connection_args(save_waveform_format_parser)
+    save_waveform_format_action = save_waveform_format_parser.add_mutually_exclusive_group(
+        required=True
+    )
+    save_waveform_format_action.add_argument("--query", action="store_true")
+    save_waveform_format_action.add_argument("--format", choices=SAVE_WAVEFORM_FORMATS)
+
+    save_waveform_length_parser = subparsers.add_parser(
+        "save-waveform-length",
+        allow_abbrev=False,
+        help="configure or query instrument waveform save length",
+    )
+    _add_scope_connection_args(save_waveform_length_parser)
+    save_waveform_length_action = save_waveform_length_parser.add_mutually_exclusive_group(
+        required=True
+    )
+    save_waveform_length_action.add_argument("--query", action="store_true")
+    save_waveform_length_action.add_argument("--points", type=int)
+
+    save_waveform_length_max_parser = subparsers.add_parser(
+        "save-waveform-length-max",
+        allow_abbrev=False,
+        help="query maximum-length waveform save mode",
+    )
+    _add_scope_connection_args(save_waveform_length_max_parser)
+    save_waveform_length_max_parser.add_argument(
+        "--query", action="store_true", required=True
+    )
+
+    save_waveform_parser = subparsers.add_parser(
+        "save-waveform", allow_abbrev=False, help="save waveform data on instrument-side storage"
+    )
+    _add_scope_connection_args(save_waveform_parser)
+    save_waveform_parser.add_argument("--filename", required=True)
 
     reference_save_parser = subparsers.add_parser(
         "reference-save", help="copy an analog channel into a reference waveform slot"
@@ -2533,6 +2654,20 @@ def _dispatch_command(args: argparse.Namespace) -> int:
     if args.command in {"search-state", "search-mode", "search-count"}:
         return _cmd_search(args)
     if args.command in {
+        "save-pwd",
+        "save-filename",
+        "save-image-format",
+        "save-image-palette",
+        "save-image-ink-saver",
+        "save-image-factors",
+        "save-image",
+        "save-waveform-format",
+        "save-waveform-length",
+        "save-waveform-length-max",
+        "save-waveform",
+    }:
+        return _cmd_save_export(args)
+    if args.command in {
         "reference-save",
         "reference-display",
         "reference-label",
@@ -3048,6 +3183,20 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         "search-count",
     }:
         _validate_search_args(args)
+    if getattr(args, "command", None) in {
+        "save-pwd",
+        "save-filename",
+        "save-image-format",
+        "save-image-palette",
+        "save-image-ink-saver",
+        "save-image-factors",
+        "save-image",
+        "save-waveform-format",
+        "save-waveform-length",
+        "save-waveform-length-max",
+        "save-waveform",
+    }:
+        _validate_save_export_args(args)
     if getattr(args, "command", None) == "trigger-edge":
         _validate_trigger_edge_args(args)
     if getattr(args, "command", None) == "trigger-edge-source":
@@ -3156,6 +3305,19 @@ def _validate_search_args(args: argparse.Namespace) -> None:
         )
     if command == "search-mode":
         validate_search_mode(value, capabilities)
+
+
+def _validate_save_export_args(args: argparse.Namespace) -> None:
+    if args.command == "save-pwd" and not args.query:
+        validate_save_quoted_string(args.path, label="Save path")
+    elif args.command == "save-filename" and not args.query:
+        validate_save_filename_base(args.name)
+    elif args.command == "save-image":
+        validate_save_quoted_string(args.filename, label="Save image filename")
+    elif args.command == "save-waveform-length" and not args.query:
+        validate_save_waveform_length(args.points)
+    elif args.command == "save-waveform":
+        validate_save_quoted_string(args.filename, label="Save waveform filename")
 
 
 def _validate_measurement_reference_args(args: argparse.Namespace) -> None:
@@ -4037,6 +4199,25 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "operation": "query",
             "command": target,
         }
+    if command in {
+        "save-pwd",
+        "save-filename",
+        "save-image-format",
+        "save-image-palette",
+        "save-image-ink-saver",
+        "save-image-factors",
+        "save-image",
+        "save-waveform-format",
+        "save-waveform-length",
+        "save-waveform-length-max",
+        "save-waveform",
+    }:
+        target, result, waits_for_completion = _save_export_plan(args)
+        planned = ["*IDN?", target]
+        if waits_for_completion:
+            planned.append(system_opc_query())
+        planned.append(":SYSTem:ERRor?")
+        return planned, [], result
     if command == "annotation":
         operation, commands, result = _annotation_plan(args, capabilities)
         result["operation"] = operation
@@ -6797,6 +6978,199 @@ def _cmd_dvm(args: argparse.Namespace) -> int:
             print(f"DVM auto range enabled: {state.auto_range_enabled}")
             print(f"DVM current value: {state.value}")
 
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _save_export_plan(
+    args: argparse.Namespace,
+) -> tuple[str, dict[str, object], bool]:
+    command = args.command
+    result: dict[str, object] = {"instrument_side": True}
+    if command == "save-pwd":
+        target = save_pwd_query() if args.query else save_pwd_command(args.path)
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(path=args.path, state_changing=True)
+    elif command == "save-filename":
+        target = save_filename_query() if args.query else save_filename_command(args.name)
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(name=args.name, state_changing=True)
+    elif command == "save-image-format":
+        target = (
+            save_image_format_query()
+            if args.query
+            else save_image_format_command(args.format)
+        )
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(format=args.format, state_changing=True)
+    elif command == "save-image-palette":
+        target = (
+            save_image_palette_query()
+            if args.query
+            else save_image_palette_command(args.palette)
+        )
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(palette=args.palette, state_changing=True)
+    elif command == "save-image-ink-saver":
+        target = (
+            save_image_ink_saver_query()
+            if args.query
+            else save_image_ink_saver_command(args.enabled)
+        )
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(enabled=args.enabled, state_changing=True)
+    elif command == "save-image-factors":
+        target = (
+            save_image_factors_query()
+            if args.query
+            else save_image_factors_command(args.enabled)
+        )
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(enabled=args.enabled, state_changing=True)
+    elif command == "save-image":
+        target = save_image_command(args.filename)
+        result.update(
+            operation="save-image",
+            filename=args.filename,
+            command=target,
+            state_changing=True,
+        )
+        return target, result, True
+    elif command == "save-waveform-format":
+        target = (
+            save_waveform_format_query()
+            if args.query
+            else save_waveform_format_command(args.format)
+        )
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(format=args.format, state_changing=True)
+    elif command == "save-waveform-length":
+        target = (
+            save_waveform_length_query()
+            if args.query
+            else save_waveform_length_command(args.points)
+        )
+        result.update(operation="query" if args.query else "configure", command=target)
+        if not args.query:
+            result.update(points=args.points, state_changing=True)
+    elif command == "save-waveform-length-max":
+        target = save_waveform_length_max_query()
+        result.update(operation="query", command=target)
+    else:
+        target = save_waveform_command(args.filename)
+        result.update(
+            operation="save-waveform",
+            filename=args.filename,
+            command=target,
+            state_changing=True,
+        )
+        return target, result, True
+    return target, result, False
+
+
+def _cmd_save_export(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        target, result, waits_for_completion = _save_export_plan(args)
+
+        if args.command == "save-pwd":
+            if args.query:
+                state = scope.query_save_pwd()
+                result.update(state.to_json())
+                print(f"Instrument save directory: {state.path}")
+            else:
+                scope.configure_save_pwd(args.path)
+                print(f"Instrument save directory: {args.path}")
+        elif args.command == "save-filename":
+            if args.query:
+                state = scope.query_save_filename()
+                result.update(state.to_json())
+                print(f"Instrument save base name: {state.name}")
+            else:
+                scope.configure_save_filename(args.name)
+                print(f"Instrument save base name: {args.name}")
+        elif args.command == "save-image-format":
+            if args.query:
+                state = scope.query_save_image_format()
+                result.update(state.to_json())
+                print(f"Instrument image save format: {state.format}")
+            else:
+                scope.configure_save_image_format(args.format)
+                print(f"Instrument image save format: {args.format}")
+        elif args.command == "save-image-palette":
+            if args.query:
+                state = scope.query_save_image_palette()
+                result.update(state.to_json())
+                print(f"Instrument image save palette: {state.palette}")
+            else:
+                scope.configure_save_image_palette(args.palette)
+                print(f"Instrument image save palette: {args.palette}")
+        elif args.command == "save-image-ink-saver":
+            if args.query:
+                state = scope.query_save_image_ink_saver()
+                result.update(state.to_json())
+                print(f"Instrument image ink saver: {state.enabled}")
+            else:
+                scope.configure_save_image_ink_saver(args.enabled)
+                print(f"Instrument image ink saver: {args.enabled}")
+        elif args.command == "save-image-factors":
+            if args.query:
+                state = scope.query_save_image_factors()
+                result.update(state.to_json())
+                print(f"Instrument image factors: {state.enabled}")
+            else:
+                scope.configure_save_image_factors(args.enabled)
+                print(f"Instrument image factors: {args.enabled}")
+        elif args.command == "save-image":
+            operation = scope.save_image(args.filename)
+            result.update(operation.to_json(), state_changing=True)
+            print(f"Instrument-side image saved as: {args.filename}")
+        elif args.command == "save-waveform-format":
+            if args.query:
+                state = scope.query_save_waveform_format()
+                result.update(state.to_json())
+                print(f"Instrument waveform save format: {state.format}")
+            else:
+                scope.configure_save_waveform_format(args.format)
+                print(f"Instrument waveform save format: {args.format}")
+        elif args.command == "save-waveform-length":
+            if args.query:
+                state = scope.query_save_waveform_length()
+                result.update(state.to_json())
+                print(f"Instrument waveform save length: {state.points}")
+            else:
+                scope.configure_save_waveform_length(args.points)
+                print(f"Instrument waveform save length: {args.points}")
+        elif args.command == "save-waveform-length-max":
+            state = scope.query_save_waveform_length_max()
+            result.update(state.to_json())
+            print(f"Maximum waveform save length enabled: {state.enabled}")
+        else:
+            operation = scope.save_waveform(args.filename)
+            result.update(operation.to_json(), state_changing=True)
+            print(f"Instrument-side waveform saved as: {args.filename}")
+
+        _json_update_result(**result)
+        print(f"Command: {target}")
+        if waits_for_completion:
+            print(f"Operation complete query: {system_opc_query()}")
         entry = scope.query_system_error()
         _json_record_system_error(entry)
         print(f"System error: {entry.format()}")

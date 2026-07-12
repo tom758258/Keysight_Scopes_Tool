@@ -43,6 +43,17 @@ from .measurements import (
     MeasurementWindowState,
 )
 from .reference import ReferenceWaveformController, ReferenceWaveformState
+from .save_export import (
+    SaveBooleanState,
+    SaveExportController,
+    SaveFilenameState,
+    SaveImageFormatState,
+    SaveImagePaletteState,
+    SaveOperationResult,
+    SavePwdState,
+    SaveWaveformFormatState,
+    SaveWaveformLengthState,
+)
 from .search import SearchController, SearchCountState, SearchModeState, SearchState
 from .scpi import SCPIBackend, SCPIClient
 from .screenshot import HardcopyState, ScreenshotCapture, ScreenshotController, ScreenshotOptions
@@ -647,6 +658,101 @@ class KeysightScope:
 
         return self._search_controller().query_count()
 
+    def configure_save_pwd(self, path: str) -> None:
+        """Configure the instrument-side current save directory."""
+
+        self._save_export_controller().configure_pwd(path)
+
+    def query_save_pwd(self) -> SavePwdState:
+        """Query the instrument-side current save directory."""
+
+        return self._save_export_controller().query_pwd()
+
+    def configure_save_filename(self, name: str) -> None:
+        """Configure the instrument-side default save base name."""
+
+        self._save_export_controller().configure_filename(name)
+
+    def query_save_filename(self) -> SaveFilenameState:
+        """Query the instrument-side default save base name."""
+
+        return self._save_export_controller().query_filename()
+
+    def configure_save_image_format(self, format: str) -> None:
+        """Configure the instrument-side image save format."""
+
+        self._save_export_controller().configure_image_format(format)
+
+    def query_save_image_format(self) -> SaveImageFormatState:
+        """Query the instrument-side image save format."""
+
+        return self._save_export_controller().query_image_format()
+
+    def configure_save_image_palette(self, palette: str) -> None:
+        """Configure the instrument-side image save palette."""
+
+        self._save_export_controller().configure_image_palette(palette)
+
+    def query_save_image_palette(self) -> SaveImagePaletteState:
+        """Query the instrument-side image save palette."""
+
+        return self._save_export_controller().query_image_palette()
+
+    def configure_save_image_ink_saver(self, enabled: bool) -> None:
+        """Configure instrument-side image ink saver."""
+
+        self._save_export_controller().configure_image_ink_saver(enabled)
+
+    def query_save_image_ink_saver(self) -> SaveBooleanState:
+        """Query instrument-side image ink saver."""
+
+        return self._save_export_controller().query_image_ink_saver()
+
+    def configure_save_image_factors(self, enabled: bool) -> None:
+        """Configure instrument-side image measurement factors."""
+
+        self._save_export_controller().configure_image_factors(enabled)
+
+    def query_save_image_factors(self) -> SaveBooleanState:
+        """Query instrument-side image measurement factors."""
+
+        return self._save_export_controller().query_image_factors()
+
+    def save_image(self, filename: str) -> SaveOperationResult:
+        """Save an image on the instrument and wait for completion."""
+
+        return self._save_export_controller().save_image(filename)
+
+    def configure_save_waveform_format(self, format: str) -> None:
+        """Configure the instrument-side waveform save format."""
+
+        self._save_export_controller().configure_waveform_format(format)
+
+    def query_save_waveform_format(self) -> SaveWaveformFormatState:
+        """Query the instrument-side waveform save format."""
+
+        return self._save_export_controller().query_waveform_format()
+
+    def configure_save_waveform_length(self, points: int) -> None:
+        """Configure the instrument-side waveform save length."""
+
+        self._save_export_controller().configure_waveform_length(points)
+
+    def query_save_waveform_length(self) -> SaveWaveformLengthState:
+        """Query the instrument-side waveform save length."""
+
+        return self._save_export_controller().query_waveform_length()
+
+    def query_save_waveform_length_max(self) -> SaveBooleanState:
+        """Query whether maximum waveform save length is enabled."""
+
+        return self._save_export_controller().query_waveform_length_max()
+
+    def save_waveform(self, filename: str) -> SaveOperationResult:
+        """Save waveform data on the instrument and wait for completion."""
+
+        return self._save_export_controller().save_waveform(filename)
+
 
     def configure_trigger_edge_coupling(self, coupling: str) -> None:
         """Configure Edge Trigger coupling."""
@@ -1128,6 +1234,9 @@ class KeysightScope:
 
     def _status_controller(self) -> StatusController:
         return StatusController(self.scpi)
+
+    def _save_export_controller(self) -> SaveExportController:
+        return SaveExportController(self.scpi)
 
     def _timebase_controller(self) -> TimebaseController:
         if self.capabilities is None:
