@@ -360,10 +360,14 @@ Measurement and artifact-producing flows:
   `average_count`, `check_only`, `stopped_on_error`, `initial_acquisition`,
   `restore`, `termination_reason`, `steps`, `final_acquisition`, and `files`.
 
-Dry-run payloads include planned SCPI and planned artifact paths. Simulate and
-live payloads include sent SCPI history when available. Raw waveform sample
-arrays are intentionally omitted from top-level JSON; use artifact files for
-raw data.
+Dry-run payloads include concrete planned SCPI commands and queries in
+`scpi.planned`, plus planned artifact paths. Conditional intent that cannot be
+resolved without instrument state is represented in structured result fields;
+for example, screenshot temporary ink saver restoration is described by
+`result.ink_saver_plan` rather than a non-SCPI placeholder in `scpi.planned`.
+Simulate and live payloads include sent SCPI history when available. Raw
+waveform sample arrays are intentionally omitted from top-level JSON; use
+artifact files for raw data.
 
 Capability JSON currently includes `series`, `analog_channels`,
 `default_waveform_points`, `safe_max_waveform_points`,

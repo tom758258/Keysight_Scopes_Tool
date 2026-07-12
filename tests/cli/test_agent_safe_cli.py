@@ -2076,9 +2076,12 @@ def test_screenshot_format_pack_dry_run_plans_without_backend(capsys, tmp_path):
         ":HARDcopy:PALette COLor",
         ":HARDcopy:LAYout PORTrait",
         ":HCOPY:SDUMp:DATA? BMP8bit",
-        ":HARDcopy:INKSaver <restore queried state if changed>",
         ":SYSTem:ERRor?",
     ]
+    assert not any(
+        "restore queried state" in command
+        for command in payload["scpi"]["planned"]
+    )
     assert payload["result"]["ink_saver_plan"] == {
         "mode": "temporary_background",
         "target": False,
@@ -2109,6 +2112,11 @@ def test_screenshot_format_pack_dry_run_explicit_ink_saver_has_no_restore(capsys
         ":HCOPY:SDUMp:DATA? BMP",
         ":SYSTem:ERRor?",
     ]
+    assert ":HARDcopy:INKSaver?" not in payload["scpi"]["planned"]
+    assert not any(
+        "restore queried state" in command
+        for command in payload["scpi"]["planned"]
+    )
     assert payload["result"]["ink_saver_plan"] == {
         "mode": "explicit",
         "target": False,

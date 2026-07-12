@@ -4557,10 +4557,6 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             if options.layout is not None:
                 planned.append(hardcopy_layout_command(options.layout))
             planned.append(hardcopy_screen_dump_data_query(format_name))
-            if options.ink_saver is None:
-                planned.append(
-                    ":HARDcopy:INKSaver <restore queried state if changed>"
-                )
         else:
             planned = [
                 hardcopy_inksaver_command(hardcopy_inksaver_for_background(background)),
