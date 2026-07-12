@@ -1549,11 +1549,13 @@ Use Save/Export Pack v1 for instrument-side file saving:
 ```
 
 Query-capable commands require exactly `--query` or their setting argument.
-Image formats are `png`, `bmp`, `bmp8`, `bmp24`, and `none`; palettes are
-`color` and `grayscale`; waveform formats are `ascii-xy`, `csv`, `binary`, and
-`none`. Boolean settings require explicit `true|false`. Waveform length must be
-an integer of at least 100 points; the actual maximum is instrument/model
-dependent. `save-waveform-length-max` is query-only.
+Settable image formats are `png`, `bmp`, `bmp8`, and `bmp24`; palettes are
+`color` and `grayscale`; settable waveform formats are `ascii-xy`, `csv`, and
+`binary`. Format queries may return the instrument sentinel `NONE`, normalized
+to canonical `none`, when the other file-format family is selected. Boolean
+settings require explicit `true|false`. Waveform length must be an integer of
+at least 100 points; the actual maximum is instrument/model dependent.
+`save-waveform-length-max` is query-only.
 
 All quoted SAVE strings must be printable ASCII and cannot contain double
 quotes, controls, CR/LF, or semicolons. `save-filename --name` is a base name

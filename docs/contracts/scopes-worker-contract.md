@@ -1381,7 +1381,7 @@ The only accepted request shapes are:
 
 `save-filename` accepts exactly `{"query": true}` or `{"name": "scope_01"}`.
 `save-image-format` accepts exactly `{"query": true}` or one canonical
-`format`: `png`, `bmp`, `bmp8`, `bmp24`, or `none`. `save-image-palette`
+`format`: `png`, `bmp`, `bmp8`, or `bmp24`. `save-image-palette`
 accepts exactly `{"query": true}` or one canonical `palette`: `color` or
 `grayscale`. `save-image-ink-saver` and `save-image-factors` accept exactly
 `{"query": true}` or `{"enabled": true|false}` with a JSON boolean.
@@ -1397,8 +1397,10 @@ Start commands require an explicit filename:
 ```
 
 `save-waveform-format` accepts exactly `{"query": true}` or one canonical
-`format`: `ascii-xy`, `csv`, `binary`, or `none`. `save-waveform-length`
-accepts exactly `{"query": true}` or integer `points` of at least 100. The
+`format`: `ascii-xy`, `csv`, or `binary`. Format query readbacks may use the
+instrument sentinel `NONE`, which result JSON normalizes to canonical `none`.
+`save-waveform-length` accepts exactly `{"query": true}` or integer `points`
+of at least 100. The
 actual maximum is instrument/model dependent. `save-waveform-length-max`
 accepts only `{"query": true}` and queries the instrument's maximum-length
 mode setting.

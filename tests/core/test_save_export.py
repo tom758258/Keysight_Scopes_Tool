@@ -4,6 +4,8 @@ from keysight_scope_core.errors import ParameterValidationError
 from keysight_scope_core.fake_backend import FakeBackend
 from keysight_scope_core.save_export import (
     SaveExportController,
+    parse_save_image_format,
+    parse_save_waveform_format,
     save_filename_command,
     save_image_command,
     save_image_factors_command,
@@ -28,7 +30,6 @@ def test_save_export_v1_scpi_builders_use_common_commands():
     assert save_image_format_command("bmp") == ":SAVE:IMAGe:FORMat BMP"
     assert save_image_format_command("bmp8") == ":SAVE:IMAGe:FORMat BMP8bit"
     assert save_image_format_command("bmp24") == ":SAVE:IMAGe:FORMat BMP24bit"
-    assert save_image_format_command("none") == ":SAVE:IMAGe:FORMat NONE"
     assert save_image_palette_command("color") == ":SAVE:IMAGe:PALette COLor"
     assert save_image_palette_command("grayscale") == ":SAVE:IMAGe:PALette GRAYscale"
     assert save_image_ink_saver_command(True) == ":SAVE:IMAGe:INKSaver 1"
@@ -38,6 +39,18 @@ def test_save_export_v1_scpi_builders_use_common_commands():
     assert save_waveform_format_command("binary") == ":SAVE:WAVeform:FORMat BINary"
     assert save_waveform_length_command(100) == ":SAVE:WAVeform:LENGth 100"
     assert save_waveform_length_max_query() == ":SAVE:WAVeform:LENGth:MAX?"
+
+
+def test_save_format_builders_reject_none_readback_sentinel():
+    with pytest.raises(ParameterValidationError):
+        save_image_format_command("none")
+    with pytest.raises(ParameterValidationError):
+        save_waveform_format_command("none")
+
+
+def test_save_format_parsers_accept_none_readback_sentinel():
+    assert parse_save_image_format("NONE") == "none"
+    assert parse_save_waveform_format("NONE") == "none"
 
 
 @pytest.mark.parametrize(

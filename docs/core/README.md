@@ -34,7 +34,9 @@ Core owns runtime behavior:
   waveform format/length; it can then start an image or waveform save with an
   explicit filename and wait with `*OPC?`. It does not retrieve bytes or create
   host-side files. Existing capture and screenshot APIs remain PC-side
-  workflows. Results, lister, mask, multi, power, arbitrary, compliance,
+  workflows. Image and waveform format queries normalize the read-only `NONE`
+  sentinel to canonical `none`; `none` is not a settable format. Results,
+  lister, mask, multi, power, arbitrary, compliance,
   segmented, setup, and WMEMory export are outside v1. Coverage is
   hardware-free; no live hardware validation was performed.
 - Measurement Control Pack v1 helpers for clearing screen measurements,

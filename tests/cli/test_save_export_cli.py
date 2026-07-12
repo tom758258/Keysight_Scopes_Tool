@@ -104,9 +104,11 @@ def test_save_export_invalid_values_fail_before_open(monkeypatch, capsys, args):
         ["save-pwd"],
         ["save-pwd", "--query", "--path", "USB:/"],
         ["save-image-format", "--format", "BMP"],
+        ["save-image-format", "--format", "none"],
         ["save-image-ink-saver", "--enabled", "1"],
         ["save-image"],
         ["save-waveform-length-max"],
+        ["save-waveform-format", "--format", "none"],
     ],
 )
 def test_save_export_parser_rejects_ambiguous_or_noncanonical_forms(capsys, args):

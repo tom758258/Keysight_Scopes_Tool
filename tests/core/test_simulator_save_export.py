@@ -1,5 +1,7 @@
+import pytest
+
 from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from keysight_scope_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
 def test_simulator_save_export_roundtrip_and_start_recording(tmp_path):
@@ -39,3 +41,22 @@ def test_simulator_save_export_roundtrip_and_start_recording(tmp_path):
         "*OPC?",
     ]
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [":SAVE:IMAGe:FORMat NONE", ":SAVE:WAVeform:FORMat NONE"],
+)
+def test_simulator_rejects_none_format_writes(command):
+    backend = SimulatorBackend(model="DSOX4024A")
+    with pytest.raises(SimulatorBackendError):
+        backend.write(command)
+
+
+def test_simulator_none_format_readbacks_remain_parseable():
+    backend = SimulatorBackend(model="DSOX4024A")
+    scope = KeysightScope(backend)
+    backend.save_image_format = "NONE"
+    backend.save_waveform_format = "NONE"
+    assert scope.query_save_image_format().format == "none"
+    assert scope.query_save_waveform_format().format == "none"

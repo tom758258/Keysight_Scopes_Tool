@@ -451,7 +451,6 @@ class SimulatorBackend:
                     "BMP": "BMP",
                     "BMP8BIT": "BMP8bit",
                     "BMP24BIT": "BMP24bit",
-                    "NONE": "NONE",
                 }[value]
             except KeyError as exc:
                 raise SimulatorBackendError(
@@ -483,7 +482,6 @@ class SimulatorBackend:
                     "ASCIIXY": "ASCiixy",
                     "CSV": "CSV",
                     "BINARY": "BINary",
-                    "NONE": "NONE",
                 }[value]
             except KeyError as exc:
                 raise SimulatorBackendError(

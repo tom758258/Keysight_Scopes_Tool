@@ -9,16 +9,15 @@ from .scpi import SCPIClient
 from .status import parse_operation_complete, system_opc_query
 
 
-SAVE_IMAGE_FORMATS = ("png", "bmp", "bmp8", "bmp24", "none")
+SAVE_IMAGE_FORMATS = ("png", "bmp", "bmp8", "bmp24")
 SAVE_IMAGE_PALETTES = ("color", "grayscale")
-SAVE_WAVEFORM_FORMATS = ("ascii-xy", "csv", "binary", "none")
+SAVE_WAVEFORM_FORMATS = ("ascii-xy", "csv", "binary")
 
 _SAVE_IMAGE_FORMAT_COMMANDS = {
     "png": "PNG",
     "bmp": "BMP",
     "bmp8": "BMP8bit",
     "bmp24": "BMP24bit",
-    "none": "NONE",
 }
 _SAVE_IMAGE_FORMAT_READBACKS = {
     "PNG": "png",
@@ -43,7 +42,6 @@ _SAVE_WAVEFORM_FORMAT_COMMANDS = {
     "ascii-xy": "ASCiixy",
     "csv": "CSV",
     "binary": "BINary",
-    "none": "NONE",
 }
 _SAVE_WAVEFORM_FORMAT_READBACKS = {
     "ASC": "ascii-xy",
