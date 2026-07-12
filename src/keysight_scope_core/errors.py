@@ -53,6 +53,10 @@ class DvmResponseError(KeysightScopeError, ValueError):
     """Raised when a DVM query response cannot be parsed."""
 
 
+class DemoResponseError(KeysightScopeError, ValueError):
+    """Raised when a DEMO query response cannot be parsed."""
+
+
 class SearchResponseError(KeysightScopeError, ValueError):
     """Raised when a waveform search query response cannot be parsed."""
 

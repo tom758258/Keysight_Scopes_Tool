@@ -36,6 +36,21 @@ class ScopeCapabilities:
     supports_50_ohm_impedance: bool = False
     supports_search_basic: bool = False
     search_modes: frozenset[str] = frozenset()
+    supports_demo: bool = False
+    demo_functions: frozenset[str] = frozenset()
+
+
+_DEMO_COMMON_FUNCTIONS = frozenset(
+    {
+        "sine", "noisy", "phase", "lf-sine", "am", "rf-burst", "fm-burst",
+        "harmonics", "coupling", "ringing", "single", "clock", "runt",
+        "transition", "setup-hold", "mso", "burst", "glitch",
+        "edge-then-edge", "i2c", "uart", "spi", "can", "lin",
+    }
+)
+_DEMO_3000X_EXTENSIONS = frozenset(
+    {"i2s", "can-lin", "flexray", "arinc", "mil", "mil2"}
+)
 
 
 _BASE_PROFILES = {
@@ -62,6 +77,8 @@ _BASE_PROFILES = {
         supports_50_ohm_impedance=False,
         supports_search_basic=True,
         search_modes=frozenset({"serial1"}),
+        supports_demo=True,
+        demo_functions=_DEMO_COMMON_FUNCTIONS,
     ),
     "3000X": ScopeCapabilities(
         series="3000X",
@@ -88,6 +105,8 @@ _BASE_PROFILES = {
         search_modes=frozenset(
             {"edge", "glitch", "runt", "transition", "serial1", "serial2"}
         ),
+        supports_demo=True,
+        demo_functions=_DEMO_COMMON_FUNCTIONS | _DEMO_3000X_EXTENSIONS,
     ),
     "4000X": ScopeCapabilities(
         series="4000X",
@@ -123,6 +142,8 @@ _BASE_PROFILES = {
                 "peak",
             }
         ),
+        supports_demo=True,
+        demo_functions=_DEMO_COMMON_FUNCTIONS | _DEMO_3000X_EXTENSIONS,
     ),
 }
 

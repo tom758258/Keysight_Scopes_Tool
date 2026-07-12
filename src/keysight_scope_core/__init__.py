@@ -35,6 +35,15 @@ from .search import (
     SearchModeState,
     SearchState,
 )
+from .demo import (
+    DEMO_FUNCTIONS,
+    DEMO_FUNCTION_TOKENS,
+    DemoController,
+    DemoFunctionState,
+    DemoOutputState,
+    DemoPhaseState,
+    DemoState,
+)
 from .operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
@@ -146,6 +155,13 @@ __all__ = [
     "DvmReading",
     "DvmSourceState",
     "DvmState",
+    "DEMO_FUNCTIONS",
+    "DEMO_FUNCTION_TOKENS",
+    "DemoController",
+    "DemoFunctionState",
+    "DemoOutputState",
+    "DemoPhaseState",
+    "DemoState",
     "DelayTriggerController",
     "DelayTriggerState",
     "EdgeBurstTriggerController",

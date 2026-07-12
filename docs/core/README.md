@@ -39,6 +39,13 @@ Core owns runtime behavior:
   mode, the independent `:COUNter` subsystem, and `:MEASure:COUNter` are not
   implemented. Coverage is hardware-free; no live hardware validation was
   performed for this pack.
+- Demo Output Pack v1 helpers for querying aggregate built-in DEMO state and
+  configuring or querying DEMO output, function, and phase. Function sets are
+  capability-profile guarded; unknown function readbacks remain available as
+  raw values. DEMO is option-/hardware-dependent, so unsupported live
+  instruments may report normal instrument errors. This pack is hardware-free
+  validated only, does not implement `:WGEN`, excludes additional 4000X-only
+  DEMO functions, and adds no WebUI runtime behavior.
 - Search Basic Pack v1 helpers for enabling or disabling waveform search,
   selecting a model-profile-supported basic search mode, and querying the
   search event count. Mode configuration enables search before setting the

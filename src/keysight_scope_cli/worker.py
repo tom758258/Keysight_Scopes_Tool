@@ -21,6 +21,7 @@ from uuid import uuid4
 from keysight_scope_core.errors import KeysightScopeError
 from keysight_scope_core.capabilities import capabilities_for_model
 from keysight_scope_core.channel import validate_analog_channel
+from keysight_scope_core.demo import validate_demo_function, validate_demo_phase
 
 from . import cli as scope_cli
 
@@ -62,6 +63,10 @@ DOMAIN_COMMANDS = {
     "dvm-auto-range",
     "dvm-current",
     "dvm-query",
+    "demo-query",
+    "demo-output",
+    "demo-function",
+    "demo-phase",
     "search-state",
     "search-mode",
     "search-count",
@@ -365,6 +370,7 @@ def parse_domain_command(
         command, arguments, runtime
     )
     arguments = _normalize_dvm_worker_arguments(command, arguments, runtime)
+    arguments = _normalize_demo_worker_arguments(command, arguments, runtime)
     arguments = _normalize_search_worker_arguments(command, arguments, runtime)
     arguments = _normalize_trigger_edge_worker_arguments(command, arguments)
     arguments = _normalize_trigger_edge_source_worker_arguments(
@@ -1273,6 +1279,53 @@ def _normalize_dvm_worker_arguments(
         raise KeysightScopeError(
             "dvm-mode argument mode must be one of: dc, dc-rms, ac-rms"
         )
+    return dict(arguments)
+
+
+def _normalize_demo_worker_arguments(
+    command: str, arguments: dict[str, Any], runtime: WorkerRuntime
+) -> dict[str, Any]:
+    if command not in {"demo-query", "demo-output", "demo-function", "demo-phase"}:
+        return arguments
+
+    if command == "demo-query":
+        if arguments:
+            raise KeysightScopeError("demo-query accepts only an empty arguments object")
+        return {}
+
+    configure_key = {
+        "demo-output": "enabled",
+        "demo-function": "function",
+        "demo-phase": "degrees",
+    }[command]
+    allowed = {"query", configure_key}
+    unknown = set(arguments) - allowed
+    if unknown:
+        raise KeysightScopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
+    if arguments.get("query") is True:
+        if set(arguments) != {"query"}:
+            raise KeysightScopeError(
+                f"{command} query cannot be combined with configure arguments"
+            )
+        return {"query": True}
+    if "query" in arguments:
+        raise KeysightScopeError(f"{command} argument query must be exactly true")
+    if set(arguments) != {configure_key}:
+        raise KeysightScopeError(f"{command} configure requires exactly {configure_key}")
+
+    value = arguments[configure_key]
+    if command == "demo-output":
+        if not isinstance(value, bool):
+            raise KeysightScopeError("demo-output argument enabled must be a boolean")
+        return {"enabled": "true" if value else "false"}
+    if command == "demo-function":
+        if not isinstance(value, str):
+            raise KeysightScopeError("demo-function argument function must be a string")
+        validate_demo_function(value, capabilities_for_model(runtime.model))
+        return dict(arguments)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise KeysightScopeError("demo-phase argument degrees must be a finite number")
+    validate_demo_phase(value)
     return dict(arguments)
 
 

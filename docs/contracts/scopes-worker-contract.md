@@ -132,6 +132,7 @@ Worker `/command` supports the existing Scopes capability surface:
   `measure-show`, `measure-source`, `measure-window`
 - `dvm-enable`, `dvm-source`, `dvm-mode`, `dvm-auto-range`, `dvm-current`,
   `dvm-query`
+- `demo-query`, `demo-output`, `demo-function`, `demo-phase`
 - `search-state`, `search-mode`, `search-count`
 - `reference-save`, `reference-display`, `reference-label`,
   `reference-clear`, `reference-query`
@@ -1265,6 +1266,57 @@ does not accept `dvm-frequency`, Counter command names, DVM frequency mode,
 `:COUNter` commands, or `:MEASure:COUNter`. Its validation is hardware-free;
 no live hardware validation was performed for this pack.
 
+### Demo Output Pack v1 Commands
+
+The worker accepts only these exact argument schemas:
+
+```json
+{"command": "demo-query", "arguments": {}}
+```
+
+```json
+{"command": "demo-output", "arguments": {"query": true}}
+```
+
+```json
+{"command": "demo-output", "arguments": {"enabled": true}}
+```
+
+```json
+{"command": "demo-function", "arguments": {"query": true}}
+```
+
+```json
+{"command": "demo-function", "arguments": {"function": "runt"}}
+```
+
+```json
+{"command": "demo-phase", "arguments": {"query": true}}
+```
+
+```json
+{"command": "demo-phase", "arguments": {"degrees": 90}}
+```
+
+`demo-query` accepts only `{}`. The other commands accept exactly one shown
+query or configure form. `enabled` is a JSON boolean, `function` is a supported
+canonical lowercase string for the startup model profile, and `degrees` is a
+finite JSON number in the inclusive range 0 through 360. Canonical field names
+are exactly `query`, `enabled`, `function`, and `degrees`.
+
+Empty configure arguments, `query: false`, query/configure mixes, strings for
+booleans or numbers, JSON booleans for `degrees`, nulls, non-finite values,
+out-of-range phase values, uppercase SCPI tokens, unknown keys, and aliases
+such as `output`, `on`, `state`, `value`, `signal`, `type`, `demo`, `mode`,
+`angle`, `phase`, and `degree` are rejected before enqueue, accepted counters,
+artifact creation, simulator/VISA open, or SCPI.
+
+DEMO is option-/hardware-dependent, and live missing-option or missing-hardware
+errors use the existing instrument error path. This pack is hardware-free
+validated only. It does not implement WGEN, WebUI runtime behavior, or the
+additional 4000X-only DEMO functions, and it does not claim validation across
+physical models or firmware revisions.
+
 ### Search Basic Pack v1 Commands
 
 The worker accepts only these canonical argument shapes:
@@ -1446,7 +1498,8 @@ recorded as absolute paths. Default worker outputs are:
 The `measure-clear`, `measure-show`, `measure-source`, `measure-window`,
 `reference-save`, `reference-display`, `reference-label`, `reference-clear`,
 `reference-query`, `dvm-enable`, `dvm-source`, `dvm-mode`, `dvm-auto-range`,
-`dvm-current`, `dvm-query`, `search-state`, `search-mode`, and `search-count`
+`dvm-current`, `dvm-query`, `demo-query`, `demo-output`, `demo-function`,
+`demo-phase`, `search-state`, `search-mode`, and `search-count`
 commands also do not create command artifacts.
 Their terminal `result.json.result` contains the existing one-shot structured
 `result` fields for that command. For `sample-rate` maximum queries, that

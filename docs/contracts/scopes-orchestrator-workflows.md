@@ -47,6 +47,10 @@ keysight-scopes send-command --port 8765 --command dvm-mode --arguments-json "{\
 keysight-scopes send-command --port 8765 --command dvm-auto-range --arguments-json "{\"enabled\":true}" --json
 keysight-scopes send-command --port 8765 --command dvm-current --arguments-json "{\"query\":true}" --json
 keysight-scopes send-command --port 8765 --command dvm-query --arguments-json "{\"query\":true}" --json
+keysight-scopes send-command --port 8765 --command demo-query --arguments-json "{}" --json
+keysight-scopes send-command --port 8765 --command demo-output --arguments-json "{\"enabled\":true}" --json
+keysight-scopes send-command --port 8765 --command demo-function --arguments-json "{\"function\":\"runt\"}" --json
+keysight-scopes send-command --port 8765 --command demo-phase --arguments-json "{\"degrees\":90}" --json
 keysight-scopes send-command --port 8765 --command search-state --arguments-json "{\"enabled\":true}" --json
 keysight-scopes send-command --port 8765 --command search-mode --arguments-json "{\"mode\":\"edge\"}" --json
 keysight-scopes send-command --port 8765 --command search-count --arguments-json "{\"query\":true}" --json

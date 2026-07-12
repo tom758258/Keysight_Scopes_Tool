@@ -38,6 +38,10 @@ All supported series profiles currently expose:
   DVM can be option/license dependent. This pack has hardware-free validation
   only and does not implement DVM frequency, independent `:COUNter`, or
   `:MEASure:COUNter` support.
+- Demo Output Pack v1 aggregate and focused output/function/phase helpers.
+  DEMO is option-/hardware-dependent; capability profiles guard the documented
+  function names before session open, while live instrument errors remain
+  authoritative for missing options or hardware.
 - Search Basic Pack v1 state and count queries plus profile-guarded mode
   configuration. Unsupported modes are rejected before search SCPI is sent.
 - Analog channel labels, display labels, and display annotation.
@@ -49,11 +53,21 @@ All supported series profiles currently expose:
 
 Series-specific differences:
 
-| Series | Search Basic Pack v1 modes | Screenshot Format Pack v1 |
-| --- | --- | --- |
-| 2000X | `serial1` | No; existing PNG capture remains supported |
-| 3000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2` | No; existing PNG capture remains supported |
-| 4000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2`, `peak` | PNG, BMP, BMP8bit, appearance controls, and state query |
+| Series | Demo Output Pack v1 functions | Search Basic Pack v1 modes | Screenshot Format Pack v1 |
+| --- | --- | --- | --- |
+| 2000X | Common/core set | `serial1` | No; existing PNG capture remains supported |
+| 3000X | Common/core set plus `i2s`, `can-lin`, `flexray`, `arinc`, `mil`, `mil2` | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2` | No; existing PNG capture remains supported |
+| 4000X | Same v1 set as 3000X | `edge`, `glitch`, `runt`, `transition`, `serial1`, `serial2`, `peak` | PNG, BMP, BMP8bit, appearance controls, and state query |
+
+The common/core DEMO set is `sine`, `noisy`, `phase`, `lf-sine`, `am`,
+`rf-burst`, `fm-burst`, `harmonics`, `coupling`, `ringing`, `single`, `clock`,
+`runt`, `transition`, `setup-hold`, `mso`, `burst`, `glitch`,
+`edge-then-edge`, `i2c`, `uart`, `spi`, `can`, and `lin`. Demo Output Pack v1
+intentionally excludes the additional 4000X-only DEMO functions until their
+short command and readback tokens are added with unambiguous coverage. It does
+not implement WGEN and adds no WebUI runtime behavior. Validation is
+hardware-free only; no physical model, firmware revision, USB/LAN path, or
+worker live path was validated for this pack.
 
 Screenshot Format Pack v1 is capability-gated to 4000X because its explicit
 format transfer uses the documented `:HCOPY:SDUMp` command family. This is

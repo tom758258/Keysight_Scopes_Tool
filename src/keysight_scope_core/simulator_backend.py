@@ -11,6 +11,7 @@ from typing import Any, Sequence
 import zlib
 
 from .capabilities import capabilities_for_model
+from .demo import DEMO_FUNCTION_TOKENS
 from .errors import BackendClosedError, KeysightScopeError
 from .trigger import OPERATION_CONDITION_RUN_MASK
 
@@ -156,6 +157,9 @@ class SimulatorBackend:
     dvm_mode: str = "DC"
     dvm_auto_range: bool = True
     dvm_current_value: float = 0.0
+    demo_function: str = "SIN"
+    demo_output_enabled: bool = False
+    demo_phase_degrees: float = 0.0
     search_enabled: bool = False
     search_mode: str = "SERial1"
     search_count: int = 0
@@ -366,6 +370,30 @@ class SimulatorBackend:
             self.dvm_mode = {"DC": "DC", "DCRMS": "DCRMs", "ACRMS": "ACRMs"}[mode]
         elif upper.startswith(":DVM:ARANGE "):
             self.dvm_auto_range = _parse_scpi_bool_write(command)
+        elif upper.startswith(":DEMO:FUNCTION:PHASE:PHASE "):
+            raw_value = command.rsplit(" ", 1)[1]
+            try:
+                value = float(raw_value)
+            except ValueError as exc:
+                raise SimulatorBackendError("Simulator DEMO phase must be numeric.") from exc
+            if not math.isfinite(value) or not 0.0 <= value <= 360.0:
+                raise SimulatorBackendError(
+                    "Simulator DEMO phase must be finite and in range 0-360."
+                )
+            self.demo_phase_degrees = value
+        elif upper.startswith(":DEMO:FUNCTION "):
+            token = command.rsplit(" ", 1)[1].upper()
+            function_by_token = {
+                scpi_token: name for name, scpi_token in DEMO_FUNCTION_TOKENS.items()
+            }
+            function = function_by_token.get(token)
+            if function is None or function not in self._capabilities.demo_functions:
+                raise SimulatorBackendError(
+                    f"Unsupported simulator DEMO function: {token}"
+                )
+            self.demo_function = DEMO_FUNCTION_TOKENS[function]
+        elif upper.startswith(":DEMO:OUTPUT "):
+            self.demo_output_enabled = _parse_scpi_bool_write(command)
         elif upper.startswith(":SEARCH:STATE "):
             self.search_enabled = _parse_scpi_bool_write(command)
         elif upper.startswith(":SEARCH:MODE "):
@@ -813,6 +841,12 @@ class SimulatorBackend:
             return "1" if self.dvm_auto_range else "0"
         if upper == ":DVM:CURRENT?":
             return f"{self.dvm_current_value:+.8E}"
+        if upper == ":DEMO:FUNCTION?":
+            return self.demo_function
+        if upper == ":DEMO:OUTPUT?":
+            return "1" if self.demo_output_enabled else "0"
+        if upper == ":DEMO:FUNCTION:PHASE:PHASE?":
+            return f"{self.demo_phase_degrees:g}"
         if upper == ":SEARCH:STATE?":
             return "1" if self.search_enabled else "0"
         if upper == ":SEARCH:MODE?":

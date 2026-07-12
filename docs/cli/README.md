@@ -134,6 +134,8 @@ Current implemented scope:
 - Enable, disable, or query basic waveform search state; select a guarded
   search mode; and query the current search event count with `search-state`,
   `search-mode`, and `search-count`.
+- Query or configure the option-dependent built-in DEMO subsystem with
+  `demo-query`, `demo-output`, `demo-function`, and `demo-phase`.
 - Collect read-only diagnostic snapshots with `doctor`.
 - Query multi-channel and optional pair measurement sweeps with
   continue-and-summarize failure handling.
@@ -1443,6 +1445,40 @@ Worker requests use the same canonical values and require `{"query": true}`
 for query operations. Unknown keys, aliases, mixed query/configure payloads,
 non-boolean `enabled`, and channels outside the model profile are rejected
 before enqueue or artifact/session creation.
+
+Control Demo Output Pack v1:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli demo-query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli demo-output --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli demo-output --enabled true --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli demo-function --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli demo-function --function runt --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli demo-phase --query --simulate --json
+.\.venv\Scripts\python.exe -m keysight_scope_cli.cli demo-phase --degrees 90 --simulate --json
+```
+
+`demo-output`, `demo-function`, and `demo-phase` require exactly one query or
+configure action. Functions use lowercase canonical names only. Phase must be
+a finite number from 0 through 360 inclusive. Function support is checked
+against the selected model profile before session open. Aggregate
+`demo-query` preserves exact raw readbacks; an unknown function token produces
+`function: null` and `function_scpi: null`, while malformed output or phase
+readbacks fail normally.
+
+The common/core function set is `sine`, `noisy`, `phase`, `lf-sine`, `am`,
+`rf-burst`, `fm-burst`, `harmonics`, `coupling`, `ringing`, `single`, `clock`,
+`runt`, `transition`, `setup-hold`, `mso`, `burst`, `glitch`,
+`edge-then-edge`, `i2c`, `uart`, `spi`, `can`, and `lin`. The 3000X and 4000X
+profiles additionally expose `i2s`, `can-lin`, `flexray`, `arinc`, `mil`, and
+`mil2`. Additional 4000X-only DEMO functions are intentionally excluded from
+v1.
+
+DEMO is option-/hardware-dependent. Unsupported live instruments may surface
+errors through the normal post-command instrument error check. This pack has
+hardware-free Core, CLI, simulator, and worker validation only; live hardware,
+USB/LAN, and worker live validation were not run. It does not implement WGEN
+and adds no WebUI runtime behavior.
 
 Control reference waveform slots:
 

@@ -25,6 +25,13 @@ from .dvm import (
     DvmSourceState,
     DvmState,
 )
+from .demo import (
+    DemoController,
+    DemoFunctionState,
+    DemoOutputState,
+    DemoPhaseState,
+    DemoState,
+)
 from .errors import ParameterValidationError, UnsupportedModelError
 from .idn import IDN, parse_idn
 from .measurements import (
@@ -579,6 +586,41 @@ class KeysightScope:
         """Query aggregate DVM Common Pack v1 state."""
 
         return self._dvm_controller().query()
+
+    def configure_demo_output(self, enabled: bool) -> None:
+        """Configure built-in DEMO output state."""
+
+        self._demo_controller().configure_output(enabled)
+
+    def query_demo_output(self) -> DemoOutputState:
+        """Query built-in DEMO output state."""
+
+        return self._demo_controller().query_output()
+
+    def configure_demo_function(self, function: str) -> None:
+        """Configure a profile-supported built-in DEMO function."""
+
+        self._demo_controller().configure_function(function)
+
+    def query_demo_function(self) -> DemoFunctionState:
+        """Query the built-in DEMO function."""
+
+        return self._demo_controller().query_function()
+
+    def configure_demo_phase(self, degrees: float) -> None:
+        """Configure built-in DEMO phase in degrees."""
+
+        self._demo_controller().configure_phase(degrees)
+
+    def query_demo_phase(self) -> DemoPhaseState:
+        """Query built-in DEMO phase in degrees."""
+
+        return self._demo_controller().query_phase()
+
+    def query_demo(self) -> DemoState:
+        """Query aggregate Demo Output Pack v1 state."""
+
+        return self._demo_controller().query()
 
     def configure_search_state(self, enabled: bool) -> SearchState:
         """Configure waveform search enable state."""
@@ -1257,6 +1299,13 @@ class KeysightScope:
                 "DVM operations require known capabilities; call query_idn() first."
             )
         return DvmController(self.scpi, self.capabilities)
+
+    def _demo_controller(self) -> DemoController:
+        if self.capabilities is None:
+            raise ParameterValidationError(
+                "DEMO operations require known capabilities; call query_idn() first."
+            )
+        return DemoController(self.scpi, self.capabilities)
 
     def _search_controller(self) -> SearchController:
         if self.capabilities is None:

@@ -21,6 +21,13 @@ names are intended for package consumers and tests:
 - `DvmReading`
 - `DvmSourceState`
 - `DvmState`
+- `DEMO_FUNCTIONS`
+- `DEMO_FUNCTION_TOKENS`
+- `DemoController`
+- `DemoFunctionState`
+- `DemoOutputState`
+- `DemoPhaseState`
+- `DemoState`
 - `DelayTriggerController`
 - `DelayTriggerState`
 - `EdgeBurstTriggerController`

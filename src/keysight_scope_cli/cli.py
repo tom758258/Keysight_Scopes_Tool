@@ -206,6 +206,18 @@ from keysight_scope_core.reference import (
     validate_reference_label,
     validate_reference_slot,
 )
+from keysight_scope_core.demo import (
+    DEMO_FUNCTIONS,
+    demo_function_command,
+    demo_function_query,
+    demo_output_command,
+    demo_output_query,
+    demo_phase_command,
+    demo_phase_query,
+    demo_query_commands,
+    validate_demo_function,
+    validate_demo_phase,
+)
 from keysight_scope_core.search import (
     SEARCH_MODES,
     search_count_query,
@@ -1019,6 +1031,35 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     _add_scope_connection_args(dvm_query_parser)
     dvm_query_parser.add_argument("--query", action="store_true", required=True)
+
+    demo_query_parser = subparsers.add_parser(
+        "demo-query", allow_abbrev=False, help="query aggregate Demo Output Pack v1 state"
+    )
+    _add_scope_connection_args(demo_query_parser)
+
+    demo_output_parser = subparsers.add_parser(
+        "demo-output", allow_abbrev=False, help="configure or query built-in DEMO output"
+    )
+    _add_scope_connection_args(demo_output_parser)
+    demo_output_action = demo_output_parser.add_mutually_exclusive_group(required=True)
+    demo_output_action.add_argument("--query", action="store_true")
+    demo_output_action.add_argument("--enabled", type=_strict_bool_arg)
+
+    demo_function_parser = subparsers.add_parser(
+        "demo-function", allow_abbrev=False, help="configure or query built-in DEMO function"
+    )
+    _add_scope_connection_args(demo_function_parser)
+    demo_function_action = demo_function_parser.add_mutually_exclusive_group(required=True)
+    demo_function_action.add_argument("--query", action="store_true")
+    demo_function_action.add_argument("--function", choices=DEMO_FUNCTIONS)
+
+    demo_phase_parser = subparsers.add_parser(
+        "demo-phase", allow_abbrev=False, help="configure or query built-in DEMO phase"
+    )
+    _add_scope_connection_args(demo_phase_parser)
+    demo_phase_action = demo_phase_parser.add_mutually_exclusive_group(required=True)
+    demo_phase_action.add_argument("--query", action="store_true")
+    demo_phase_action.add_argument("--degrees", type=float)
 
     search_state_parser = subparsers.add_parser(
         "search-state", allow_abbrev=False, help="configure or query waveform search state"
@@ -2487,6 +2528,8 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         "dvm-query",
     }:
         return _cmd_dvm(args)
+    if args.command in {"demo-query", "demo-output", "demo-function", "demo-phase"}:
+        return _cmd_demo(args)
     if args.command in {"search-state", "search-mode", "search-count"}:
         return _cmd_search(args)
     if args.command in {
@@ -2993,6 +3036,13 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
     }:
         _validate_dvm_args(args)
     if getattr(args, "command", None) in {
+        "demo-query",
+        "demo-output",
+        "demo-function",
+        "demo-phase",
+    }:
+        _validate_demo_args(args)
+    if getattr(args, "command", None) in {
         "search-state",
         "search-mode",
         "search-count",
@@ -3068,6 +3118,18 @@ def _validate_dvm_args(args: argparse.Namespace) -> None:
         )
     if command == "dvm-source":
         validate_analog_channel(value, capabilities_for_model(args.model))
+
+
+def _validate_demo_args(args: argparse.Namespace) -> None:
+    capabilities = capabilities_for_model(args.model)
+    if not capabilities.supports_demo:
+        raise ParameterValidationError(
+            "Demo Output Pack v1 is not supported by the selected model profile."
+        )
+    if args.command == "demo-function" and not args.query:
+        validate_demo_function(args.function, capabilities)
+    if args.command == "demo-phase" and not args.query:
+        validate_demo_phase(args.degrees)
 
 
 def _validate_search_args(args: argparse.Namespace) -> None:
@@ -3921,6 +3983,32 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             "operation": "query",
             "commands": commands,
         }
+    if command == "demo-query":
+        commands = demo_query_commands()
+        return [*commands, ":SYSTem:ERRor?"], [], {
+            "operation": "query",
+            "commands": commands,
+        }
+    if command == "demo-output":
+        target = demo_output_query() if args.query else demo_output_command(args.enabled)
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if not args.query:
+            result.update(enabled=args.enabled, state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
+    if command == "demo-function":
+        target = demo_function_query() if args.query else demo_function_command(
+            args.function, capabilities=capabilities
+        )
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if not args.query:
+            result.update(function=args.function, state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
+    if command == "demo-phase":
+        target = demo_phase_query() if args.query else demo_phase_command(args.degrees)
+        result = {"operation": "query" if args.query else "configure", "command": target}
+        if not args.query:
+            result.update(degrees=validate_demo_phase(args.degrees), state_changing=True)
+        return [target, ":SYSTem:ERRor?"], [], result
     if command == "search-state":
         target = search_state_query() if args.query else search_state_command(args.enabled)
         result = {"operation": "query" if args.query else "configure", "command": target}
@@ -6708,6 +6796,91 @@ def _cmd_dvm(args: argparse.Namespace) -> int:
             print(f"DVM mode: {state.mode}")
             print(f"DVM auto range enabled: {state.auto_range_enabled}")
             print(f"DVM current value: {state.value}")
+
+        entry = scope.query_system_error()
+        _json_record_system_error(entry)
+        print(f"System error: {entry.format()}")
+        return 1 if entry.is_error else 0
+
+
+def _cmd_demo(args: argparse.Namespace) -> int:
+    resource = _require_resource(args)
+    if resource is None:
+        return 2
+
+    _configure_scpi_logging(args)
+    with _open_scope(args, resource) as scope:
+        idn = scope.query_idn()
+        _json_record_scope(scope, idn)
+        _print_session_header(scope, resource)
+        print(f"Model: {idn.model}")
+        print(f"Series: {idn.series or 'unknown'}")
+        if scope.capabilities is None:
+            print("Capabilities: unavailable for this model")
+            return 1
+
+        if args.command == "demo-query":
+            commands = demo_query_commands()
+            state = scope.query_demo()
+            _json_update_result(operation="query", commands=commands, **state.to_json())
+            for command in commands:
+                print(f"Command: {command}")
+            print(f"DEMO function: {state.function or 'unknown'}")
+            print(f"DEMO output enabled: {state.enabled}")
+            print(f"DEMO phase degrees: {state.phase_degrees}")
+        elif args.command == "demo-output":
+            if args.query:
+                command = demo_output_query()
+                state = scope.query_demo_output()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"DEMO output enabled: {state.enabled}")
+            else:
+                command = demo_output_command(args.enabled)
+                scope.configure_demo_output(args.enabled)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    enabled=args.enabled,
+                    state_changing=True,
+                )
+                print(f"DEMO output enabled: {args.enabled}")
+            print(f"Command: {command}")
+        elif args.command == "demo-function":
+            if args.query:
+                command = demo_function_query()
+                state = scope.query_demo_function()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"DEMO function: {state.function or 'unknown'}")
+            else:
+                function = args.function
+                command = demo_function_command(function, capabilities=scope.capabilities)
+                scope.configure_demo_function(function)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    function=function,
+                    state_changing=True,
+                )
+                print(f"DEMO function: {function}")
+            print(f"Command: {command}")
+        else:
+            if args.query:
+                command = demo_phase_query()
+                state = scope.query_demo_phase()
+                _json_update_result(operation="query", command=command, **state.to_json())
+                print(f"DEMO phase degrees: {state.phase_degrees}")
+            else:
+                degrees = validate_demo_phase(args.degrees)
+                command = demo_phase_command(degrees)
+                scope.configure_demo_phase(degrees)
+                _json_update_result(
+                    operation="configure",
+                    command=command,
+                    degrees=degrees,
+                    state_changing=True,
+                )
+                print(f"DEMO phase degrees: {degrees}")
+            print(f"Command: {command}")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)
