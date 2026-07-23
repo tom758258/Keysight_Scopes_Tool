@@ -70,7 +70,7 @@ def test_display_common_dry_run_includes_one_shot_scpi_without_visa(
     def fail_open(resource, visa_library=None):
         raise AssertionError("dry-run must not open VISA")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert cli.main(argv) == 0
 
@@ -122,7 +122,7 @@ def test_display_common_json_dry_run_validation_errors_are_single_json(
     def fail_open(resource, visa_library=None):
         raise AssertionError("invalid dry-run must not open VISA")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert cli.main(argv) == 1
 

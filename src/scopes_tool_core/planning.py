@@ -15,7 +15,7 @@ from .acquisition import (
 )
 from .capabilities import ScopeCapabilities
 from .channel import validate_analog_channel
-from .errors import KeysightScopeError
+from .errors import OscilloscopeError
 from .measurements import (
     is_pair_measurement_item,
     measurement_query,
@@ -219,7 +219,7 @@ def plan_acquisition_check(request: AcquisitionCheckPlanRequest) -> OperationPla
 
     average_count = validate_acquisition_count(request.average_count)
     if request.check_only and request.restore_type:
-        raise KeysightScopeError("--check-only cannot be combined with --restore-type")
+        raise OscilloscopeError("--check-only cannot be combined with --restore-type")
     output_dir = (
         Path(request.output_dir)
         if request.output_dir is not None
@@ -381,7 +381,7 @@ def measure_sweep_planned_scpi(
                     )
                 )
                 planned.append(":SYSTem:ERRor?")
-            except KeysightScopeError:
+            except OscilloscopeError:
                 continue
     return planned
 
@@ -392,7 +392,7 @@ def resolve_capture_channels(
 ) -> tuple[int, ...]:
     if any(channel == "all" for channel in raw_channels):
         if len(raw_channels) != 1:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "error: --channel all cannot be combined with explicit channel numbers"
             )
         return validate_waveform_channels(
@@ -417,15 +417,15 @@ def parse_measurement_item_list(value: str, *, allow_pair: bool) -> tuple[str, .
         item = normalize_measurement_item(stripped)
         if allow_pair:
             if not is_pair_measurement_item(item):
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "--pair-items can only contain phase or delay measurements"
                 )
         elif is_pair_measurement_item(item):
-            raise KeysightScopeError("--items can only contain single-channel measurements")
+            raise OscilloscopeError("--items can only contain single-channel measurements")
         items.append(item)
     if not items:
         option = "--pair-items" if allow_pair else "--items"
-        raise KeysightScopeError(f"{option} must contain at least one measurement item")
+        raise OscilloscopeError(f"{option} must contain at least one measurement item")
     return tuple(items)
 
 
@@ -437,16 +437,16 @@ def parse_pair_specs(
     for value in values:
         parts = value.split(":")
         if len(parts) != 2:
-            raise KeysightScopeError("--pair must use SRC:REF, for example 1:2")
+            raise OscilloscopeError("--pair must use SRC:REF, for example 1:2")
         try:
             source = int(parts[0])
             reference = int(parts[1])
         except ValueError as exc:
-            raise KeysightScopeError("--pair channels must be integers") from exc
+            raise OscilloscopeError("--pair channels must be integers") from exc
         source = validate_analog_channel(source, capabilities)
         reference = validate_analog_channel(reference, capabilities)
         if source == reference:
-            raise KeysightScopeError("--pair source and reference channels must differ")
+            raise OscilloscopeError("--pair source and reference channels must differ")
         pairs.append((source, reference))
     return tuple(pairs)
 
@@ -467,7 +467,7 @@ def measurement_query_kwargs(
 
     if is_pair_measurement_item(item):
         if values:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "--time, --level, --slope, and --occurrence cannot be used with "
                 "phase or delay measurements"
             )
@@ -475,34 +475,34 @@ def measurement_query_kwargs(
 
     if item == "y_at_x":
         if request.time_s is None:
-            raise KeysightScopeError("y_at_x measurement requires --time")
+            raise OscilloscopeError("y_at_x measurement requires --time")
         if any(
             value is not None
             for value in (request.level, request.slope, request.occurrence)
         ):
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "--level, --slope, and --occurrence cannot be used with y_at_x"
             )
         return values
 
     if item == "time_at_edge":
         if request.time_s is not None or request.level is not None:
-            raise KeysightScopeError("--time and --level cannot be used with time_at_edge")
+            raise OscilloscopeError("--time and --level cannot be used with time_at_edge")
         values.setdefault("slope", "positive")
         values.setdefault("occurrence", 1)
         return values
 
     if item == "time_at_value":
         if request.level is None:
-            raise KeysightScopeError("time_at_value measurement requires --level")
+            raise OscilloscopeError("time_at_value measurement requires --level")
         if request.time_s is not None:
-            raise KeysightScopeError("--time cannot be used with time_at_value")
+            raise OscilloscopeError("--time cannot be used with time_at_value")
         values.setdefault("slope", "positive")
         values.setdefault("occurrence", 1)
         return values
 
     if values:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--time, --level, --slope, and --occurrence can only be used with "
             "y_at_x, time_at_edge, or time_at_value"
         )
@@ -511,7 +511,7 @@ def measurement_query_kwargs(
 
 def resolve_measurement_source_channel(request: MeasurePlanRequest) -> int | None:
     if request.channel is not None and request.source_channel is not None:
-        raise KeysightScopeError("--channel cannot be combined with --source-channel")
+        raise OscilloscopeError("--channel cannot be combined with --source-channel")
     return request.source_channel if request.source_channel is not None else request.channel
 
 
@@ -520,12 +520,12 @@ def resolve_single_measurement_channel(
     capabilities: ScopeCapabilities,
 ) -> int:
     if request.reference_channel is not None:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--reference-channel can only be used with phase or delay measurements"
         )
     channel = resolve_measurement_source_channel(request)
     if channel is None:
-        raise KeysightScopeError("measure requires --channel or --source-channel")
+        raise OscilloscopeError("measure requires --channel or --source-channel")
     return validate_analog_channel(channel, capabilities)
 
 
@@ -536,14 +536,14 @@ def resolve_pair_measurement_channels(
 ) -> tuple[int, int]:
     source_channel = resolve_measurement_source_channel(request)
     if source_channel is None or request.reference_channel is None:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"{item} measurement requires --source-channel or --channel, "
             "plus --reference-channel"
         )
     source_channel = validate_analog_channel(source_channel, capabilities)
     reference_channel = validate_analog_channel(request.reference_channel, capabilities)
     if source_channel == reference_channel:
-        raise KeysightScopeError("source channel and reference channel must be different")
+        raise OscilloscopeError("source channel and reference channel must be different")
     return source_channel, reference_channel
 
 

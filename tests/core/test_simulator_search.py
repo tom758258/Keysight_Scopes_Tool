@@ -1,12 +1,12 @@
 import pytest
 
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
 def test_simulator_search_state_mode_and_count_are_deterministic():
     backend = SimulatorBackend(model="DSOX4034A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     assert scope.query_search_state().to_json() == {"enabled": False, "raw_state": "0"}

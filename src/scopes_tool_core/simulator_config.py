@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 from .acquisition import normalize_acquisition_type, validate_acquisition_count
 from .capabilities import ScopeCapabilities
 from .channel import validate_analog_channel, validate_channel_offset, validate_channel_scale
-from .errors import KeysightScopeError
+from .errors import OscilloscopeError
 from .simulator_backend import SimulatedSignal
 from .timebase import validate_timebase_position, validate_timebase_scale
 from .trigger import normalize_edge_slope, validate_trigger_level
@@ -178,15 +178,15 @@ def load_scenario(path: Path) -> dict[str, Any]:
     try:
         raw = path.read_text(encoding="utf-8")
     except OSError as exc:
-        raise KeysightScopeError(f"could not read --simulate-scenario {path}: {exc}") from exc
+        raise OscilloscopeError(f"could not read --simulate-scenario {path}: {exc}") from exc
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"invalid --simulate-scenario JSON {path}: {exc.msg} at line {exc.lineno} column {exc.colno}"
         ) from exc
     if not isinstance(data, dict):
-        raise KeysightScopeError("--simulate-scenario JSON must contain an object")
+        raise OscilloscopeError("--simulate-scenario JSON must contain an object")
     _reject_unknown(data, _SCENARIO_KEYS, "scenario")
     return data
 
@@ -217,7 +217,7 @@ def parse_config(config: Mapping[str, Any], capabilities: ScopeCapabilities) -> 
 
 def _parse_signals(raw: Any, capabilities: ScopeCapabilities) -> dict[int, SimulatedSignal]:
     if not isinstance(raw, dict):
-        raise KeysightScopeError("scenario signals must be an object")
+        raise OscilloscopeError("scenario signals must be an object")
     signals: dict[int, SimulatedSignal] = {}
     for key, value in raw.items():
         channel = _parse_channel_token(key, "signals")
@@ -226,7 +226,7 @@ def _parse_signals(raw: Any, capabilities: ScopeCapabilities) -> dict[int, Simul
             signals[channel] = value
             continue
         if not isinstance(value, dict):
-            raise KeysightScopeError(f"scenario signals CH{channel} must be an object")
+            raise OscilloscopeError(f"scenario signals CH{channel} must be an object")
         _reject_unknown(value, _SIGNAL_KEYS, f"scenario signals CH{channel}")
         try:
             signals[channel] = SimulatedSignal(
@@ -237,14 +237,14 @@ def _parse_signals(raw: Any, capabilities: ScopeCapabilities) -> dict[int, Simul
                 phase_deg=_finite_float(value.get("phase_deg", 0.0), f"CH{channel} phase_deg"),
                 noise_rms_v=_finite_float(value.get("noise_rms_v", 0.0), f"CH{channel} noise_rms_v"),
             )
-        except KeysightScopeError as exc:
-            raise KeysightScopeError(f"invalid scenario signal CH{channel}: {exc}") from exc
+        except OscilloscopeError as exc:
+            raise OscilloscopeError(f"invalid scenario signal CH{channel}: {exc}") from exc
     return signals
 
 
 def _parse_channels(raw: Any, capabilities: ScopeCapabilities) -> tuple[dict[int, bool], dict[int, float], dict[int, float]]:
     if not isinstance(raw, dict):
-        raise KeysightScopeError("scenario channels must be an object")
+        raise OscilloscopeError("scenario channels must be an object")
     displays: dict[int, bool] = {}
     scales: dict[int, float] = {}
     offsets: dict[int, float] = {}
@@ -252,7 +252,7 @@ def _parse_channels(raw: Any, capabilities: ScopeCapabilities) -> tuple[dict[int
         channel = _parse_channel_token(key, "channels")
         validate_analog_channel(channel, capabilities)
         if not isinstance(value, dict):
-            raise KeysightScopeError(f"scenario channels CH{channel} must be an object")
+            raise OscilloscopeError(f"scenario channels CH{channel} must be an object")
         _reject_unknown(value, _CHANNEL_KEYS, f"scenario channels CH{channel}")
         if "display" in value:
             displays[channel] = _bool(value["display"], f"CH{channel} display")
@@ -269,7 +269,7 @@ def _parse_channels(raw: Any, capabilities: ScopeCapabilities) -> tuple[dict[int
 
 def _parse_timebase(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        raise KeysightScopeError("scenario timebase must be an object")
+        raise OscilloscopeError("scenario timebase must be an object")
     _reject_unknown(raw, _TIMEBASE_KEYS, "scenario timebase")
     values: dict[str, Any] = {}
     if "scale_s_per_div" in raw:
@@ -285,7 +285,7 @@ def _parse_timebase(raw: Any) -> dict[str, Any]:
 
 def _parse_trigger(raw: Any, capabilities: ScopeCapabilities) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        raise KeysightScopeError("scenario trigger must be an object")
+        raise OscilloscopeError("scenario trigger must be an object")
     _reject_unknown(raw, _TRIGGER_KEYS, "scenario trigger")
     values: dict[str, Any] = {"trigger_mode": "EDGE"}
     if "source_channel" in raw:
@@ -302,7 +302,7 @@ def _parse_trigger(raw: Any, capabilities: ScopeCapabilities) -> dict[str, Any]:
 
 def _parse_acquisition(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
-        raise KeysightScopeError("scenario acquisition must be an object")
+        raise OscilloscopeError("scenario acquisition must be an object")
     _reject_unknown(raw, _ACQUISITION_KEYS, "scenario acquisition")
     values: dict[str, Any] = {}
     acq_type = raw.get("type")
@@ -311,20 +311,20 @@ def _parse_acquisition(raw: Any) -> dict[str, Any]:
     if "count" in raw:
         count = raw["count"]
         if not isinstance(count, int) or isinstance(count, bool):
-            raise KeysightScopeError("scenario acquisition count must be an integer")
+            raise OscilloscopeError("scenario acquisition count must be an integer")
         values["acquisition_count"] = validate_acquisition_count(count)
     return values
 
 
 def _apply_errors(kwargs: dict[str, Any], raw: Any, capabilities: ScopeCapabilities) -> None:
     if not isinstance(raw, dict):
-        raise KeysightScopeError("scenario errors must be an object")
+        raise OscilloscopeError("scenario errors must be an object")
     _reject_unknown(raw, _ERROR_KEYS, "scenario errors")
     system_errors = [_format_system_error(entry) for entry in raw.get("system_errors", [])]
     if system_errors:
         kwargs["system_errors"] = system_errors
     if raw.get("binary_transfer_failure", False):
-        kwargs.setdefault("binary_failures", {})[":WAVeform:DATA?"] = KeysightScopeError(
+        kwargs.setdefault("binary_failures", {})[":WAVeform:DATA?"] = OscilloscopeError(
             "simulated binary transfer failure"
         )
     invalid_channels = _parse_channel_list(
@@ -351,7 +351,7 @@ def _parse_simulate_signal_specs(
         channel, signal = parse_simulate_signal_spec(spec)
         validate_analog_channel(channel, capabilities)
         if channel in signals:
-            raise KeysightScopeError(f"duplicate --simulate-signal for CH{channel}")
+            raise OscilloscopeError(f"duplicate --simulate-signal for CH{channel}")
         signals[channel] = signal
     return signals
 
@@ -359,7 +359,7 @@ def _parse_simulate_signal_specs(
 def parse_simulate_signal_spec(spec: str) -> tuple[int, SimulatedSignal]:
     parts = spec.split(":")
     if len(parts) not in (6, 7):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--simulate-signal must use "
             "CH:shape:frequency_hz:vpp_v:offset_v:phase_deg[:noise_rms_v]"
         )
@@ -374,9 +374,9 @@ def parse_simulate_signal_spec(spec: str) -> tuple[int, SimulatedSignal]:
             noise_rms_v=float(parts[6]) if len(parts) == 7 else 0.0,
         )
     except ValueError as exc:
-        raise KeysightScopeError("--simulate-signal numeric fields must be numbers") from exc
-    except KeysightScopeError as exc:
-        raise KeysightScopeError(f"invalid --simulate-signal {spec!r}: {exc}") from exc
+        raise OscilloscopeError("--simulate-signal numeric fields must be numbers") from exc
+    except OscilloscopeError as exc:
+        raise OscilloscopeError(f"invalid --simulate-signal {spec!r}: {exc}") from exc
     return channel, signal
 
 
@@ -420,7 +420,7 @@ def _preset(name: str) -> dict[str, Any]:
         return deepcopy(_PRESETS[name])
     except KeyError as exc:
         supported = ", ".join(PRESET_NAMES)
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown simulator preset {name!r}; expected one of: {supported}"
         ) from exc
 
@@ -429,7 +429,7 @@ def _parse_system_error_cli(code: str) -> dict[str, Any]:
     try:
         parsed = int(code)
     except ValueError as exc:
-        raise KeysightScopeError("--simulate-system-error CODE must be an integer") from exc
+        raise OscilloscopeError("--simulate-system-error CODE must be an integer") from exc
     return {"code": parsed, "message": "Simulated system error"}
 
 
@@ -437,13 +437,13 @@ def _format_system_error(entry: Any) -> str:
     if isinstance(entry, str):
         return entry
     if not isinstance(entry, dict):
-        raise KeysightScopeError("scenario errors system_errors entries must be objects")
+        raise OscilloscopeError("scenario errors system_errors entries must be objects")
     code = entry.get("code")
     message = entry.get("message", "Simulated system error")
     if not isinstance(code, int) or isinstance(code, bool):
-        raise KeysightScopeError("scenario system error code must be an integer")
+        raise OscilloscopeError("scenario system error code must be an integer")
     if not isinstance(message, str):
-        raise KeysightScopeError("scenario system error message must be a string")
+        raise OscilloscopeError("scenario system error message must be a string")
     return f'{code},"{message}"'
 
 
@@ -453,7 +453,7 @@ def _parse_channel_list(
     if raw is None:
         return set()
     if not isinstance(raw, list):
-        raise KeysightScopeError(f"scenario errors {name} must be a list")
+        raise OscilloscopeError(f"scenario errors {name} must be a list")
     channels = set()
     for item in raw:
         channel = _parse_channel_token(item, name)
@@ -471,11 +471,11 @@ def _parse_channel_token(value: Any, context: str) -> int:
         try:
             channel = int(normalized)
         except ValueError as exc:
-            raise KeysightScopeError(f"{context} channel must be CHn or a positive integer") from exc
+            raise OscilloscopeError(f"{context} channel must be CHn or a positive integer") from exc
     else:
-        raise KeysightScopeError(f"{context} channel must be CHn or a positive integer")
+        raise OscilloscopeError(f"{context} channel must be CHn or a positive integer")
     if channel < 1:
-        raise KeysightScopeError(f"{context} channel must be at least 1")
+        raise OscilloscopeError(f"{context} channel must be at least 1")
     return channel
 
 
@@ -483,25 +483,25 @@ def _finite_float(value: Any, name: str) -> float:
     try:
         parsed = float(value)
     except (TypeError, ValueError) as exc:
-        raise KeysightScopeError(f"scenario {name} must be a number") from exc
+        raise OscilloscopeError(f"scenario {name} must be a number") from exc
     if not math.isfinite(parsed):
-        raise KeysightScopeError(f"scenario {name} must be finite")
+        raise OscilloscopeError(f"scenario {name} must be finite")
     return parsed
 
 
 def _bool(value: Any, name: str) -> bool:
     if not isinstance(value, bool):
-        raise KeysightScopeError(f"scenario {name} must be true or false")
+        raise OscilloscopeError(f"scenario {name} must be true or false")
     return value
 
 
 def _require_string(value: Any, name: str) -> str:
     if not isinstance(value, str):
-        raise KeysightScopeError(f"scenario {name} must be a string")
+        raise OscilloscopeError(f"scenario {name} must be a string")
     return value
 
 
 def _reject_unknown(raw: Mapping[str, Any], allowed: frozenset[str], context: str) -> None:
     unknown = sorted(str(key) for key in raw if key not in allowed)
     if unknown:
-        raise KeysightScopeError(f"unknown {context} key: {unknown[0]}")
+        raise OscilloscopeError(f"unknown {context} key: {unknown[0]}")

@@ -5,7 +5,7 @@ import pytest
 import scopes_tool_core
 from scopes_tool_core.errors import ParameterValidationError, TriggerResponseError
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.trigger import (
     ExternalTriggerRangeController,
     ExternalTriggerRangeState,
@@ -57,7 +57,7 @@ def test_external_trigger_range_scope_api_and_public_exports():
             ":EXTernal:RANGe?": "1.60000000E+00",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_external_trigger_range(1.6)

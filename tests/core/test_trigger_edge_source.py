@@ -3,7 +3,7 @@ import pytest
 import scopes_tool_core
 from scopes_tool_core.errors import ParameterValidationError
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.trigger import (
     EdgeTriggerSourceController,
     EdgeTriggerSourceState,
@@ -97,7 +97,7 @@ def test_scope_public_edge_trigger_source_methods_and_exports():
             ":TRIGger:EDGE:SOURce?": "WGEN1",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_trigger_edge_source(source="analog-channel", source_channel=4)

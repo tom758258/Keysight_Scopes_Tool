@@ -92,7 +92,7 @@ from .run_config import (
     resolve_run_mode,
 )
 from .screenshot import HardcopyState, ScreenshotCapture, ScreenshotController, ScreenshotOptions
-from .scope import KeysightScope
+from .scope import Oscilloscope
 from .status import (
     OperationCompleteState,
     StatusController,
@@ -224,7 +224,7 @@ __all__ = [
     "TvTriggerController",
     "TvTriggerState",
     "IDN",
-    "KeysightScope",
+    "Oscilloscope",
     "MeasurementController",
     "MeasurementResult",
     "MeasurementShowState",

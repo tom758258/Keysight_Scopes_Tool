@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from scopes_tool_cli import cli
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
@@ -33,7 +33,7 @@ def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
         del resource, visa_library
         raise AssertionError("dry-run must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert cli.main(["identify", "--dry-run", "--json", "--model", "DSOX4024A"]) == 0
 
@@ -84,7 +84,7 @@ def test_label_and_annotation_dry_run_json_reports_planned_scpi_without_opening(
         del resource, visa_library
         raise AssertionError("dry-run must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert (
         cli.main(
@@ -147,7 +147,7 @@ def test_annotation_validation_errors_do_not_open_backend(monkeypatch, capsys):
         del resource, visa_library
         raise AssertionError("validation failure must not open a scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert (
         cli.main(
@@ -310,7 +310,7 @@ def test_capture_dry_run_json_reports_files_without_writing(monkeypatch, capsys,
         del resource, visa_library
         raise AssertionError("dry-run must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
     csv_path = tmp_path / "capture.csv"
 
     assert (
@@ -345,7 +345,7 @@ def test_capture_dry_run_wait_trigger_reports_trigger_plan_without_opening(
         del resource, visa_library
         raise AssertionError("dry-run must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
     csv_path = tmp_path / "capture.csv"
 
     assert (
@@ -380,7 +380,7 @@ def test_capture_wait_trigger_invalid_combinations_reject_before_backend(monkeyp
         del resource, visa_library
         raise AssertionError("invalid wait-trigger arguments must not open a scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert (
         cli.main(
@@ -455,7 +455,7 @@ def test_acquisition_check_dry_run_json_reports_plan_for_target_models(monkeypat
         del resource, visa_library
         raise AssertionError("dry-run must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     for model in ("DSOX4024A", "DSOX4034A", "DSOX3024A", "DSOX2004A"):
         output_dir = tmp_path / model
@@ -511,7 +511,7 @@ def test_advanced_autoscale_dry_run_json_accepts_2000x_and_3000x(monkeypatch, ca
         del resource, visa_library
         raise AssertionError("dry-run must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     for model in ("DSOX2004A", "DSOX3024A"):
         assert cli.main(["autoscale", "--dry-run", "--json", "--model", model]) == 0
@@ -810,7 +810,7 @@ def test_simulate_json_error_is_single_json_object(capsys):
 def test_simulate_json_backend_error_keeps_single_json_object(monkeypatch, capsys):
     backend = SimulatorBackend(
         query_failures={
-            ":MEASure:VPP? CHANnel1": KeysightScopeError("configured measurement failure")
+            ":MEASure:VPP? CHANnel1": OscilloscopeError("configured measurement failure")
         }
     )
     monkeypatch.setattr(cli, "SimulatorBackend", lambda **kwargs: backend)
@@ -941,7 +941,7 @@ def test_channel_advanced_dry_run_json_reports_planned_scpi_without_opening(
         del resource, visa_library
         raise AssertionError("dry-run must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert (
         cli.main(
@@ -994,7 +994,7 @@ def test_channel_impedance_json_rejects_fifty_without_allow_before_open(monkeypa
         del resource, visa_library
         raise AssertionError("validation failure must not open a VISA scope")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert (
         cli.main(
@@ -1896,7 +1896,7 @@ def test_capture_simulate_json_binary_failure_reports_single_json_object(
     monkeypatch, capsys, tmp_path
 ):
     backend = SimulatorBackend(
-        binary_failures={":WAVeform:DATA?": KeysightScopeError("configured binary failure")}
+        binary_failures={":WAVeform:DATA?": OscilloscopeError("configured binary failure")}
     )
     monkeypatch.setattr(cli, "_make_simulator_backend", lambda args, resource: backend)
 

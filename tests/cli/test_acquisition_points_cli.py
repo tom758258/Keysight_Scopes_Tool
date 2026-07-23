@@ -65,7 +65,7 @@ class _QueryDummyScope:
 def _install_query_scope(monkeypatch):
     scope = _QueryDummyScope()
     monkeypatch.setattr(
-        cli.KeysightScope,
+        cli.Oscilloscope,
         "open",
         staticmethod(lambda resource, visa_library=None: scope),
     )
@@ -106,7 +106,7 @@ def test_query_command_dry_run_includes_planned_scpi_without_visa(
     def fail_open(resource, visa_library=None):
         raise AssertionError("dry-run must not open VISA")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert cli.main([command, "--query", "--dry-run", "--json"]) == 0
 

@@ -44,7 +44,7 @@ def test_reference_query_result_preserves_raw_fields(capsys):
     ],
 )
 def test_reference_validation_rejected_before_open(argv, monkeypatch, capsys):
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(lambda *args, **kwargs: pytest.fail("opened VISA")))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(lambda *args, **kwargs: pytest.fail("opened VISA")))
     assert cli.main([*argv, "--dry-run", "--json"]) != 0
 
 

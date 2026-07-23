@@ -3,7 +3,7 @@ import pytest
 from scopes_tool_core.capabilities import capabilities_for_model
 from scopes_tool_core.errors import ParameterValidationError, SearchResponseError
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.search import (
     SearchController,
     parse_search_count,
@@ -111,7 +111,7 @@ def test_keysight_scope_search_queries_preserve_raw_readbacks():
             ":SEARch:COUNt?": "7",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     assert scope.query_search_state().to_json() == {"enabled": True, "raw_state": "ON"}

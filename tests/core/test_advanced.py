@@ -13,7 +13,7 @@ from scopes_tool_core.advanced import (
 )
 from scopes_tool_core.capabilities import capabilities_for_model
 from scopes_tool_core.errors import ParameterValidationError
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
@@ -173,7 +173,7 @@ def test_cursor_auto_vertical_plan_rejects_missing_or_nonfinite_y(kwargs):
 
 def test_configure_cursor_auto_timebase_sends_scale_before_cursor_commands():
     backend = SimulatorBackend(timebase_scale=1e-3, timebase_position=0.0)
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_cursor(1, 0.0, 0.01, auto_timebase=True)
@@ -194,7 +194,7 @@ def test_configure_cursor_auto_timebase_sends_scale_before_cursor_commands():
 
 def test_configure_cursor_auto_vertical_sends_scale_offset_before_cursor_commands():
     backend = SimulatorBackend(channel_scale={1: 1.0}, channel_offset={1: 0.0})
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_cursor(1, 0.0, 1e-3, y1_volts=20.0, y2_volts=21.0, auto_vertical=True)
@@ -229,7 +229,7 @@ def test_setup_file_rejects_quotes_and_wrong_extension():
 
 def test_simulator_advanced_state_round_trip():
     backend = SimulatorBackend()
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.set_trigger_holdoff(2e-6)

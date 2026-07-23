@@ -17,7 +17,7 @@ from scopes_tool_core.acquisition import (
 )
 from scopes_tool_core.errors import ParameterValidationError, AcquisitionResponseError
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 
 
 class TestAcquisitionTypeNormalization:
@@ -231,7 +231,7 @@ class TestAcquisitionControllerWithFakeBackend:
 
 class TestScopeAcquisitionMethods:
     def test_acquisition_operations_require_idn_first(self):
-        scope = KeysightScope(FakeBackend())
+        scope = Oscilloscope(FakeBackend())
 
         with pytest.raises(ParameterValidationError, match="query_idn"):
             scope.set_acquisition_type("normal")
@@ -248,7 +248,7 @@ class TestScopeAcquisitionMethods:
         backend = FakeBackend(
             responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20"}
         )
-        scope = KeysightScope(backend)
+        scope = Oscilloscope(backend)
 
         scope.query_idn()
         scope.set_acquisition_type("average")
@@ -259,7 +259,7 @@ class TestScopeAcquisitionMethods:
         backend = FakeBackend(
             responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20"}
         )
-        scope = KeysightScope(backend)
+        scope = Oscilloscope(backend)
 
         scope.query_idn()
         scope.set_acquisition_count(32)
@@ -273,7 +273,7 @@ class TestScopeAcquisitionMethods:
                 ":ACQuire:TYPE?": "PEAK",
             }
         )
-        scope = KeysightScope(backend)
+        scope = Oscilloscope(backend)
 
         scope.query_idn()
         result = scope.query_acquisition_type()
@@ -288,7 +288,7 @@ class TestScopeAcquisitionMethods:
                 ":ACQuire:COUNt?": "128",
             }
         )
-        scope = KeysightScope(backend)
+        scope = Oscilloscope(backend)
 
         scope.query_idn()
         result = scope.query_acquisition_count()
@@ -304,7 +304,7 @@ class TestScopeAcquisitionMethods:
                 ":ACQuire:COUNt?": "16",
             }
         )
-        scope = KeysightScope(backend)
+        scope = Oscilloscope(backend)
 
         scope.query_idn()
         config = scope.query_acquisition_config()

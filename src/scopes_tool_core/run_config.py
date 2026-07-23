@@ -7,8 +7,8 @@ import os
 from typing import Literal, Mapping, Sequence
 
 from .capabilities import ScopeCapabilities, capabilities_for_model
-from .errors import KeysightScopeError
-from .scope import KeysightScope
+from .errors import OscilloscopeError
+from .scope import Oscilloscope
 from .simulator_backend import SimulatorBackend
 from .simulator_config import simulator_backend_kwargs, validate_simulator_args
 
@@ -44,13 +44,13 @@ def resolve_run_mode(options: RunModeOptions) -> RunMode:
     """Resolve compatible run-mode flags into one effective mode."""
 
     if options.simulate and options.dry_run:
-        raise KeysightScopeError("--simulate cannot be combined with --dry-run")
+        raise OscilloscopeError("--simulate cannot be combined with --dry-run")
     if options.live and options.simulate:
-        raise KeysightScopeError("--live cannot be combined with --simulate")
+        raise OscilloscopeError("--live cannot be combined with --simulate")
     if options.live and options.dry_run:
-        raise KeysightScopeError("--live cannot be combined with --dry-run")
+        raise OscilloscopeError("--live cannot be combined with --dry-run")
     if options.simulate_signals and not options.simulate:
-        raise KeysightScopeError("--simulate-signal can only be used with --simulate")
+        raise OscilloscopeError("--simulate-signal can only be used with --simulate")
     for value, option in (
         (options.simulate_preset, "--simulate-preset"),
         (options.simulate_scenario, "--simulate-scenario"),
@@ -63,7 +63,7 @@ def resolve_run_mode(options: RunModeOptions) -> RunMode:
         (options.simulate_display_off_channels, "--simulate-display-off"),
     ):
         if value and not options.simulate:
-            raise KeysightScopeError(f"{option} can only be used with --simulate")
+            raise OscilloscopeError(f"{option} can only be used with --simulate")
     if options.simulate:
         capabilities = capabilities_for_model(options.model)
         validate_simulator_args(options, capabilities)
@@ -99,7 +99,7 @@ def require_resource(
 
     resource = resolve_resource(mode, explicit_resource, model, environ)
     if resource is None:
-        raise KeysightScopeError("--resource is required unless KEYSIGHT_SCOPE_RESOURCE is set")
+        raise OscilloscopeError("--resource is required unless KEYSIGHT_SCOPE_RESOURCE is set")
     return resource
 
 
@@ -114,13 +114,13 @@ def make_simulator_backend(options: RunModeOptions, resource: str) -> SimulatorB
     return SimulatorBackend(**kwargs)
 
 
-def open_scope_for_run(config: ResolvedRunConfig) -> KeysightScope:
+def open_scope_for_run(config: ResolvedRunConfig) -> Oscilloscope:
     """Open a scope for a resolved simulated or live run."""
 
     if config.mode == "dry_run":
-        raise KeysightScopeError("dry-run does not open a backend")
+        raise OscilloscopeError("dry-run does not open a backend")
     if config.resource is None:
-        raise KeysightScopeError("--resource is required unless KEYSIGHT_SCOPE_RESOURCE is set")
+        raise OscilloscopeError("--resource is required unless KEYSIGHT_SCOPE_RESOURCE is set")
     if config.mode == "simulate":
-        return KeysightScope(make_simulator_backend(config.options, config.resource))
-    return KeysightScope.open(config.resource, visa_library=config.visa_library)
+        return Oscilloscope(make_simulator_backend(config.options, config.resource))
+    return Oscilloscope.open(config.resource, visa_library=config.visa_library)

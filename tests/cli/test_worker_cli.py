@@ -46,7 +46,7 @@ from scopes_tool_core.display import (
     display_vectors_command,
     display_vectors_query,
 )
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.idn import parse_idn
 from scopes_tool_core.trigger import (
     force_trigger_command,
@@ -93,7 +93,7 @@ def test_live_worker_requires_explicit_resource():
         format="jsonl",
     )
 
-    with pytest.raises(KeysightScopeError, match="worker --live requires --resource"):
+    with pytest.raises(OscilloscopeError, match="worker --live requires --resource"):
         worker.run_worker(args)
 
 
@@ -235,14 +235,14 @@ def _run_fake_worker_lifecycle(script, *, ready_timeout=1):
 
 
 def test_worker_request_rejects_unknown_top_level_field():
-    with pytest.raises(KeysightScopeError, match="unknown request field"):
+    with pytest.raises(OscilloscopeError, match="unknown request field"):
         worker.validate_command_request(
             {"command": "identify", "arguments": {}, "extra": True}
         )
 
 
 def test_worker_request_rejects_unknown_command():
-    with pytest.raises(KeysightScopeError, match="unknown command"):
+    with pytest.raises(OscilloscopeError, match="unknown command"):
         worker.validate_command_request({"command": "list-resources", "arguments": {}})
 
 
@@ -279,7 +279,7 @@ def test_worker_screenshot_rejects_noncanonical_arguments_before_artifacts(
 ):
     runtime = _runtime(tmp_path)
 
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("screenshot", arguments, runtime)
 
     assert not any(tmp_path.iterdir())
@@ -310,12 +310,12 @@ def test_worker_screenshot_query_has_no_artifact_path(tmp_path):
     ),
 )
 def test_worker_request_rejects_trigger_holdoff_command_aliases(command):
-    with pytest.raises(KeysightScopeError, match="unknown command"):
+    with pytest.raises(OscilloscopeError, match="unknown command"):
         worker.validate_command_request({"command": command, "arguments": {}})
 
 
 def test_worker_request_rejects_non_object_arguments():
-    with pytest.raises(KeysightScopeError, match="arguments"):
+    with pytest.raises(OscilloscopeError, match="arguments"):
         worker.validate_command_request({"command": "identify", "arguments": []})
 
 
@@ -773,7 +773,7 @@ def test_worker_parses_sample_rate_maximum_query_without_opening_backend():
 
 
 def test_worker_request_rejects_removed_memory_depth_command():
-    with pytest.raises(KeysightScopeError, match="unknown command: memory-depth"):
+    with pytest.raises(OscilloscopeError, match="unknown command: memory-depth"):
         worker.validate_command_request(
             {"command": "memory-depth", "arguments": {"query": True}}
         )
@@ -1017,7 +1017,7 @@ def test_worker_parses_capture_wait_trigger_without_opening_backend():
 
 
 def test_worker_parse_rejects_invalid_domain_arguments():
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(
             "channel-scale",
             {"channel": 9, "volts_per_division": 0.5},
@@ -1027,12 +1027,12 @@ def test_worker_parse_rejects_invalid_domain_arguments():
 
 @pytest.mark.parametrize("command", ("sample-rate", "acquisition-points", "record-length"))
 def test_worker_parse_rejects_query_commands_without_query_flag(command):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, {}, _runtime())
 
 
 def test_worker_parse_rejects_sample_rate_maximum_without_query_flag():
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("sample-rate", {"maximum": True}, _runtime())
 
 
@@ -1056,7 +1056,7 @@ def test_worker_parse_rejects_sample_rate_maximum_without_query_flag():
     ),
 )
 def test_worker_parse_rejects_invalid_display_common_arguments(command, arguments):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, _runtime())
 
 
@@ -1070,7 +1070,7 @@ def test_worker_parse_rejects_invalid_display_common_arguments(command, argument
     ),
 )
 def test_worker_parse_rejects_channel_advanced_aliases(command, alias):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(
             command,
             {"channel": 1, alias: 4},
@@ -1088,7 +1088,7 @@ def test_worker_parse_rejects_channel_advanced_aliases(command, alias):
 def test_worker_parse_rejects_invalid_channel_boolean_mutual_exclusions(
     command, arguments
 ):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, _runtime())
 
 
@@ -1133,7 +1133,7 @@ def test_worker_parse_accepts_trigger_holdoff_arguments(arguments, expected_argv
     ),
 )
 def test_worker_parse_rejects_invalid_trigger_holdoff_arguments(arguments):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("trigger-holdoff", arguments, _runtime())
 
 
@@ -1176,7 +1176,7 @@ def test_worker_trigger_holdoff_rejects_before_enqueue_or_artifacts(tmp_path, bo
     ),
 )
 def test_worker_parse_rejects_invalid_capture_wait_trigger_arguments(arguments):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("capture", arguments, _runtime())
 
 
@@ -1476,7 +1476,7 @@ def test_worker_no_overwrite_guard_rejects_existing_artifact(tmp_path):
         job_dir,
     )
 
-    with pytest.raises(KeysightScopeError, match="already exists"):
+    with pytest.raises(OscilloscopeError, match="already exists"):
         worker._guard_no_overwrite(parsed, job_dir)
 
 
@@ -1882,7 +1882,7 @@ class _FakeScope:
 
 def test_live_worker_identity_mismatch_fails_before_domain_scpi(monkeypatch, tmp_path):
     fake_scope = _FakeScope("KEYSIGHT,DSOX3024A,MY0000,1.0")
-    monkeypatch.setattr(cli.KeysightScope, "open", lambda *args, **kwargs: fake_scope)
+    monkeypatch.setattr(cli.Oscilloscope, "open", lambda *args, **kwargs: fake_scope)
     parsed = worker.parse_domain_command(
         "capture",
         {"channel": [1]},

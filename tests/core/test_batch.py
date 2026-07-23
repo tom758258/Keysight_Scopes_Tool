@@ -5,7 +5,7 @@ from datetime import datetime
 import pytest
 
 from scopes_tool_core import batch
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.idn import parse_idn
 from scopes_tool_core.status import SystemErrorEntry
 
@@ -45,7 +45,7 @@ def test_prepare_specified_batch_output_dir_rejects_non_empty_directory(tmp_path
     output_dir.mkdir()
     (output_dir / "old.csv").write_text("old\n", encoding="utf-8")
 
-    with pytest.raises(KeysightScopeError, match="must be empty"):
+    with pytest.raises(OscilloscopeError, match="must be empty"):
         batch.prepare_batch_output_dir(output_dir)
 
 

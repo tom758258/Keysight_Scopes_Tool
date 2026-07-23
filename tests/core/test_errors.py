@@ -5,31 +5,31 @@ import pytest
 from scopes_tool_core import errors
 
 
-class TestKeysightScopeError:
-    """Tests for the base KeysightScopeError exception."""
+class TestOscilloscopeError:
+    """Tests for the base OscilloscopeError exception."""
 
     def test_inherits_from_exception(self):
-        """Verify KeysightScopeError inherits from Exception."""
-        assert issubclass(errors.KeysightScopeError, Exception)
+        """Verify OscilloscopeError inherits from Exception."""
+        assert issubclass(errors.OscilloscopeError, Exception)
 
     def test_can_be_raised_with_message(self):
-        """Test raising KeysightScopeError with a message."""
-        with pytest.raises(errors.KeysightScopeError) as excinfo:
-            raise errors.KeysightScopeError("Something went wrong")
+        """Test raising OscilloscopeError with a message."""
+        with pytest.raises(errors.OscilloscopeError) as excinfo:
+            raise errors.OscilloscopeError("Something went wrong")
         assert "Something went wrong" in str(excinfo.value)
 
     def test_can_be_raised_without_message(self):
-        """Test raising KeysightScopeError without a message."""
-        with pytest.raises(errors.KeysightScopeError):
-            raise errors.KeysightScopeError()
+        """Test raising OscilloscopeError without a message."""
+        with pytest.raises(errors.OscilloscopeError):
+            raise errors.OscilloscopeError()
 
 
 class TestVisaBackendError:
     """Tests for VisaBackendError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify VisaBackendError inherits from KeysightScopeError."""
-        assert issubclass(errors.VisaBackendError, errors.KeysightScopeError)
+        """Verify VisaBackendError inherits from OscilloscopeError."""
+        assert issubclass(errors.VisaBackendError, errors.OscilloscopeError)
 
     def test_inherits_from_exception(self):
         """Verify VisaBackendError inherits from Exception."""
@@ -46,8 +46,8 @@ class TestBackendClosedError:
     """Tests for BackendClosedError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify BackendClosedError inherits from KeysightScopeError."""
-        assert issubclass(errors.BackendClosedError, errors.KeysightScopeError)
+        """Verify BackendClosedError inherits from OscilloscopeError."""
+        assert issubclass(errors.BackendClosedError, errors.OscilloscopeError)
 
     def test_can_be_raised_with_message(self):
         """Test raising BackendClosedError with a message."""
@@ -60,8 +60,8 @@ class TestIDNParseError:
     """Tests for IDNParseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify IDNParseError inherits from KeysightScopeError."""
-        assert issubclass(errors.IDNParseError, errors.KeysightScopeError)
+        """Verify IDNParseError inherits from OscilloscopeError."""
+        assert issubclass(errors.IDNParseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify IDNParseError inherits from ValueError."""
@@ -73,8 +73,8 @@ class TestIDNParseError:
             raise errors.IDNParseError("Invalid IDN format")
 
     def test_can_be_caught_as_keysight_scope_error(self):
-        """Test that IDNParseError can be caught as KeysightScopeError."""
-        with pytest.raises(errors.KeysightScopeError):
+        """Test that IDNParseError can be caught as OscilloscopeError."""
+        with pytest.raises(errors.OscilloscopeError):
             raise errors.IDNParseError("Invalid IDN format")
 
 
@@ -82,8 +82,8 @@ class TestUnsupportedModelError:
     """Tests for UnsupportedModelError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify UnsupportedModelError inherits from KeysightScopeError."""
-        assert issubclass(errors.UnsupportedModelError, errors.KeysightScopeError)
+        """Verify UnsupportedModelError inherits from OscilloscopeError."""
+        assert issubclass(errors.UnsupportedModelError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify UnsupportedModelError inherits from ValueError."""
@@ -99,8 +99,8 @@ class TestSystemErrorParseError:
     """Tests for SystemErrorParseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify SystemErrorParseError inherits from KeysightScopeError."""
-        assert issubclass(errors.SystemErrorParseError, errors.KeysightScopeError)
+        """Verify SystemErrorParseError inherits from OscilloscopeError."""
+        assert issubclass(errors.SystemErrorParseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify SystemErrorParseError inherits from ValueError."""
@@ -111,8 +111,8 @@ class TestParameterValidationError:
     """Tests for ParameterValidationError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify ParameterValidationError inherits from KeysightScopeError."""
-        assert issubclass(errors.ParameterValidationError, errors.KeysightScopeError)
+        """Verify ParameterValidationError inherits from OscilloscopeError."""
+        assert issubclass(errors.ParameterValidationError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify ParameterValidationError inherits from ValueError."""
@@ -123,8 +123,8 @@ class TestChannelResponseError:
     """Tests for ChannelResponseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify ChannelResponseError inherits from KeysightScopeError."""
-        assert issubclass(errors.ChannelResponseError, errors.KeysightScopeError)
+        """Verify ChannelResponseError inherits from OscilloscopeError."""
+        assert issubclass(errors.ChannelResponseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify ChannelResponseError inherits from ValueError."""
@@ -135,8 +135,8 @@ class TestTimebaseResponseError:
     """Tests for TimebaseResponseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify TimebaseResponseError inherits from KeysightScopeError."""
-        assert issubclass(errors.TimebaseResponseError, errors.KeysightScopeError)
+        """Verify TimebaseResponseError inherits from OscilloscopeError."""
+        assert issubclass(errors.TimebaseResponseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify TimebaseResponseError inherits from ValueError."""
@@ -147,8 +147,8 @@ class TestTriggerResponseError:
     """Tests for TriggerResponseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify TriggerResponseError inherits from KeysightScopeError."""
-        assert issubclass(errors.TriggerResponseError, errors.KeysightScopeError)
+        """Verify TriggerResponseError inherits from OscilloscopeError."""
+        assert issubclass(errors.TriggerResponseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify TriggerResponseError inherits from ValueError."""
@@ -159,8 +159,8 @@ class TestMeasurementResponseError:
     """Tests for MeasurementResponseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify MeasurementResponseError inherits from KeysightScopeError."""
-        assert issubclass(errors.MeasurementResponseError, errors.KeysightScopeError)
+        """Verify MeasurementResponseError inherits from OscilloscopeError."""
+        assert issubclass(errors.MeasurementResponseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify MeasurementResponseError inherits from ValueError."""
@@ -171,8 +171,8 @@ class TestWaveformResponseError:
     """Tests for WaveformResponseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify WaveformResponseError inherits from KeysightScopeError."""
-        assert issubclass(errors.WaveformResponseError, errors.KeysightScopeError)
+        """Verify WaveformResponseError inherits from OscilloscopeError."""
+        assert issubclass(errors.WaveformResponseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify WaveformResponseError inherits from ValueError."""
@@ -183,8 +183,8 @@ class TestScreenshotResponseError:
     """Tests for ScreenshotResponseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify ScreenshotResponseError inherits from KeysightScopeError."""
-        assert issubclass(errors.ScreenshotResponseError, errors.KeysightScopeError)
+        """Verify ScreenshotResponseError inherits from OscilloscopeError."""
+        assert issubclass(errors.ScreenshotResponseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify ScreenshotResponseError inherits from ValueError."""
@@ -195,8 +195,8 @@ class TestAcquisitionResponseError:
     """Tests for AcquisitionResponseError exception."""
 
     def test_inherits_from_keysight_scope_error(self):
-        """Verify AcquisitionResponseError inherits from KeysightScopeError."""
-        assert issubclass(errors.AcquisitionResponseError, errors.KeysightScopeError)
+        """Verify AcquisitionResponseError inherits from OscilloscopeError."""
+        assert issubclass(errors.AcquisitionResponseError, errors.OscilloscopeError)
 
     def test_inherits_from_value_error(self):
         """Verify AcquisitionResponseError inherits from ValueError."""
@@ -207,7 +207,7 @@ class TestExceptionHierarchy:
     """Tests for the overall exception hierarchy."""
 
     def test_all_errors_are_keysight_scope_errors(self):
-        """Verify all custom errors inherit from KeysightScopeError."""
+        """Verify all custom errors inherit from OscilloscopeError."""
         error_classes = [
             errors.VisaBackendError,
             errors.BackendClosedError,
@@ -224,8 +224,8 @@ class TestExceptionHierarchy:
             errors.AcquisitionResponseError,
         ]
         for error_class in error_classes:
-            assert issubclass(error_class, errors.KeysightScopeError), (
-                f"{error_class.__name__} should inherit from KeysightScopeError"
+            assert issubclass(error_class, errors.OscilloscopeError), (
+                f"{error_class.__name__} should inherit from OscilloscopeError"
             )
 
     def test_parse_errors_are_value_errors(self):

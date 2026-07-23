@@ -8,7 +8,7 @@ from urllib import request as urlrequest
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path, model="DSOX4024A"):
@@ -82,7 +82,7 @@ def test_worker_trigger_edge_slope_accepts_canonical_json_and_maps_argv(tmp_path
     ],
 )
 def test_worker_trigger_edge_slope_rejects_invalid_forms(tmp_path, command, arguments):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, _runtime(tmp_path))
 
 
@@ -129,7 +129,7 @@ def test_worker_trigger_edge_level_accepts_canonical_json_and_maps_argv(tmp_path
     ],
 )
 def test_worker_trigger_edge_level_rejects_invalid_forms(tmp_path, command, arguments):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, _runtime(tmp_path, "DSOX2004A"))
 
 

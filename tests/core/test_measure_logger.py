@@ -5,8 +5,8 @@ import json
 import pytest
 
 from scopes_tool_core import measure_logger
-from scopes_tool_core.errors import KeysightScopeError
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.errors import OscilloscopeError
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 def test_prepare_default_measure_log_output_dir_uses_timestamp_and_collision_suffix(tmp_path, monkeypatch):
@@ -41,7 +41,7 @@ def test_prepare_specified_measure_log_output_dir_rejects_non_empty_directory(tm
     output_dir.mkdir()
     (output_dir / "old.csv").write_text("old\n", encoding="utf-8")
 
-    with pytest.raises(KeysightScopeError, match="must be empty"):
+    with pytest.raises(OscilloscopeError, match="must be empty"):
         measure_logger.prepare_measure_log_output_dir(output_dir)
 
 
@@ -100,7 +100,7 @@ def test_write_measure_log_manifest_json(tmp_path):
 
 def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path, capsys):
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
@@ -154,7 +154,7 @@ def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path, 
 
 def test_log_measurements_workflow_respects_duration_limit(tmp_path):
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
@@ -184,7 +184,7 @@ def test_log_measurements_workflow_respects_duration_limit(tmp_path):
 
 def test_log_measurements_workflow_handles_invalid_sentinels_and_errors(tmp_path):
     backend = SimulatorBackend(model="DSOX4024A", invalid_measurement_channels={2})
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
@@ -218,7 +218,7 @@ def test_log_measurements_workflow_handles_invalid_sentinels_and_errors(tmp_path
 def test_log_measurements_workflow_stops_on_error(tmp_path):
     # Setup simulator with system error triggered on queries
     backend = SimulatorBackend(model="DSOX4024A", system_errors=['-113,"Undefined header"'])
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     csv_path, manifest_path, scpi_log_path = measure_logger.measure_log_paths(tmp_path)
@@ -251,7 +251,7 @@ def test_log_measurements_workflow_stops_on_error(tmp_path):
 
 def test_log_measurements_workflow_records_interrupt(tmp_path, monkeypatch):
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     def interrupt(*args, **kwargs):

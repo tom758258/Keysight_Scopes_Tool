@@ -3,7 +3,7 @@ import math
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path, model="DSOX4024A"):
@@ -79,7 +79,7 @@ def test_worker_demo_accepts_exact_canonical_payloads(tmp_path, command, argumen
 )
 def test_worker_demo_rejects_noncanonical_payloads_before_artifacts(tmp_path, command, arguments):
     runtime = _runtime(tmp_path)
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, runtime)
     assert runtime.accepted == 0
     assert runtime.queue.empty()
@@ -89,7 +89,7 @@ def test_worker_demo_rejects_noncanonical_payloads_before_artifacts(tmp_path, co
 
 def test_worker_demo_rejects_profile_unsupported_function_before_artifacts(tmp_path):
     runtime = _runtime(tmp_path, model="DSOX2004A")
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("demo-function", {"function": "i2s"}, runtime)
     assert not (tmp_path / runtime.run_id).exists()
 

@@ -117,7 +117,7 @@ from .visa_backend import VisaBackend
 from .waveform import MultiChannelWaveformCapture, WaveformCapture, WaveformController
 
 
-class KeysightScope:
+class Oscilloscope:
     """High-level oscilloscope session wrapper."""
 
     def __init__(self, backend: SCPIBackend) -> None:
@@ -127,7 +127,7 @@ class KeysightScope:
         self.capabilities: ScopeCapabilities | None = None
 
     @classmethod
-    def open(cls, resource_name: str, visa_library: str | None = None) -> "KeysightScope":
+    def open(cls, resource_name: str, visa_library: str | None = None) -> "Oscilloscope":
         """Open a PyVISA-backed oscilloscope session."""
 
         return cls(VisaBackend(resource_name, visa_library=visa_library))
@@ -1472,7 +1472,7 @@ class KeysightScope:
             )
         return AcquisitionController(self.scpi)
 
-    def __enter__(self) -> "KeysightScope":
+    def __enter__(self) -> "Oscilloscope":
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:

@@ -3,7 +3,7 @@ import pytest
 import scopes_tool_core
 from scopes_tool_core.errors import ParameterValidationError
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.trigger import (
     EdgeTriggerSlopeController,
     EdgeTriggerSlopeState,
@@ -70,7 +70,7 @@ def test_edge_trigger_slope_controller_query_and_scope_api_exports():
             ":TRIGger:EDGE:SLOPe?": "ALT",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_trigger_edge_slope(slope="negative")

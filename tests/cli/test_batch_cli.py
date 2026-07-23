@@ -119,7 +119,7 @@ class _BatchDummyScope:
 
 def _install_batch_scope(monkeypatch, scope):
     monkeypatch.setattr(
-        cli.KeysightScope,
+        cli.Oscilloscope,
         "open",
         staticmethod(lambda resource, visa_library=None: scope),
     )
@@ -399,7 +399,7 @@ def test_capture_batch_cli_rejects_invalid_count_and_interval_before_open(
         del resource, visa_library
         raise AssertionError("scope should not be opened")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     with pytest.raises(SystemExit) as excinfo:
         cli.main(

@@ -12,7 +12,7 @@ from scopes_tool_core.measurements import (
     parse_measurement_window,
 )
 from scopes_tool_core.scpi import SCPIClient
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
@@ -73,7 +73,7 @@ def test_measurement_controller_command_order_and_raw_state():
 
 def test_measurement_control_simulator_roundtrip():
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
     scope.configure_measurement_show()
     scope.configure_measurement_source(1, 2)

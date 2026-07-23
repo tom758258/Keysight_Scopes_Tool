@@ -1,12 +1,12 @@
 import pytest
 
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
 def test_simulator_save_export_roundtrip_and_start_recording(tmp_path):
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_save_pwd(r"USB:\captures")
@@ -55,7 +55,7 @@ def test_simulator_rejects_none_format_writes(command):
 
 def test_simulator_none_format_readbacks_remain_parseable():
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     backend.save_image_format = "NONE"
     backend.save_waveform_format = "NONE"
     assert scope.query_save_image_format().format == "none"

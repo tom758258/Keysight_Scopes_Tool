@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path):
@@ -70,7 +70,7 @@ def test_worker_dvm_accepts_canonical_payloads(tmp_path, command, arguments):
 )
 def test_worker_dvm_rejects_noncanonical_payloads_before_artifacts(tmp_path, command, arguments):
     runtime = _runtime(tmp_path)
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, runtime)
     assert runtime.accepted == 0
     assert runtime.queue.empty()
@@ -80,7 +80,7 @@ def test_worker_dvm_rejects_noncanonical_payloads_before_artifacts(tmp_path, com
 
 @pytest.mark.parametrize("command", ["dvm-frequency", "counter-enable", "counter-query"])
 def test_worker_keeps_out_of_scope_commands_unknown(command):
-    with pytest.raises(KeysightScopeError, match="unknown command"):
+    with pytest.raises(OscilloscopeError, match="unknown command"):
         worker.validate_command_request({"command": command, "arguments": {}})
 
 

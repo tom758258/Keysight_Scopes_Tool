@@ -18,7 +18,7 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 from uuid import uuid4
 
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.capabilities import capabilities_for_model
 from scopes_tool_core.channel import validate_analog_channel
 from scopes_tool_core.demo import validate_demo_function, validate_demo_phase
@@ -251,13 +251,13 @@ def dispatch_lifecycle_command(args: argparse.Namespace) -> int:
         return client_post(args, "/stop", {})
     if args.command == "wait-ready":
         return client_wait_ready(args)
-    raise KeysightScopeError("unknown lifecycle command")
+    raise OscilloscopeError("unknown lifecycle command")
 
 
 def run_worker(args: argparse.Namespace) -> int:
     mode = "simulate" if args.simulate else "live"
     if mode == "live" and not args.resource:
-        raise KeysightScopeError("worker --live requires --resource")
+        raise OscilloscopeError("worker --live requires --resource")
     runtime = WorkerRuntime(
         host=args.host,
         port=args.port,
@@ -358,21 +358,21 @@ def client_wait_ready(args: argparse.Namespace) -> int:
 
 def validate_command_request(body: Any) -> tuple[str, dict[str, Any], str | None]:
     if not isinstance(body, dict):
-        raise KeysightScopeError("request body must be a JSON object")
+        raise OscilloscopeError("request body must be a JSON object")
     unknown = set(body) - {"command", "arguments", "job_id"}
     if unknown:
-        raise KeysightScopeError(f"unknown request field: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown request field: {sorted(unknown)[0]}")
     command = body.get("command")
     if not isinstance(command, str) or not command:
-        raise KeysightScopeError("command must be a non-empty string")
+        raise OscilloscopeError("command must be a non-empty string")
     if command not in DOMAIN_COMMANDS:
-        raise KeysightScopeError(f"unknown command: {command}")
+        raise OscilloscopeError(f"unknown command: {command}")
     arguments = body.get("arguments", {})
     if not isinstance(arguments, dict):
-        raise KeysightScopeError("arguments must be a JSON object")
+        raise OscilloscopeError("arguments must be a JSON object")
     job_id = body.get("job_id")
     if job_id is not None and not isinstance(job_id, str):
-        raise KeysightScopeError("job_id must be a string when provided")
+        raise OscilloscopeError("job_id must be a string when provided")
     return command, arguments, job_id
 
 
@@ -428,7 +428,7 @@ def parse_domain_command(
     try:
         parsed = parser.parse_args(argv)
     except SystemExit as exc:
-        raise KeysightScopeError(f"invalid arguments for {command}") from exc
+        raise OscilloscopeError(f"invalid arguments for {command}") from exc
     scope_cli._resolve_cli_mode(parsed)
     scope_cli._validate_pre_open_args(parsed)
     if job_dir is not None:
@@ -447,7 +447,7 @@ def _normalize_system_status_worker_arguments(
 ) -> dict[str, Any]:
     if command == "system-clear-status":
         if arguments:
-            raise KeysightScopeError("system-clear-status accepts only an empty object")
+            raise OscilloscopeError("system-clear-status accepts only an empty object")
         return {}
 
     query_commands = {
@@ -460,7 +460,7 @@ def _normalize_system_status_worker_arguments(
     if command not in query_commands:
         return arguments
     if set(arguments) != {"query"} or arguments.get("query") is not True:
-        raise KeysightScopeError(f"{command} requires exactly query=true")
+        raise OscilloscopeError(f"{command} requires exactly query=true")
     return dict(arguments)
 
 
@@ -476,12 +476,12 @@ def _validate_display_worker_arguments(command: str, arguments: dict[str, Any]) 
     allowed = allowed_by_command[command]
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
     if command == "display-clear" and arguments:
-        raise KeysightScopeError("display-clear does not accept arguments")
+        raise OscilloscopeError("display-clear does not accept arguments")
     for key in ("query", "on"):
         if key in arguments and arguments[key] is not True:
-            raise KeysightScopeError(f"{command} argument {key} must be exactly true")
+            raise OscilloscopeError(f"{command} argument {key} must be exactly true")
 
 
 def _normalize_measurement_reference_worker_arguments(
@@ -502,22 +502,22 @@ def _normalize_measurement_reference_worker_arguments(
         return arguments
     unknown = set(arguments) - allowed_by_command[command]
     if unknown:
-        raise KeysightScopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
     if command == "measure-clear" and arguments:
-        raise KeysightScopeError("measure-clear does not accept arguments")
+        raise OscilloscopeError("measure-clear does not accept arguments")
     for key in ("on", "query"):
         if key in arguments and arguments[key] is not True:
-            raise KeysightScopeError(f"{command} argument {key} must be exactly true")
+            raise OscilloscopeError(f"{command} argument {key} must be exactly true")
     if command == "reference-label" and "text" in arguments:
         if not isinstance(arguments["text"], str):
-            raise KeysightScopeError("reference-label argument text must be a string")
+            raise OscilloscopeError("reference-label argument text must be a string")
     capabilities = capabilities_for_model(runtime.model)
     if "slot" in arguments:
         slot = arguments["slot"]
         if not isinstance(slot, int) or isinstance(slot, bool):
-            raise KeysightScopeError(f"{command} argument slot must be an integer")
+            raise OscilloscopeError(f"{command} argument slot must be an integer")
         if slot < 1 or slot > capabilities.reference_waveforms:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"reference waveform slot must be in range 1-{capabilities.reference_waveforms}."
             )
     for key in ("source_channel", "source2_channel"):
@@ -525,7 +525,7 @@ def _normalize_measurement_reference_worker_arguments(
             continue
         channel = arguments[key]
         if not isinstance(channel, int) or isinstance(channel, bool):
-            raise KeysightScopeError(f"{command} argument {key} must be an integer")
+            raise OscilloscopeError(f"{command} argument {key} must be an integer")
         validate_analog_channel(channel, capabilities)
     return dict(arguments)
 
@@ -538,13 +538,13 @@ def _normalize_trigger_edge_worker_arguments(
     allowed = {"query", "source_channel", "level", "slope"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-edge: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-edge: {sorted(unknown)[0]}")
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError("trigger-edge argument query must be exactly true")
+            raise OscilloscopeError("trigger-edge argument query must be exactly true")
         configure_keys = {"source_channel", "level", "slope"} & set(arguments)
         if configure_keys:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge query cannot be combined with configure arguments"
             )
         return dict(arguments)
@@ -561,45 +561,45 @@ def _normalize_trigger_edge_source_worker_arguments(
     allowed = {"query", "source", "source_channel"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for trigger-edge-source: {sorted(unknown)[0]}"
         )
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-source argument query must be exactly true"
             )
         if {"source", "source_channel"} & set(arguments):
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-source query cannot be combined with configure arguments"
             )
         return {"query": True}
     has_source = "source" in arguments
     has_channel = "source_channel" in arguments
     if has_source == has_channel:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-source configure requires exactly one of source or source_channel"
         )
     if has_source:
         source = arguments["source"]
         if not isinstance(source, str):
-            raise KeysightScopeError("trigger-edge-source argument source must be a string")
+            raise OscilloscopeError("trigger-edge-source argument source must be a string")
         if source not in {"external", "line"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-source argument source must be one of: external, line"
             )
         return {"source": source}
     source_channel = arguments["source_channel"]
     if isinstance(source_channel, bool) or not isinstance(source_channel, int):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-source argument source_channel must be an integer"
         )
     try:
         source_channel = validate_analog_channel(
             source_channel, capabilities_for_model(runtime.model)
         )
-    except KeysightScopeError as exc:
-        raise KeysightScopeError(
+    except OscilloscopeError as exc:
+        raise OscilloscopeError(
             f"trigger-edge-source argument source_channel is invalid: {exc}"
         ) from exc
     return {"source_channel": source_channel}
@@ -613,16 +613,16 @@ def _normalize_trigger_edge_slope_worker_arguments(
     allowed = {"query", "slope"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for trigger-edge-slope: {sorted(unknown)[0]}"
         )
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-slope argument query must be exactly true"
             )
         if "slope" in arguments:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-slope query cannot be combined with slope"
             )
         return {"query": True}
@@ -633,7 +633,7 @@ def _normalize_trigger_edge_slope_worker_arguments(
         "either",
         "alternate",
     }:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-slope argument slope must be one of: positive, negative, either, alternate"
         )
     return {"slope": slope}
@@ -649,34 +649,34 @@ def _normalize_trigger_edge_level_worker_arguments(
     allowed = {"query", "source_channel", "level_volts"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for trigger-edge-level: {sorted(unknown)[0]}"
         )
     if "source_channel" not in arguments:
-        raise KeysightScopeError("trigger-edge-level requires source_channel")
+        raise OscilloscopeError("trigger-edge-level requires source_channel")
     source_channel = arguments["source_channel"]
     if isinstance(source_channel, bool) or not isinstance(source_channel, int):
-        raise KeysightScopeError("trigger-edge-level argument source_channel must be an integer")
+        raise OscilloscopeError("trigger-edge-level argument source_channel must be an integer")
     try:
         source_channel = validate_analog_channel(
             source_channel, capabilities_for_model(runtime.model)
         )
-    except KeysightScopeError as exc:
-        raise KeysightScopeError(
+    except OscilloscopeError as exc:
+        raise OscilloscopeError(
             f"trigger-edge-level argument source_channel is invalid: {exc}"
         ) from exc
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-level argument query must be exactly true"
             )
         if "level_volts" in arguments:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-level query cannot be combined with level_volts"
             )
         return {"query": True, "source_channel": source_channel}
     if "level_volts" not in arguments:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-level configure requires level_volts"
         )
     level_volts = arguments["level_volts"]
@@ -685,7 +685,7 @@ def _normalize_trigger_edge_level_worker_arguments(
         or not isinstance(level_volts, (int, float))
         or not math.isfinite(float(level_volts))
     ):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-level argument level_volts must be a finite number"
         )
     return {"source_channel": source_channel, "level_volts": level_volts}
@@ -699,24 +699,24 @@ def _normalize_external_trigger_range_worker_arguments(
     allowed = {"query", "range_volts"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for external-trigger-range: {sorted(unknown)[0]}"
         )
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "external-trigger-range argument query must be exactly true"
             )
         if "range_volts" in arguments:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "external-trigger-range query cannot be combined with range_volts"
             )
         return {"query": True}
     if "range_volts" not in arguments:
-        raise KeysightScopeError("external-trigger-range configure requires range_volts")
+        raise OscilloscopeError("external-trigger-range configure requires range_volts")
     range_volts = arguments["range_volts"]
     if isinstance(range_volts, bool) or not isinstance(range_volts, (int, float)):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "external-trigger-range argument range_volts must be a positive finite number"
         )
     try:
@@ -724,7 +724,7 @@ def _normalize_external_trigger_range_worker_arguments(
     except (TypeError, ValueError, OverflowError):
         finite_range_volts = False
     if not finite_range_volts or range_volts <= 0:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "external-trigger-range argument range_volts must be a positive finite number"
         )
     return {"range_volts": range_volts}
@@ -738,26 +738,26 @@ def _normalize_trigger_edge_external_level_worker_arguments(
     allowed = {"query", "level_volts"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for trigger-edge-external-level: {sorted(unknown)[0]}"
         )
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-external-level argument query must be exactly true"
             )
         if "level_volts" in arguments:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-external-level query cannot be combined with level_volts"
             )
         return {"query": True}
     if "level_volts" not in arguments:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-external-level configure requires level_volts"
         )
     level_volts = arguments["level_volts"]
     if isinstance(level_volts, bool) or not isinstance(level_volts, (int, float)):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-external-level argument level_volts must be a finite number"
         )
     try:
@@ -765,7 +765,7 @@ def _normalize_trigger_edge_external_level_worker_arguments(
     except (TypeError, ValueError, OverflowError):
         finite_level_volts = False
     if not finite_level_volts:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "trigger-edge-external-level argument level_volts must be a finite number"
         )
     return {"level_volts": level_volts}
@@ -779,24 +779,24 @@ def _normalize_external_trigger_probe_worker_arguments(
     allowed = {"query", "attenuation"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for external-trigger-probe: {sorted(unknown)[0]}"
         )
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "external-trigger-probe argument query must be exactly true"
             )
         if "attenuation" in arguments:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "external-trigger-probe query cannot be combined with attenuation"
             )
         return {"query": True}
     if "attenuation" not in arguments:
-        raise KeysightScopeError("external-trigger-probe configure requires attenuation")
+        raise OscilloscopeError("external-trigger-probe configure requires attenuation")
     attenuation = arguments["attenuation"]
     if isinstance(attenuation, bool) or not isinstance(attenuation, (int, float)):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "external-trigger-probe argument attenuation must be a positive finite number"
         )
     try:
@@ -804,7 +804,7 @@ def _normalize_external_trigger_probe_worker_arguments(
     except (TypeError, ValueError, OverflowError):
         finite_attenuation = False
     if not finite_attenuation or attenuation <= 0:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "external-trigger-probe argument attenuation must be a positive finite number"
         )
     return {"attenuation": attenuation}
@@ -818,21 +818,21 @@ def _normalize_external_trigger_units_worker_arguments(
     allowed = {"query", "units"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for external-trigger-units: {sorted(unknown)[0]}"
         )
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "external-trigger-units argument query must be exactly true"
             )
         if "units" in arguments:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "external-trigger-units query cannot be combined with units"
             )
         return {"query": True}
     if arguments.get("units") not in {"volts", "amps"}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "external-trigger-units configure requires units of volts or amps"
         )
     return {"units": arguments["units"]}
@@ -844,11 +844,11 @@ def _normalize_external_trigger_settings_worker_arguments(
     if command != "external-trigger-settings":
         return arguments
     if set(arguments) - {"query"}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for external-trigger-settings: {sorted(set(arguments) - {'query'})[0]}"
         )
     if arguments.get("query") is not True:
-        raise KeysightScopeError("external-trigger-settings requires query to be exactly true")
+        raise OscilloscopeError("external-trigger-settings requires query to be exactly true")
     return {"query": True}
 
 
@@ -869,9 +869,9 @@ def _normalize_trigger_glitch_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-pulse-width: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-pulse-width: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-pulse-width argument query must be exactly true")
+        raise OscilloscopeError("trigger-pulse-width argument query must be exactly true")
     normalized = dict(arguments)
     qualifier = normalized.get("qualifier")
     if qualifier == "greater_than":
@@ -897,9 +897,9 @@ def _normalize_trigger_runt_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-runt: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-runt: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-runt argument query must be exactly true")
+        raise OscilloscopeError("trigger-runt argument query must be exactly true")
     normalized = dict(arguments)
     qualifier = normalized.get("qualifier")
     if qualifier == "greater_than":
@@ -925,9 +925,9 @@ def _normalize_trigger_transition_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-transition: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-transition: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-transition argument query must be exactly true")
+        raise OscilloscopeError("trigger-transition argument query must be exactly true")
     normalized = dict(arguments)
     qualifier = normalized.get("qualifier")
     if qualifier == "greater_than":
@@ -953,9 +953,9 @@ def _normalize_trigger_delay_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-delay: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-delay: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-delay argument query must be exactly true")
+        raise OscilloscopeError("trigger-delay argument query must be exactly true")
     return dict(arguments)
 
 
@@ -974,11 +974,11 @@ def _normalize_trigger_setup_hold_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for trigger-setup-hold: {sorted(unknown)[0]}"
         )
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-setup-hold argument query must be exactly true")
+        raise OscilloscopeError("trigger-setup-hold argument query must be exactly true")
     return dict(arguments)
 
 
@@ -997,11 +997,11 @@ def _normalize_trigger_edge_burst_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for trigger-edge-burst: {sorted(unknown)[0]}"
         )
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-edge-burst argument query must be exactly true")
+        raise OscilloscopeError("trigger-edge-burst argument query must be exactly true")
     return dict(arguments)
 
 
@@ -1020,9 +1020,9 @@ def _normalize_trigger_tv_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-tv: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-tv: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-tv argument query must be exactly true")
+        raise OscilloscopeError("trigger-tv argument query must be exactly true")
     return dict(arguments)
 
 
@@ -1034,9 +1034,9 @@ def _normalize_trigger_pattern_worker_arguments(
     allowed = {"query", "pattern"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-pattern: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-pattern: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-pattern argument query must be exactly true")
+        raise OscilloscopeError("trigger-pattern argument query must be exactly true")
     return dict(arguments)
 
 
@@ -1048,9 +1048,9 @@ def _normalize_trigger_or_worker_arguments(
     allowed = {"query", "pattern"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for trigger-or: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for trigger-or: {sorted(unknown)[0]}")
     if "query" in arguments and arguments["query"] is not True:
-        raise KeysightScopeError("trigger-or argument query must be exactly true")
+        raise OscilloscopeError("trigger-or argument query must be exactly true")
     return dict(arguments)
 
 
@@ -1062,28 +1062,28 @@ def _normalize_trigger_holdoff_worker_arguments(
     allowed = {"query", "seconds"}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for trigger-holdoff: {sorted(unknown)[0]}"
         )
     if not arguments:
-        raise KeysightScopeError("trigger-holdoff requires query or seconds")
+        raise OscilloscopeError("trigger-holdoff requires query or seconds")
     if "query" in arguments:
         if arguments["query"] is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-holdoff argument query must be exactly true"
             )
         if "seconds" in arguments:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-holdoff query cannot be combined with configure arguments"
             )
         return dict(arguments)
     if set(arguments) != {"seconds"}:
-        raise KeysightScopeError("trigger-holdoff requires query or seconds")
+        raise OscilloscopeError("trigger-holdoff requires query or seconds")
     seconds = arguments["seconds"]
     if not isinstance(seconds, (int, float)) or isinstance(seconds, bool):
-        raise KeysightScopeError("trigger-holdoff argument seconds must be a JSON number")
+        raise OscilloscopeError("trigger-holdoff argument seconds must be a JSON number")
     if not math.isfinite(float(seconds)):
-        raise KeysightScopeError("trigger-holdoff argument seconds must be finite")
+        raise OscilloscopeError("trigger-holdoff argument seconds must be finite")
     return dict(arguments)
 
 
@@ -1094,16 +1094,16 @@ def _normalize_trigger_common_worker_arguments(
         allowed = {"query", "mode"}
         unknown = set(arguments) - allowed
         if unknown:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"unknown argument for trigger-sweep: {sorted(unknown)[0]}"
             )
         if "query" in arguments:
             if arguments["query"] is not True:
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "trigger-sweep argument query must be exactly true"
                 )
             if "mode" in arguments:
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "trigger-sweep query cannot be combined with configure arguments"
                 )
             return dict(arguments)
@@ -1113,21 +1113,21 @@ def _normalize_trigger_common_worker_arguments(
         allowed = {"query", "enabled"}
         unknown = set(arguments) - allowed
         if unknown:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"unknown argument for {command}: {sorted(unknown)[0]}"
             )
         if "query" in arguments:
             if arguments["query"] is not True:
-                raise KeysightScopeError(f"{command} argument query must be exactly true")
+                raise OscilloscopeError(f"{command} argument query must be exactly true")
             if "enabled" in arguments:
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     f"{command} query cannot be combined with configure arguments"
                 )
             return dict(arguments)
         normalized = dict(arguments)
         if "enabled" in normalized:
             if not isinstance(normalized["enabled"], bool):
-                raise KeysightScopeError(f"{command} argument enabled must be a boolean")
+                raise OscilloscopeError(f"{command} argument enabled must be a boolean")
             normalized["enabled"] = "true" if normalized["enabled"] else "false"
         return normalized
 
@@ -1135,24 +1135,24 @@ def _normalize_trigger_common_worker_arguments(
         allowed = {"query", "coupling"}
         unknown = set(arguments) - allowed
         if unknown:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"unknown argument for trigger-edge-coupling: {sorted(unknown)[0]}"
             )
         if "query" in arguments:
             if arguments["query"] is not True:
-                raise KeysightScopeError("trigger-edge-coupling argument query must be exactly true")
+                raise OscilloscopeError("trigger-edge-coupling argument query must be exactly true")
             if "coupling" in arguments:
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "trigger-edge-coupling query cannot be combined with configure arguments"
                 )
             return dict(arguments)
         if "coupling" not in arguments:
-            raise KeysightScopeError("trigger-edge-coupling configure requires coupling")
+            raise OscilloscopeError("trigger-edge-coupling configure requires coupling")
         coupling = arguments["coupling"]
         if not isinstance(coupling, str):
-            raise KeysightScopeError("trigger-edge-coupling argument coupling must be a string")
+            raise OscilloscopeError("trigger-edge-coupling argument coupling must be a string")
         if coupling not in {"ac", "dc", "lf-reject"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-coupling argument coupling must be one of: ac, dc, lf-reject"
             )
         return {"coupling": coupling}
@@ -1161,24 +1161,24 @@ def _normalize_trigger_common_worker_arguments(
         allowed = {"query", "reject"}
         unknown = set(arguments) - allowed
         if unknown:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"unknown argument for trigger-edge-reject: {sorted(unknown)[0]}"
             )
         if "query" in arguments:
             if arguments["query"] is not True:
-                raise KeysightScopeError("trigger-edge-reject argument query must be exactly true")
+                raise OscilloscopeError("trigger-edge-reject argument query must be exactly true")
             if "reject" in arguments:
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "trigger-edge-reject query cannot be combined with configure arguments"
                 )
             return dict(arguments)
         if "reject" not in arguments:
-            raise KeysightScopeError("trigger-edge-reject configure requires reject")
+            raise OscilloscopeError("trigger-edge-reject configure requires reject")
         reject = arguments["reject"]
         if not isinstance(reject, str):
-            raise KeysightScopeError("trigger-edge-reject argument reject must be a string")
+            raise OscilloscopeError("trigger-edge-reject argument reject must be a string")
         if reject not in {"off", "lf-reject", "hf-reject"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "trigger-edge-reject argument reject must be one of: off, lf-reject, hf-reject"
             )
         return {"reject": reject}
@@ -1202,38 +1202,38 @@ def _normalize_screenshot_worker_arguments(
     }
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for screenshot: {sorted(unknown)[0]}"
         )
     if "query_hardcopy" in arguments:
         if arguments.get("query_hardcopy") is not True:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "screenshot argument query_hardcopy must be exactly true"
             )
         if set(arguments) != {"query_hardcopy"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "screenshot query_hardcopy cannot be combined with capture arguments"
             )
         return dict(arguments)
     for key in ("output", "background", "format", "palette", "layout"):
         if key in arguments and not isinstance(arguments[key], str):
-            raise KeysightScopeError(f"screenshot argument {key} must be a string")
+            raise OscilloscopeError(f"screenshot argument {key} must be a string")
     if "ink_saver" in arguments and not isinstance(arguments["ink_saver"], bool):
-        raise KeysightScopeError("screenshot argument ink_saver must be a boolean")
+        raise OscilloscopeError("screenshot argument ink_saver must be a boolean")
     if arguments.get("format") not in {None, "png", "bmp", "bmp8bit"}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "screenshot argument format must be one of: png, bmp, bmp8bit"
         )
     if arguments.get("background") not in {None, "black", "white"}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "screenshot argument background must be one of: black, white"
         )
     if arguments.get("palette") not in {None, "color", "grayscale", "none"}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "screenshot argument palette must be one of: color, grayscale, none"
         )
     if arguments.get("layout") not in {None, "landscape", "portrait"}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "screenshot argument layout must be one of: landscape, portrait"
         )
     normalized = dict(arguments)
@@ -1257,7 +1257,7 @@ def _normalize_dvm_worker_arguments(
 
     if command in {"dvm-current", "dvm-query"}:
         if set(arguments) != {"query"} or arguments.get("query") is not True:
-            raise KeysightScopeError(f"{command} requires exactly query=true")
+            raise OscilloscopeError(f"{command} requires exactly query=true")
         return dict(arguments)
 
     configure_key = {
@@ -1269,34 +1269,34 @@ def _normalize_dvm_worker_arguments(
     allowed = {"query", configure_key}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for {command}: {sorted(unknown)[0]}"
         )
     if arguments.get("query") is True:
         if set(arguments) != {"query"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"{command} query cannot be combined with configure arguments"
             )
         return dict(arguments)
     if "query" in arguments:
-        raise KeysightScopeError(f"{command} argument query must be exactly true")
+        raise OscilloscopeError(f"{command} argument query must be exactly true")
     if set(arguments) != {configure_key}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"{command} configure requires exactly {configure_key}"
         )
 
     value = arguments[configure_key]
     if command in {"dvm-enable", "dvm-auto-range"}:
         if not isinstance(value, bool):
-            raise KeysightScopeError(f"{command} argument enabled must be a boolean")
+            raise OscilloscopeError(f"{command} argument enabled must be a boolean")
         return {"enabled": "true" if value else "false"}
     if command == "dvm-source":
         if not isinstance(value, int) or isinstance(value, bool):
-            raise KeysightScopeError("dvm-source argument channel must be an integer")
+            raise OscilloscopeError("dvm-source argument channel must be an integer")
         validate_analog_channel(value, capabilities_for_model(runtime.model))
         return dict(arguments)
     if value not in {"dc", "dc-rms", "ac-rms"}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "dvm-mode argument mode must be one of: dc, dc-rms, ac-rms"
         )
     return dict(arguments)
@@ -1310,7 +1310,7 @@ def _normalize_demo_worker_arguments(
 
     if command == "demo-query":
         if arguments:
-            raise KeysightScopeError("demo-query accepts only an empty arguments object")
+            raise OscilloscopeError("demo-query accepts only an empty arguments object")
         return {}
 
     configure_key = {
@@ -1321,30 +1321,30 @@ def _normalize_demo_worker_arguments(
     allowed = {"query", configure_key}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
+        raise OscilloscopeError(f"unknown argument for {command}: {sorted(unknown)[0]}")
     if arguments.get("query") is True:
         if set(arguments) != {"query"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"{command} query cannot be combined with configure arguments"
             )
         return {"query": True}
     if "query" in arguments:
-        raise KeysightScopeError(f"{command} argument query must be exactly true")
+        raise OscilloscopeError(f"{command} argument query must be exactly true")
     if set(arguments) != {configure_key}:
-        raise KeysightScopeError(f"{command} configure requires exactly {configure_key}")
+        raise OscilloscopeError(f"{command} configure requires exactly {configure_key}")
 
     value = arguments[configure_key]
     if command == "demo-output":
         if not isinstance(value, bool):
-            raise KeysightScopeError("demo-output argument enabled must be a boolean")
+            raise OscilloscopeError("demo-output argument enabled must be a boolean")
         return {"enabled": "true" if value else "false"}
     if command == "demo-function":
         if not isinstance(value, str):
-            raise KeysightScopeError("demo-function argument function must be a string")
+            raise OscilloscopeError("demo-function argument function must be a string")
         validate_demo_function(value, capabilities_for_model(runtime.model))
         return dict(arguments)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise KeysightScopeError("demo-phase argument degrees must be a finite number")
+        raise OscilloscopeError("demo-phase argument degrees must be a finite number")
     validate_demo_phase(value)
     return dict(arguments)
 
@@ -1357,37 +1357,37 @@ def _normalize_search_worker_arguments(
 
     if command == "search-count":
         if set(arguments) != {"query"} or arguments.get("query") is not True:
-            raise KeysightScopeError("search-count requires exactly query=true")
+            raise OscilloscopeError("search-count requires exactly query=true")
         return dict(arguments)
 
     configure_key = "enabled" if command == "search-state" else "mode"
     allowed = {"query", configure_key}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for {command}: {sorted(unknown)[0]}"
         )
     if arguments.get("query") is True:
         if set(arguments) != {"query"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"{command} query cannot be combined with configure arguments"
             )
         return dict(arguments)
     if "query" in arguments:
-        raise KeysightScopeError(f"{command} argument query must be exactly true")
+        raise OscilloscopeError(f"{command} argument query must be exactly true")
     if set(arguments) != {configure_key}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"{command} configure requires exactly {configure_key}"
         )
 
     value = arguments[configure_key]
     if command == "search-state":
         if not isinstance(value, bool):
-            raise KeysightScopeError("search-state argument enabled must be a boolean")
+            raise OscilloscopeError("search-state argument enabled must be a boolean")
         return {"enabled": "true" if value else "false"}
 
     if not isinstance(value, str):
-        raise KeysightScopeError("search-mode argument mode must be a string")
+        raise OscilloscopeError("search-mode argument mode must be a string")
     canonical_modes = {
         "serial1",
         "serial2",
@@ -1398,13 +1398,13 @@ def _normalize_search_worker_arguments(
         "peak",
     }
     if value not in canonical_modes:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "search-mode argument mode must be one of: serial1, serial2, edge, "
             "glitch, runt, transition, peak"
         )
     capabilities = capabilities_for_model(runtime.model)
     if value not in capabilities.search_modes:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"Search mode {value!r} is not supported by the selected "
             f"{capabilities.series} model profile."
         )
@@ -1431,20 +1431,20 @@ def _normalize_save_export_worker_arguments(
 
     if command in query_only_commands:
         if set(arguments) != {"query"} or arguments.get("query") is not True:
-            raise KeysightScopeError(f"{command} requires exactly query=true")
+            raise OscilloscopeError(f"{command} requires exactly query=true")
         return {"query": True}
 
     if command in start_commands:
         if set(arguments) != {"filename"}:
             unknown = set(arguments) - {"filename"}
             if unknown:
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     f"unknown argument for {command}: {sorted(unknown)[0]}"
                 )
-            raise KeysightScopeError(f"{command} requires exactly filename")
+            raise OscilloscopeError(f"{command} requires exactly filename")
         filename = arguments["filename"]
         if not isinstance(filename, str):
-            raise KeysightScopeError(f"{command} argument filename must be a string")
+            raise OscilloscopeError(f"{command} argument filename must be a string")
         validate_save_quoted_string(filename, label=f"{command} filename")
         return dict(arguments)
 
@@ -1452,56 +1452,56 @@ def _normalize_save_export_worker_arguments(
     allowed = {"query", configure_key}
     unknown = set(arguments) - allowed
     if unknown:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"unknown argument for {command}: {sorted(unknown)[0]}"
         )
     if arguments.get("query") is True:
         if set(arguments) != {"query"}:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 f"{command} query cannot be combined with configure arguments"
             )
         return {"query": True}
     if "query" in arguments:
-        raise KeysightScopeError(f"{command} argument query must be exactly true")
+        raise OscilloscopeError(f"{command} argument query must be exactly true")
     if set(arguments) != {configure_key}:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"{command} configure requires exactly {configure_key}"
         )
 
     value = arguments[configure_key]
     if command == "save-pwd":
         if not isinstance(value, str):
-            raise KeysightScopeError("save-pwd argument path must be a string")
+            raise OscilloscopeError("save-pwd argument path must be a string")
         validate_save_quoted_string(value, label="Save path")
     elif command == "save-filename":
         if not isinstance(value, str):
-            raise KeysightScopeError("save-filename argument name must be a string")
+            raise OscilloscopeError("save-filename argument name must be a string")
         validate_save_filename_base(value)
     elif command == "save-image-format":
         if not isinstance(value, str) or value not in SAVE_IMAGE_FORMATS:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "save-image-format argument format must be one of: "
                 + ", ".join(SAVE_IMAGE_FORMATS)
             )
     elif command == "save-image-palette":
         if not isinstance(value, str) or value not in SAVE_IMAGE_PALETTES:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "save-image-palette argument palette must be one of: "
                 + ", ".join(SAVE_IMAGE_PALETTES)
             )
     elif command in {"save-image-ink-saver", "save-image-factors"}:
         if not isinstance(value, bool):
-            raise KeysightScopeError(f"{command} argument enabled must be a boolean")
+            raise OscilloscopeError(f"{command} argument enabled must be a boolean")
         return {"enabled": "true" if value else "false"}
     elif command == "save-waveform-format":
         if not isinstance(value, str) or value not in SAVE_WAVEFORM_FORMATS:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "save-waveform-format argument format must be one of: "
                 + ", ".join(SAVE_WAVEFORM_FORMATS)
             )
     else:
         if isinstance(value, bool) or not isinstance(value, int):
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "save-waveform-length argument points must be an integer"
             )
         validate_save_waveform_length(value)
@@ -1566,7 +1566,7 @@ def _make_handler(runtime: WorkerRuntime):
                     ),
                 )
                 return
-            except KeysightScopeError as exc:
+            except OscilloscopeError as exc:
                 self._send(
                     400,
                     _command_error_envelope(str(exc), command_echo, job_id_echo, exc),
@@ -1841,7 +1841,7 @@ def _apply_worker_job_paths(args: argparse.Namespace, job_dir: Path) -> None:
 def _worker_path(job_dir: Path, value: Any, default_name: str | None) -> Path:
     if value is None:
         if default_name is None:
-            raise KeysightScopeError("worker output path default is unavailable")
+            raise OscilloscopeError("worker output path default is unavailable")
         return job_dir if default_name == "." else job_dir / default_name
     path = Path(str(value))
     return path if path.is_absolute() else job_dir / path
@@ -1852,7 +1852,7 @@ def _guard_no_overwrite(args: argparse.Namespace, job_dir: Path) -> None:
         if path == job_dir / "request.json" or path == job_dir / "result.json":
             continue
         if path.exists():
-            raise KeysightScopeError(f"output path already exists: {path}")
+            raise OscilloscopeError(f"output path already exists: {path}")
 
 
 def _planned_artifact_paths(args: argparse.Namespace) -> list[Path]:

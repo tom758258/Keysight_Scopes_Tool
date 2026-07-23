@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path, *, mode="simulate"):
@@ -111,7 +111,7 @@ def test_worker_trigger_setup_hold_arguments_parse(tmp_path, arguments, expected
 def test_worker_trigger_setup_hold_rejects_invalid_arguments(tmp_path, arguments):
     runtime = _runtime(tmp_path)
 
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("trigger-setup-hold", arguments, runtime)
 
 

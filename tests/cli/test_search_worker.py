@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path, model="DSOX4034A"):
@@ -70,7 +70,7 @@ def test_worker_search_rejects_noncanonical_payloads_before_side_effects(
     tmp_path, command, arguments
 ):
     runtime = _runtime(tmp_path)
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, runtime)
     assert runtime.accepted == 0
     assert runtime.queue.empty()
@@ -88,7 +88,7 @@ def test_worker_search_rejects_noncanonical_payloads_before_side_effects(
 )
 def test_worker_search_rejects_unsupported_mode_before_side_effects(tmp_path, model, mode):
     runtime = _runtime(tmp_path, model)
-    with pytest.raises(KeysightScopeError, match="not supported by the selected"):
+    with pytest.raises(OscilloscopeError, match="not supported by the selected"):
         worker.parse_domain_command("search-mode", {"mode": mode}, runtime)
     assert runtime.accepted == 0
     assert runtime.queue.empty()

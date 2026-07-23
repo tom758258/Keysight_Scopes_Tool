@@ -17,7 +17,7 @@ from scopes_tool_core.operations import (
     run_measure_sweep,
     run_smoke,
 )
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend
 from scopes_tool_core.trigger import TriggerWaitConfig
 
@@ -34,7 +34,7 @@ class _StepClock:
 
 
 def _scope(model="DSOX4024A", **kwargs):
-    return KeysightScope(SimulatorBackend(model=model, resource_name=f"SIM::{model}::INSTR", **kwargs))
+    return Oscilloscope(SimulatorBackend(model=model, resource_name=f"SIM::{model}::INSTR", **kwargs))
 
 
 class _ProfileScope:

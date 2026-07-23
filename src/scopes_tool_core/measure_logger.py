@@ -12,8 +12,8 @@ import time
 from typing import Mapping
 
 from .batch import idn_manifest_dict, relative_manifest_path, system_error_manifest_dict
-from .errors import KeysightScopeError
-from .scope import KeysightScope
+from .errors import OscilloscopeError
+from .scope import Oscilloscope
 
 LOGGER_SCHEMA_VERSION = 1
 LOGGER_DEFAULT_TIMEZONE = timezone(timedelta(hours=8), name="UTC+8")
@@ -129,7 +129,7 @@ def prepare_measure_log_output_dir(
         try:
             path.mkdir(parents=True, exist_ok=False)
         except OSError as exc:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 _format_directory_error("could not create output directory", path, exc)
             ) from exc
         return path
@@ -137,19 +137,19 @@ def prepare_measure_log_output_dir(
     path = Path(output_dir)
     if path.exists():
         if not path.is_dir():
-            raise KeysightScopeError(f"output directory path is not a directory: {path}")
+            raise OscilloscopeError(f"output directory path is not a directory: {path}")
         try:
             has_existing_files = any(path.iterdir())
         except OSError as exc:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 _format_directory_error("could not inspect output directory", path, exc)
             ) from exc
         if has_existing_files and {item.name for item in path.iterdir()} != {"request.json"}:
-            raise KeysightScopeError(f"output directory must be empty: {path}")
+            raise OscilloscopeError(f"output directory must be empty: {path}")
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_directory_error("could not create output directory", path, exc)
         ) from exc
     return path
@@ -190,7 +190,7 @@ def write_measure_log_manifest(
 
 
 def log_measurements_workflow(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     resource: str,
     output_dir: Path,
     csv_path: Path,
@@ -301,7 +301,7 @@ def log_measurements_workflow(
                                 human.append(
                                     f"  {col}: NaN ({res.reason or 'invalid sentinel'})"
                                 )
-                        except KeysightScopeError as exc:
+                        except OscilloscopeError as exc:
                             LOGGER.warning("%s: NaN (query failed: %s)", col, exc)
                         row_data[col] = val
 
@@ -318,7 +318,7 @@ def log_measurements_workflow(
                                 human.append(
                                     f"  {col}: NaN ({res.reason or 'invalid sentinel'})"
                                 )
-                        except KeysightScopeError as exc:
+                        except OscilloscopeError as exc:
                             LOGGER.warning("%s: NaN (query failed: %s)", col, exc)
                         row_data[col] = val
 
@@ -402,10 +402,10 @@ def log_measurements_workflow(
             write_measure_log_manifest(manifest, manifest_path)
         except OSError:
             pass
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_measure_log_file_error("measurement log output", csv_path, exc)
         ) from exc
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         manifest.status = "error"
         manifest.error = str(exc)
         manifest.end_time = logger_iso_timestamp()
@@ -422,7 +422,7 @@ def _touch_measure_log_file(path: Path, file_kind: str) -> None:
         if not path.exists():
             path.touch()
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_measure_log_file_error(file_kind, path, exc)
         ) from exc
 

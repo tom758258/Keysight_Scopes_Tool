@@ -91,14 +91,14 @@ Core owns runtime behavior:
   the Operation Status Condition Run bit, and expose raw poll values for
   adapter JSON.
 - Analog-channel edge trigger helpers exposed through
-  `KeysightScope.configure_trigger_edge()` and
-  `KeysightScope.query_trigger_edge()`. This canonical API configures and
+  `Oscilloscope.configure_trigger_edge()` and
+  `Oscilloscope.query_trigger_edge()`. This canonical API configures and
   queries the existing `:TRIGger:MODE EDGE` and `:TRIGger:EDGE:*` SCPI
   behavior for DSO analog channels only; external and digital/MSO edge trigger
   expansion is not included.
 - Edge Trigger source-only helpers exposed through
-  `KeysightScope.configure_trigger_edge_source()` and
-  `KeysightScope.query_trigger_edge_source()`. This v1 slice uses only
+  `Oscilloscope.configure_trigger_edge_source()` and
+  `Oscilloscope.query_trigger_edge_source()`. This v1 slice uses only
   `:TRIGger:EDGE:SOURce` and configures analog channels, External, or AC Line
   sources without changing trigger mode, level, slope, coupling, reject, or
   acquisition state. The common DSO-X 2000X/3000X/4000X target models support
@@ -109,10 +109,10 @@ Core owns runtime behavior:
   live validation has not been run. WGEN/WMOD/digital source configuration is
   not implemented.
 - Phase 13C - Edge Trigger Slope and Analog Level v1 helpers exposed through
-  `KeysightScope.configure_trigger_edge_slope()`,
-  `KeysightScope.query_trigger_edge_slope()`,
-  `KeysightScope.configure_trigger_edge_level()`, and
-  `KeysightScope.query_trigger_edge_level()`. The slope command uses only
+  `Oscilloscope.configure_trigger_edge_slope()`,
+  `Oscilloscope.query_trigger_edge_slope()`,
+  `Oscilloscope.configure_trigger_edge_level()`, and
+  `Oscilloscope.query_trigger_edge_level()`. The slope command uses only
   `:TRIGger:EDGE:SLOPe` for `positive`, `negative`, `either`, or `alternate`;
   query preserves the stripped raw slope and tolerates unknown values without
   claiming configure support. The level command always uses an explicitly
@@ -127,10 +127,10 @@ Core owns runtime behavior:
   hardware-free only; live validation has not been run. Line, WaveGen, WMOD,
   and digital/MSO level controls are not implemented.
 - Phase 14 External Trigger Range and External Edge Level v1 helpers exposed
-  through `KeysightScope.configure_external_trigger_range()`,
-  `KeysightScope.query_external_trigger_range()`,
-  `KeysightScope.configure_trigger_edge_external_level()`, and
-  `KeysightScope.query_trigger_edge_external_level()`. They use only
+  through `Oscilloscope.configure_external_trigger_range()`,
+  `Oscilloscope.query_external_trigger_range()`,
+  `Oscilloscope.configure_trigger_edge_external_level()`, and
+  `Oscilloscope.query_trigger_edge_external_level()`. They use only
   `:EXTernal:RANGe` and External-qualified `:TRIGger:EDGE:LEVel ...,EXTernal`
   SCPI, without changing trigger mode or source. Local range validation is
   finite-positive only; it does not query External probe attenuation or clamp
@@ -143,11 +143,11 @@ Core owns runtime behavior:
   has not received live hardware validation. Line, WaveGen, WMOD, and
   digital/MSO External-level variants remain out of scope.
 - Phase 15 External Trigger Input Settings v1 helpers exposed through
-  `KeysightScope.configure_external_trigger_probe()`,
-  `KeysightScope.query_external_trigger_probe()`,
-  `KeysightScope.configure_external_trigger_units()`,
-  `KeysightScope.query_external_trigger_units()`, and
-  `KeysightScope.query_external_trigger_settings()`. They use only
+  `Oscilloscope.configure_external_trigger_probe()`,
+  `Oscilloscope.query_external_trigger_probe()`,
+  `Oscilloscope.configure_external_trigger_units()`,
+  `Oscilloscope.query_external_trigger_units()`, and
+  `Oscilloscope.query_external_trigger_settings()`. They use only
   `:EXTernal:PROBe`, `:EXTernal:UNITs`, and the read-only aggregate
   `:EXTernal?` query. Probe attenuation validation is finite-positive only;
   units configure accepts only `volts` and `amps`. The aggregate parser
@@ -160,22 +160,22 @@ Core owns runtime behavior:
   range, and External Edge level independently. These DSO-X 2000X/3000X/4000X
   paths are hardware-free only; live hardware validation has not been run.
 - Common trigger general setting helpers exposed through
-  `KeysightScope.configure_trigger_sweep()`,
-  `KeysightScope.query_trigger_sweep()`,
-  `KeysightScope.configure_trigger_noise_reject()`,
-  `KeysightScope.query_trigger_noise_reject()`,
-  `KeysightScope.configure_trigger_hf_reject()`, and
-  `KeysightScope.query_trigger_hf_reject()`. This `trigger-sweep`,
+  `Oscilloscope.configure_trigger_sweep()`,
+  `Oscilloscope.query_trigger_sweep()`,
+  `Oscilloscope.configure_trigger_noise_reject()`,
+  `Oscilloscope.query_trigger_noise_reject()`,
+  `Oscilloscope.configure_trigger_hf_reject()`, and
+  `Oscilloscope.query_trigger_hf_reject()`. This `trigger-sweep`,
   `trigger-noise-reject`, and `trigger-hf-reject` v1 slice uses only
   `:TRIGger:SWEep`, `:TRIGger:NREJect`, and `:TRIGger:HFReject`. Query mode
   preserves raw readbacks while normalizing sweep to `auto` or `normal` and
   the common reject settings to booleans.
 
 - Edge Trigger coupling and reject filter helpers exposed through
-  `KeysightScope.configure_trigger_edge_coupling()`,
-  `KeysightScope.query_trigger_edge_coupling()`,
-  `KeysightScope.configure_trigger_edge_reject()`, and
-  `KeysightScope.query_trigger_edge_reject()`. This v1 slice uses only
+  `Oscilloscope.configure_trigger_edge_coupling()`,
+  `Oscilloscope.query_trigger_edge_coupling()`,
+  `Oscilloscope.configure_trigger_edge_reject()`, and
+  `Oscilloscope.query_trigger_edge_reject()`. This v1 slice uses only
   `:TRIGger:EDGE:COUPling` and `:TRIGger:EDGE:REJect`. Each command
   configures or queries its own SCPI setting independently. Query mode
   preserves raw readbacks while normalizing coupling to `ac`, `dc`, or

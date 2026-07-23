@@ -1,6 +1,6 @@
 import pytest
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.errors import ParameterValidationError, TriggerResponseError
 from scopes_tool_core.trigger import (
     EdgeTriggerCouplingController,
@@ -66,7 +66,7 @@ def test_controllers_and_scope_routing():
         ":TRIGger:EDGE:COUPling?": "LFREJECT",
         ":TRIGger:EDGE:REJect?": "HFREJECT",
     })
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_trigger_edge_coupling("ac")

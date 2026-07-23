@@ -10,7 +10,7 @@ from scopes_tool_core.reference import (
     validate_reference_label,
 )
 from scopes_tool_core.scpi import SCPIClient
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
@@ -55,7 +55,7 @@ def test_reference_controller_command_order_and_raw_state():
 
 def test_reference_simulator_roundtrip_and_clear():
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
     scope.save_reference_waveform(1, 2)
     scope.configure_reference_display(1, True)

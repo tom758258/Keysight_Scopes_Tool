@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path):
@@ -43,6 +43,6 @@ def test_measurement_worker_accepts_maps_and_routes_simulator(tmp_path, command,
     ],
 )
 def test_measurement_worker_rejects_invalid_arguments(tmp_path, command, arguments):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, _runtime(tmp_path))
 

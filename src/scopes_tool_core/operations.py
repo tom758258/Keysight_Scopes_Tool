@@ -17,7 +17,7 @@ from .acquisition import (
     validate_acquisition_count,
 )
 from .batch import batch_iso_timestamp, capture_batch_scpi_logging, idn_manifest_dict
-from .errors import KeysightScopeError
+from .errors import OscilloscopeError
 from .measurements import (
     is_pair_measurement_item,
     measurement_query,
@@ -47,7 +47,7 @@ from .planning import (
     resolve_single_measurement_channel,
     resolve_sweep_channels,
 )
-from .scope import KeysightScope
+from .scope import Oscilloscope
 from .trigger import TriggerWaitConfig, wait_for_trigger_completion
 from .waveform import (
     MultiChannelWaveformCapture,
@@ -136,7 +136,7 @@ class AcquisitionCheckRequest:
     log_scpi: bool = False
 
 
-def run_capture(scope: KeysightScope, resource: str, request: CaptureRequest) -> OperationResult:
+def run_capture(scope: Oscilloscope, resource: str, request: CaptureRequest) -> OperationResult:
     """Capture waveform data and write the requested artifacts."""
 
     human: list[str] = []
@@ -261,7 +261,7 @@ def run_capture(scope: KeysightScope, resource: str, request: CaptureRequest) ->
     )
 
 
-def run_doctor(scope: KeysightScope, resource: str) -> OperationResult:
+def run_doctor(scope: Oscilloscope, resource: str) -> OperationResult:
     """Return a read-only diagnostic snapshot for an open scope."""
 
     human: list[str] = []
@@ -298,7 +298,7 @@ def run_doctor(scope: KeysightScope, resource: str) -> OperationResult:
     )
 
 
-def run_measure(scope: KeysightScope, resource: str, request: MeasureRequest) -> OperationResult:
+def run_measure(scope: Oscilloscope, resource: str, request: MeasureRequest) -> OperationResult:
     """Run one read-only measurement query."""
 
     human: list[str] = []
@@ -337,7 +337,7 @@ def run_measure(scope: KeysightScope, resource: str, request: MeasureRequest) ->
     human.append(f"Valid: {'true' if measurement.valid else 'false'}")
     if measurement.valid:
         if measurement.value is None:
-            raise KeysightScopeError("measurement result was marked valid without a numeric value")
+            raise OscilloscopeError("measurement result was marked valid without a numeric value")
         human.append(f"Value {measurement.unit}: {_format_optional_number(measurement.value)}")
     else:
         human.append("Value: unavailable")
@@ -357,7 +357,7 @@ def run_measure(scope: KeysightScope, resource: str, request: MeasureRequest) ->
 
 
 def run_measure_sweep(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     resource: str,
     request: MeasureSweepRequest,
 ) -> OperationResult:
@@ -401,7 +401,7 @@ def run_measure_sweep(
                         item,
                     )
                 )
-            except KeysightScopeError as exc:
+            except OscilloscopeError as exc:
                 measurements.append(
                     _sweep_error_record(
                         item=item,
@@ -440,14 +440,14 @@ def run_measure_sweep(
 
 
 def run_measure_log(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     resource: str,
     request: MeasureLogRequest,
 ) -> OperationResult:
     """Run a finite measurement logger and return its structured outcome."""
 
     if request.requested_count is None and request.requested_duration_seconds is None:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "measure-log requires --count or --duration-seconds so the run is finite"
         )
     output_dir = prepare_measure_log_output_dir(request.output_dir)
@@ -469,7 +469,7 @@ def run_measure_log(
             _append_session_header(human, scope, resource)
             human.extend([f"Model: {idn.model}", f"Series: {idn.series or 'unknown'}"])
             if scope.capabilities is None:
-                raise KeysightScopeError("Capabilities unavailable for this model")
+                raise OscilloscopeError("Capabilities unavailable for this model")
             channels = resolve_capture_channels(
                 request.channels or ("all",),
                 scope.capabilities,
@@ -509,7 +509,7 @@ def run_measure_log(
             idn=idn,
             **_scope_backend_json(scope),
         )
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         result, system_error = _measure_log_failure_result(
             manifest_path=manifest_path,
             csv_path=csv_path,
@@ -534,7 +534,7 @@ def run_measure_log(
             ),
         ) from exc
     except OSError as exc:
-        error = KeysightScopeError(
+        error = OscilloscopeError(
             f"could not write SCPI log file {scpi_log_path}: {exc}"
         )
         result, system_error = _measure_log_failure_result(
@@ -562,7 +562,7 @@ def run_measure_log(
         ) from exc
 
 
-def run_smoke(scope: KeysightScope, resource: str, request: SmokeRequest) -> OperationResult:
+def run_smoke(scope: Oscilloscope, resource: str, request: SmokeRequest) -> OperationResult:
     """Run the capture-safe smoke workflow and write its report."""
 
     output_dir = _prepare_output_dir(
@@ -586,7 +586,7 @@ def run_smoke(scope: KeysightScope, resource: str, request: SmokeRequest) -> Ope
             _append_session_header(human, scope, resource)
             human.extend([f"Model: {idn.model}", f"Series: {idn.series or 'unknown'}"])
             if scope.capabilities is None:
-                raise KeysightScopeError("Capabilities unavailable for this model")
+                raise OscilloscopeError("Capabilities unavailable for this model")
             doctor = doctor_snapshot(scope)
             report["doctor"] = doctor
             measurements = []
@@ -666,7 +666,7 @@ def run_smoke(scope: KeysightScope, resource: str, request: SmokeRequest) -> Ope
                 idn=idn,
                 **_scope_backend_json(scope),
             )
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         report["status"] = "error"
         report["end_time"] = batch_iso_timestamp()
         report["error"] = str(exc)
@@ -684,7 +684,7 @@ def run_smoke(scope: KeysightScope, resource: str, request: SmokeRequest) -> Ope
 
 
 def run_acquisition_check(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     resource: str,
     request: AcquisitionCheckRequest,
 ) -> OperationResult:
@@ -692,7 +692,7 @@ def run_acquisition_check(
 
     average_count = validate_acquisition_count(request.average_count)
     if request.check_only and request.restore_type:
-        raise KeysightScopeError("--check-only cannot be combined with --restore-type")
+        raise OscilloscopeError("--check-only cannot be combined with --restore-type")
     output_dir = _prepare_output_dir(
         Path(request.output_dir)
         if request.output_dir is not None
@@ -713,7 +713,7 @@ def run_acquisition_check(
             _append_session_header(human, scope, resource)
             human.extend([f"Model: {idn.model}", f"Series: {idn.series or 'unknown'}"])
             if scope.capabilities is None:
-                raise KeysightScopeError("Capabilities unavailable for this model")
+                raise OscilloscopeError("Capabilities unavailable for this model")
             steps: list[dict[str, object]] = []
             if request.check_only:
                 initial_step = _run_acquisition_query_step(scope, "initial-query", human)
@@ -770,7 +770,7 @@ def run_acquisition_check(
                 try:
                     _restore_acquisition_type(scope, report["initial_acquisition"])
                     report["restore"]["succeeded"] = True
-                except KeysightScopeError as exc:
+                except OscilloscopeError as exc:
                     report["restore"]["succeeded"] = False
                     report["restore"]["error"] = str(exc)
                     report["status"] = "error"
@@ -814,7 +814,7 @@ def run_acquisition_check(
             if restore_error is not None:
                 raise _OperationError(restore_error, op_result) from restore_error
             return op_result
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         report["status"] = "error"
         report["end_time"] = batch_iso_timestamp()
         report["error"] = str(exc)
@@ -838,8 +838,8 @@ def run_acquisition_check(
         raise _OperationError(exc, OperationResult(1, result, files, human_lines=human, idn=idn, **_scope_backend_json(scope))) from exc
 
 
-class _OperationError(KeysightScopeError):
-    def __init__(self, original: KeysightScopeError, result: OperationResult) -> None:
+class _OperationError(OscilloscopeError):
+    def __init__(self, original: OscilloscopeError, result: OperationResult) -> None:
         super().__init__(str(original))
         self.result = result
 
@@ -921,9 +921,9 @@ def _measure_log_failure_result(
     return result, system_error
 
 
-def doctor_snapshot(scope: KeysightScope) -> dict[str, object]:
+def doctor_snapshot(scope: Oscilloscope) -> dict[str, object]:
     if scope.capabilities is None:
-        raise KeysightScopeError("Capabilities unavailable for this model")
+        raise OscilloscopeError("Capabilities unavailable for this model")
     acquisition = scope.query_acquisition_config()
     channels = []
     for channel in range(1, scope.capabilities.analog_channels + 1):
@@ -975,7 +975,7 @@ def measure_sweep_summary(measurements: Sequence[dict[str, object]]) -> dict[str
 
 
 def _capture_waveform(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     channels: Sequence[int],
     waveform_format: str,
     points: int,
@@ -990,7 +990,7 @@ def _capture_waveform(
 
 
 def _run_sweep_measurement(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     command: str,
     channel: int,
     item: str,
@@ -1003,7 +1003,7 @@ def _run_sweep_measurement(
             **_measurement_result_json(result, parameters={}),
             "system_error": _system_error_json(system_error),
         }
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         system_error = _query_system_error_best_effort(scope)
         return _sweep_error_record(
             item=item,
@@ -1016,7 +1016,7 @@ def _run_sweep_measurement(
 
 
 def _run_sweep_pair_measurement(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     command: str,
     source_channel: int,
     reference_channel: int,
@@ -1030,7 +1030,7 @@ def _run_sweep_pair_measurement(
             **_measurement_result_json(result, parameters={}),
             "system_error": _system_error_json(system_error),
         }
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         system_error = _query_system_error_best_effort(scope)
         return _sweep_error_record(
             item=item,
@@ -1042,10 +1042,10 @@ def _run_sweep_pair_measurement(
         )
 
 
-def _query_system_error_best_effort(scope: KeysightScope):
+def _query_system_error_best_effort(scope: Oscilloscope):
     try:
         return scope.query_system_error()
-    except KeysightScopeError:
+    except OscilloscopeError:
         return None
 
 
@@ -1055,7 +1055,7 @@ def _sweep_error_record(
     channel: int,
     reference_channel: int | None,
     command: str | None,
-    exc: KeysightScopeError,
+    exc: OscilloscopeError,
     system_error,
 ) -> dict[str, object]:
     return {
@@ -1092,7 +1092,7 @@ def _measurement_query_kwargs(request: MeasureRequest, item: str) -> dict[str, o
 
 
 def _run_acquisition_query_step(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     name: str,
     human: list[str],
 ) -> dict[str, object]:
@@ -1118,7 +1118,7 @@ def _run_acquisition_query_step(
 
 
 def _run_acquisition_type_step(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     name: str,
     acquisition_type: str,
     human: list[str],
@@ -1150,7 +1150,7 @@ def _run_acquisition_type_step(
     }
 
 
-def _restore_acquisition_type(scope: KeysightScope, initial) -> None:
+def _restore_acquisition_type(scope: Oscilloscope, initial) -> None:
     if not isinstance(initial, dict):
         return
     initial_type = initial.get("type")
@@ -1232,7 +1232,7 @@ def _prepare_output_dir(output_dir: Path) -> Path:
     else:
         existing = set()
     if existing and existing != {"request.json"}:
-        raise KeysightScopeError(f"output directory must be empty: {output_dir}")
+        raise OscilloscopeError(f"output directory must be empty: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir
 
@@ -1271,14 +1271,14 @@ def _acquisition_check_file_list(output_dir: Path) -> list[dict[str, str]]:
     ]
 
 
-def _scope_backend_json(scope: KeysightScope) -> dict[str, object]:
+def _scope_backend_json(scope: Oscilloscope) -> dict[str, object]:
     return {
         "backend": getattr(scope.backend, "backend", None),
         "timeout_ms": getattr(scope.backend, "timeout", None),
     }
 
 
-def _trigger_wait_classifier_profile(scope: KeysightScope) -> str:
+def _trigger_wait_classifier_profile(scope: Oscilloscope) -> str:
     if getattr(scope.backend, "backend", None) == "Keysight simulator":
         return "simulator"
     if scope.capabilities is not None and scope.capabilities.series in {
@@ -1356,7 +1356,7 @@ def _single_waveform_capture_summary(capture: WaveformCapture) -> dict[str, obje
     }
 
 
-def _append_session_header(human: list[str], scope: KeysightScope, resource: str) -> None:
+def _append_session_header(human: list[str], scope: Oscilloscope, resource: str) -> None:
     human.append(f"Resource: {resource}")
     backend = getattr(scope.backend, "backend", None)
     if backend is not None:

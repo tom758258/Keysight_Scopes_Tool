@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import json
 from pathlib import Path
 
-from .errors import KeysightScopeError
+from .errors import OscilloscopeError
 from .screenshot import write_screenshot_png
 from .waveform import (
     MultiChannelWaveformCapture,
@@ -72,7 +72,7 @@ def write_capture_csv_file(
             )
         return write_waveform_csv(capture, csv_path)
     except OSError as exc:
-        raise KeysightScopeError(_format_output_file_error("CSV", csv_path, exc)) from exc
+        raise OscilloscopeError(_format_output_file_error("CSV", csv_path, exc)) from exc
 
 
 def write_capture_metadata_file(
@@ -101,7 +101,7 @@ def write_capture_metadata_file(
             )
         return write_waveform_metadata(capture, meta_path, idn=idn, resource=resource)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_output_file_error("metadata JSON", meta_path, exc)
         ) from exc
 
@@ -113,7 +113,7 @@ def write_capture_plot_file(
     try:
         return write_waveform_plot_png(capture, plot_path)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_plain_output_file_error("waveform plot PNG", plot_path, exc)
         ) from exc
 
@@ -122,7 +122,7 @@ def write_screenshot_png_file(capture, output_path: Path) -> Path:
     try:
         return write_screenshot_png(capture, output_path)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_output_file_error("screenshot PNG", output_path, exc)
         ) from exc
 
@@ -140,7 +140,7 @@ def write_json_file(
             handle.write("\n")
         return path
     except OSError as exc:
-        raise KeysightScopeError(_format_plain_output_file_error(file_kind, path, exc)) from exc
+        raise OscilloscopeError(_format_plain_output_file_error(file_kind, path, exc)) from exc
 
 
 def write_json_file_best_effort(payload: dict[str, object], path: Path) -> None:

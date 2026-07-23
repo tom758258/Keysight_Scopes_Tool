@@ -5,12 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, MutableMapping, Sequence
 
-from .errors import BackendClosedError, KeysightScopeError
+from .errors import BackendClosedError, OscilloscopeError
 
 DEFAULT_IDN = "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY00000000,02.50"
 
 
-class FakeBackendError(KeysightScopeError):
+class FakeBackendError(OscilloscopeError):
     """Raised when a fake response has not been configured."""
 
 

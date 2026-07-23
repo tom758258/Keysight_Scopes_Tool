@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 COMMAND_ARGUMENTS = {
@@ -58,7 +58,7 @@ def test_worker_rejects_noncanonical_system_query_payloads_before_side_effects(
     tmp_path, command, arguments
 ):
     runtime = _runtime(tmp_path)
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, runtime)
 
     assert runtime.accepted == 0
@@ -72,7 +72,7 @@ def test_worker_clear_status_rejects_nonempty_arguments_before_side_effects(
     tmp_path, arguments
 ):
     runtime = _runtime(tmp_path)
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("system-clear-status", arguments, runtime)
 
     assert runtime.accepted == 0
@@ -83,7 +83,7 @@ def test_worker_clear_status_rejects_nonempty_arguments_before_side_effects(
 
 @pytest.mark.parametrize("arguments", [None, [], "", 0, 1])
 def test_worker_request_rejects_non_object_system_arguments(arguments):
-    with pytest.raises(KeysightScopeError, match="arguments must be a JSON object"):
+    with pytest.raises(OscilloscopeError, match="arguments must be a JSON object"):
         worker.validate_command_request(
             {"command": "system-opc", "arguments": arguments}
         )
@@ -94,7 +94,7 @@ def test_worker_request_rejects_non_object_system_arguments(arguments):
     ["system-cls", "system-stb", "system-esr", "system-operation", "system-opt"],
 )
 def test_worker_rejects_system_status_aliases(alias):
-    with pytest.raises(KeysightScopeError, match="unknown command"):
+    with pytest.raises(OscilloscopeError, match="unknown command"):
         worker.validate_command_request(
             {"command": alias, "arguments": {"query": True}}
         )

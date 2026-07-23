@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path):
@@ -63,13 +63,13 @@ def test_worker_trigger_or_arguments_parse(tmp_path, arguments, expected):
 def test_worker_trigger_or_rejects_invalid_arguments(tmp_path, arguments):
     runtime = _runtime(tmp_path)
 
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("trigger-or", arguments, runtime)
 
 
 @pytest.mark.parametrize("command", ["or-trigger", "trigger-or-mask"])
 def test_worker_rejects_trigger_or_aliases(command):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.validate_command_request({"command": command, "arguments": {"query": True}})
 
 

@@ -3,7 +3,7 @@ from datetime import datetime
 
 import pytest
 
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.output_files import (
     capture_output_paths,
     default_capture_csv_path,
@@ -41,5 +41,5 @@ def test_write_json_file_wraps_oserror(monkeypatch, tmp_path):
         raise PermissionError("locked")
 
     monkeypatch.setattr(type(path), "open", fail_open)
-    with pytest.raises(KeysightScopeError, match="could not write test JSON file"):
+    with pytest.raises(OscilloscopeError, match="could not write test JSON file"):
         write_json_file({"a": 1}, path, file_kind="test JSON")

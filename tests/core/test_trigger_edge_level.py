@@ -6,7 +6,7 @@ import scopes_tool_core
 from scopes_tool_core.capabilities import capabilities_for_model
 from scopes_tool_core.errors import ParameterValidationError, TriggerResponseError
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.trigger import (
     EdgeTriggerLevelController,
     EdgeTriggerLevelState,
@@ -80,7 +80,7 @@ def test_edge_trigger_level_scope_api_and_public_exports():
             ":TRIGger:EDGE:LEVel? CHANnel4": "-2.50000000E-01",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     scope.configure_trigger_edge_level(source_channel=4, level_volts=0.5)

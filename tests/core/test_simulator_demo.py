@@ -1,12 +1,12 @@
 import pytest
 
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
 def test_simulator_demo_defaults_and_roundtrip():
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
 
     initial = scope.query_demo()

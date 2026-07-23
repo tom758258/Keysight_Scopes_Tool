@@ -1,10 +1,10 @@
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def test_simulator_system_status_queries_are_deterministic():
     backend = SimulatorBackend()
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     assert scope.query_operation_complete().to_json() == {"complete": True, "raw": "1"}
     assert scope.query_status_byte().to_json() == {
@@ -19,7 +19,7 @@ def test_simulator_system_status_queries_are_deterministic():
 
 def test_simulator_standard_event_query_is_destructive():
     backend = SimulatorBackend(standard_event_status=5)
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     assert scope.query_standard_event_status().value == 5
     assert scope.query_standard_event_status().value == 0
@@ -31,7 +31,7 @@ def test_simulator_clear_status_clears_error_and_event_state():
         status_byte=4,
         standard_event_status=8,
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.clear_status()
 

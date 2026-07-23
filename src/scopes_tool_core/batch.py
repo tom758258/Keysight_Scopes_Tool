@@ -11,7 +11,7 @@ from pathlib import Path
 import sys
 from typing import Iterator, Mapping
 
-from .errors import KeysightScopeError
+from .errors import OscilloscopeError
 from .idn import IDN
 from .log import LOGGER_NAME
 from .status import SystemErrorEntry
@@ -117,7 +117,7 @@ def prepare_batch_output_dir(
         try:
             path.mkdir(parents=True, exist_ok=False)
         except OSError as exc:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 _format_directory_error("could not create output directory", path, exc)
             ) from exc
         return path
@@ -125,19 +125,19 @@ def prepare_batch_output_dir(
     path = Path(output_dir)
     if path.exists():
         if not path.is_dir():
-            raise KeysightScopeError(f"output directory path is not a directory: {path}")
+            raise OscilloscopeError(f"output directory path is not a directory: {path}")
         try:
             has_existing_files = any(path.iterdir())
         except OSError as exc:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 _format_directory_error("could not inspect output directory", path, exc)
             ) from exc
         if has_existing_files and {item.name for item in path.iterdir()} != {"request.json"}:
-            raise KeysightScopeError(f"output directory must be empty: {path}")
+            raise OscilloscopeError(f"output directory must be empty: {path}")
     try:
         path.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_directory_error("could not create output directory", path, exc)
         ) from exc
     return path

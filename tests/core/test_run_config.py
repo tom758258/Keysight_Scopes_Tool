@@ -1,6 +1,6 @@
 import pytest
 
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.run_config import (
     ResolvedRunConfig,
     RunModeOptions,
@@ -12,7 +12,7 @@ from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def test_resolve_run_mode_rejects_simulate_and_dry_run():
-    with pytest.raises(KeysightScopeError, match="cannot be combined"):
+    with pytest.raises(OscilloscopeError, match="cannot be combined"):
         resolve_run_mode(RunModeOptions(simulate=True, dry_run=True))
 
 
@@ -28,12 +28,12 @@ def test_resolve_run_mode_defaults_to_live():
     ],
 )
 def test_resolve_run_mode_rejects_live_with_non_live_mode(options):
-    with pytest.raises(KeysightScopeError, match="--live cannot be combined"):
+    with pytest.raises(OscilloscopeError, match="--live cannot be combined"):
         resolve_run_mode(options)
 
 
 def test_simulator_options_require_simulate():
-    with pytest.raises(KeysightScopeError, match="--simulate-preset"):
+    with pytest.raises(OscilloscopeError, match="--simulate-preset"):
         resolve_run_mode(RunModeOptions(dry_run=True, simulate_preset="noisy-sine"))
 
 
@@ -50,7 +50,7 @@ def test_dry_run_open_scope_is_blocked():
         capabilities=None,
         resource="DRY::DSOX4024A::INSTR",
     )
-    with pytest.raises(KeysightScopeError, match="dry-run"):
+    with pytest.raises(OscilloscopeError, match="dry-run"):
         open_scope_for_run(config)
 
 

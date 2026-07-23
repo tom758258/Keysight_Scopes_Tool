@@ -198,7 +198,7 @@ from scopes_tool_core.dvm import (
     dvm_source_command,
     dvm_source_query,
 )
-from scopes_tool_core.errors import KeysightScopeError, ParameterValidationError
+from scopes_tool_core.errors import OscilloscopeError, ParameterValidationError
 from scopes_tool_core.idn import normalize_model_key, parse_idn
 from scopes_tool_core.measurements import (
     MEASUREMENT_ITEM_CHOICES,
@@ -281,7 +281,7 @@ from scopes_tool_core.screenshot import (
     write_screenshot,
     write_screenshot_png,
 )
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatedSignal, SimulatorBackend, simulator_idn
 from scopes_tool_core.simulator_config import (
     PRESET_NAMES,
@@ -424,7 +424,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         _validate_pre_open_args(args)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         if getattr(args, "json_output", False):
             payload = _json_envelope(args, ok=False, mode=_safe_mode(args))
             payload["error"] = _json_error(exc)
@@ -438,7 +438,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             from .worker import dispatch_lifecycle_command
 
             return dispatch_lifecycle_command(args)
-        except KeysightScopeError as exc:
+        except OscilloscopeError as exc:
             if getattr(args, "client_json", False):
                 _write_json(
                     {
@@ -458,7 +458,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if _resolve_cli_mode(args) == "dry_run":
             return _run_text_dry_run_command(args)
         return _dispatch_command(args)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
@@ -2768,7 +2768,7 @@ def _dispatch_command(args: argparse.Namespace) -> int:
         return _cmd_fft(args)
     if args.command == "acquisition-check":
         return _cmd_acquisition_check(args)
-    raise KeysightScopeError("missing command")
+    raise OscilloscopeError("missing command")
 
 
 
@@ -2786,47 +2786,47 @@ def _validate_cursor_auto_args(args: argparse.Namespace) -> None:
         return
     setting_cursor = not getattr(args, "cursor_query", False) and not getattr(args, "cursor_off", False)
     if getattr(args, "auto_timebase", False) and not setting_cursor:
-        raise KeysightScopeError("--auto-timebase is only valid when setting cursor positions")
+        raise OscilloscopeError("--auto-timebase is only valid when setting cursor positions")
     if not getattr(args, "auto_vertical", False):
         return
     if not setting_cursor:
-        raise KeysightScopeError("--auto-vertical is only valid when setting cursor positions")
+        raise OscilloscopeError("--auto-vertical is only valid when setting cursor positions")
     if getattr(args, "source_channel", None) is None or getattr(args, "x2", None) is None:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--auto-vertical requires --source-channel, --x1, and --x2"
         )
     if getattr(args, "y1", None) is None and getattr(args, "y2", None) is None:
-        raise KeysightScopeError("--auto-vertical requires --y1 or --y2")
+        raise OscilloscopeError("--auto-vertical requires --y1 or --y2")
 
 
 def _validate_measure_log_args(args: argparse.Namespace) -> None:
     if getattr(args, "command", None) != "measure-log":
         return
     if args.count is None and args.duration_seconds is None:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "measure-log requires --count or --duration-seconds so the run is finite"
         )
     for value in args.pair:
         parts = value.split(":")
         if len(parts) != 2:
-            raise KeysightScopeError("--pair must use SRC:REF, for example 1:2")
+            raise OscilloscopeError("--pair must use SRC:REF, for example 1:2")
         try:
             source = int(parts[0])
             reference = int(parts[1])
         except ValueError as exc:
-            raise KeysightScopeError("--pair channels must be integers") from exc
+            raise OscilloscopeError("--pair channels must be integers") from exc
         if source == reference:
-            raise KeysightScopeError("--pair source and reference channels must differ")
+            raise OscilloscopeError("--pair source and reference channels must differ")
 
 
-def _open_scope(args: argparse.Namespace, resource: str) -> KeysightScope:
+def _open_scope(args: argparse.Namespace, resource: str) -> Oscilloscope:
     global _LAST_BACKEND
     mode = _resolve_cli_mode(args)
     if mode == "simulate":
         backend = _make_simulator_backend(args, resource)
         _LAST_BACKEND = backend
-        return KeysightScope(backend)
-    scope = KeysightScope.open(resource, visa_library=args.visa_library)
+        return Oscilloscope(backend)
+    scope = Oscilloscope.open(resource, visa_library=args.visa_library)
     _LAST_BACKEND = getattr(scope, "backend", None)
     _worker_validate_identity(args, scope)
     if _JSON_RECORD is not None:
@@ -2834,7 +2834,7 @@ def _open_scope(args: argparse.Namespace, resource: str) -> KeysightScope:
     return scope
 
 
-def _worker_validate_identity(args: argparse.Namespace, scope: KeysightScope) -> None:
+def _worker_validate_identity(args: argparse.Namespace, scope: Oscilloscope) -> None:
     expected = getattr(args, "_worker_expected_model", None)
     if expected is None:
         return
@@ -2842,7 +2842,7 @@ def _worker_validate_identity(args: argparse.Namespace, scope: KeysightScope) ->
     idn = scope.query_idn()
     _json_record_scope(scope, idn)
     if normalize_model_key(idn.model) != normalize_model_key(expected):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "identity_mismatch: "
             f"expected_model={expected}; actual_idn={idn.raw}"
         )
@@ -2909,7 +2909,7 @@ def _parse_simulate_signal_specs(
         channel, signal = _parse_simulate_signal_spec(spec)
         validate_analog_channel(channel, capabilities)
         if channel in signals:
-            raise KeysightScopeError(f"duplicate --simulate-signal for CH{channel}")
+            raise OscilloscopeError(f"duplicate --simulate-signal for CH{channel}")
         signals[channel] = signal
     return signals
 
@@ -2925,11 +2925,11 @@ def _parse_simulate_signal_channel(token: str) -> int:
     try:
         channel = int(normalized)
     except ValueError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--simulate-signal channel must be CHn or a positive integer"
         ) from exc
     if channel < 1:
-        raise KeysightScopeError("--simulate-signal channel must be at least 1")
+        raise OscilloscopeError("--simulate-signal channel must be at least 1")
     return channel
 
 
@@ -2958,7 +2958,7 @@ def _execute_json_command(args: argparse.Namespace) -> tuple[dict[str, object], 
             result["human_output"] = buffer.getvalue().splitlines()
         payload["scpi"]["sent"] = _backend_history()
         return payload, code
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         payload = _json_envelope(args, ok=False, mode=_safe_mode(args))
         _apply_json_record(payload)
         payload["error"] = _json_error(exc)
@@ -3042,7 +3042,7 @@ def _print_text_dry_run_summary(command: str, result: dict[str, object]) -> None
 def _safe_mode(args: argparse.Namespace) -> str:
     try:
         return _resolve_cli_mode(args)
-    except KeysightScopeError:
+    except OscilloscopeError:
         return "dry_run" if getattr(args, "dry_run", False) else "simulate" if getattr(args, "simulate", False) else "live"
 
 
@@ -3843,7 +3843,7 @@ def _validate_trigger_or_args(args: argparse.Namespace) -> None:
     validate_or_trigger_pattern(args.pattern, capabilities_for_model(args.model))
 
 
-def _json_error(exc: KeysightScopeError) -> dict[str, object]:
+def _json_error(exc: OscilloscopeError) -> dict[str, object]:
     message = str(exc)
     if message.startswith("identity_mismatch: "):
         details = {"type": "identity_mismatch", "message": message}
@@ -3867,7 +3867,7 @@ def _json_envelope(args: argparse.Namespace, *, ok: bool, mode: str) -> dict[str
         idn = _idn_json(simulator_idn(args.model))
         try:
             capabilities = _capabilities_json(capabilities_for_model(args.model))
-        except KeysightScopeError:
+        except OscilloscopeError:
             capabilities = None
     return {
         "schema_version": 1,
@@ -4235,7 +4235,7 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
             commands = [edge_trigger_source_query(), edge_trigger_level_query(), edge_trigger_slope_query()]
             return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
         if args.source_channel is None or args.level is None or args.slope is None:
-            raise KeysightScopeError("trigger-edge configure requires --source-channel, --level, and --slope")
+            raise OscilloscopeError("trigger-edge configure requires --source-channel, --level, and --slope")
         channel = validate_analog_channel(args.source_channel, capabilities)
         slope = normalize_edge_slope(args.slope)
         commands = [trigger_mode_edge_command(), edge_trigger_source_command(channel), edge_trigger_level_command(args.level), edge_trigger_slope_command(slope)]
@@ -4658,7 +4658,7 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         if args.cursor_off:
             return [":MARKer:MODE OFF", ":SYSTem:ERRor?"], [], {"operation": "off", "command": ":MARKer:MODE OFF"}
         if args.source_channel is None or args.x2 is None:
-            raise KeysightScopeError("cursor configure requires --source-channel, --x1, and --x2")
+            raise OscilloscopeError("cursor configure requires --source-channel, --x1, and --x2")
         channel = validate_analog_channel(args.source_channel, capabilities)
         commands = cursor_configure_commands(
             channel,
@@ -4884,7 +4884,7 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         stop_on_error = bool(getattr(args, "stop_on_error", False))
         restore_type = bool(getattr(args, "restore_type", False))
         if check_only and restore_type:
-            raise KeysightScopeError("--check-only cannot be combined with --restore-type")
+            raise OscilloscopeError("--check-only cannot be combined with --restore-type")
         output_dir = (
             Path(args.output_dir)
             if args.output_dir is not None
@@ -4955,12 +4955,12 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
         }
     if command == "acquisition":
         if args.acq_query and (args.acq_type is not None or args.acq_count is not None):
-            raise KeysightScopeError("--query cannot be combined with --type or --count")
+            raise OscilloscopeError("--query cannot be combined with --type or --count")
         if args.acq_query:
             commands = [acquisition_type_query(), acquisition_count_query()]
             return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands}
         if args.acq_type is None:
-            raise KeysightScopeError("acquisition command requires --query or --type")
+            raise OscilloscopeError("acquisition command requires --query or --type")
         normalized = normalize_acquisition_type(args.acq_type)
         planned = [acquisition_type_command(normalized)]
         count = None
@@ -4981,11 +4981,11 @@ def _dry_run_plan(args: argparse.Namespace, capabilities: ScopeCapabilities) -> 
     if command == "fft":
         if args.fft_query:
             if any(value is not None for value in (args.source_channel, args.units, args.window, args.center_hz, args.span_hz, args.display)):
-                raise KeysightScopeError("--query cannot be combined with FFT configuration options")
+                raise OscilloscopeError("--query cannot be combined with FFT configuration options")
             commands = fft_query_commands(args.function)
             return commands + [":SYSTem:ERRor?"], [], {"operation": "query", "commands": commands, "function": args.function}
         if args.source_channel is None:
-            raise KeysightScopeError("fft configure requires --source-channel unless --query is used")
+            raise OscilloscopeError("fft configure requires --source-channel unless --query is used")
         commands = fft_configure_commands(
             args.function,
             args.source_channel,
@@ -5014,15 +5014,15 @@ def _annotation_plan(
         args.y is not None,
     )
     if args.query and any(query_setters):
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--query cannot be combined with --on, --off, --text, --clear, --color, --background, --x, or --y"
         )
     if args.on and args.off:
-        raise KeysightScopeError("--on and --off are mutually exclusive")
+        raise OscilloscopeError("--on and --off are mutually exclusive")
     if args.clear and args.text is not None:
-        raise KeysightScopeError("--clear and --text are mutually exclusive")
+        raise OscilloscopeError("--clear and --text are mutually exclusive")
     if not args.query and not any(query_setters):
-        raise KeysightScopeError("annotation requires --query or at least one setter/action")
+        raise OscilloscopeError("annotation requires --query or at least one setter/action")
     slot = validate_annotation_slot(args.slot, capabilities)
     if args.query:
         commands = annotation_query_commands(slot=slot, capabilities=capabilities)
@@ -5340,7 +5340,7 @@ def _measure_sweep_planned_scpi(
                     )
                 )
                 planned.append(":SYSTem:ERRor?")
-            except KeysightScopeError:
+            except OscilloscopeError:
                 continue
     return planned
 
@@ -5474,7 +5474,7 @@ def _json_set_files(files: list[dict[str, object]]) -> None:
         _JSON_RECORD["files"] = files
 
 
-def _json_record_scope(scope: KeysightScope, idn) -> None:
+def _json_record_scope(scope: Oscilloscope, idn) -> None:
     if _JSON_RECORD is None:
         return
     _JSON_RECORD["idn"] = _idn_object_json(idn)
@@ -5518,7 +5518,7 @@ def _idn_object_json(idn) -> dict[str, str | None]:
     }
 
 
-def _scope_backend_json(scope: KeysightScope) -> dict[str, object]:
+def _scope_backend_json(scope: Oscilloscope) -> dict[str, object]:
     return {
         "backend": getattr(scope.backend, "backend", None),
         "timeout_ms": getattr(scope.backend, "timeout", None),
@@ -5653,16 +5653,16 @@ def _print_live_resources(
                 continue
             try:
                 idn = parse_idn(verification.raw_idn)
-            except KeysightScopeError as exc:
+            except OscilloscopeError as exc:
                 verification_failures.append(
                     _visa_verification_json(verification, detail=str(exc))
                 )
                 continue
         else:
             try:
-                with KeysightScope.open(resource, visa_library=visa_library) as scope:
+                with Oscilloscope.open(resource, visa_library=visa_library) as scope:
                     idn = scope.query_idn()
-            except KeysightScopeError:
+            except OscilloscopeError:
                 continue
 
         live_count += 1
@@ -6540,7 +6540,7 @@ def _cmd_trigger_edge(args: argparse.Namespace) -> int:
 
         if args.edge_query:
             if any(value is not None for value in (args.source_channel, args.level, args.slope)):
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "--query cannot be combined with --source-channel, --level, or --slope"
                 )
             print("Planned query: edge trigger source, level, and slope")
@@ -6560,7 +6560,7 @@ def _cmd_trigger_edge(args: argparse.Namespace) -> int:
             print(f"Slope: {state.slope}")
         else:
             if args.source_channel is None or args.level is None or args.slope is None:
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "trigger-edge requires --source-channel, --level, and --slope unless --query is used"
                 )
             channel = validate_analog_channel(args.source_channel, scope.capabilities)
@@ -8343,14 +8343,14 @@ def _capture_trigger_wait_config(args: argparse.Namespace) -> TriggerWaitConfig 
     force_on_timeout = bool(getattr(args, "force_trigger_on_timeout", False))
     if not wait_trigger:
         if timeout_ms is not None:
-            raise KeysightScopeError("--trigger-timeout-ms requires --wait-trigger")
+            raise OscilloscopeError("--trigger-timeout-ms requires --wait-trigger")
         if force_on_timeout:
-            raise KeysightScopeError("--force-trigger-on-timeout requires --wait-trigger")
+            raise OscilloscopeError("--force-trigger-on-timeout requires --wait-trigger")
         return None
     if timeout_ms is None:
-        raise KeysightScopeError("--trigger-timeout-ms is required with --wait-trigger")
+        raise OscilloscopeError("--trigger-timeout-ms is required with --wait-trigger")
     if poll_interval_ms > timeout_ms:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--trigger-poll-interval-ms must be less than or equal to --trigger-timeout-ms"
         )
     return TriggerWaitConfig(
@@ -8509,7 +8509,7 @@ def _cmd_capture_batch(args: argparse.Namespace) -> int:
         _write_batch_manifest_best_effort(manifest, manifest_path)
         print("error: interrupted", file=sys.stderr)
         return 130
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         if manifest.status == "running":
             manifest.status = "error"
             manifest.end_time = batch_iso_timestamp()
@@ -8522,7 +8522,7 @@ def _cmd_capture_batch(args: argparse.Namespace) -> int:
         manifest.end_time = batch_iso_timestamp()
         manifest.error = str(exc)
         _write_batch_manifest_best_effort(manifest, manifest_path)
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_plain_output_file_error("SCPI log", scpi_log_path, exc)
         ) from exc
 
@@ -8557,7 +8557,7 @@ def _cmd_measure_log(args: argparse.Namespace) -> int:
             _apply_operation_result(operation_result)
             for line in operation_result.human_lines:
                 print(line)
-            raise KeysightScopeError(str(exc)) from exc
+            raise OscilloscopeError(str(exc)) from exc
         if operation_result.idn is not None:
             _json_record_scope(scope, operation_result.idn)
         _apply_operation_result(operation_result)
@@ -8700,7 +8700,7 @@ def _cmd_smoke(args: argparse.Namespace) -> int:
             _apply_operation_result(operation_result)
             for line in operation_result.human_lines:
                 print(line)
-            raise KeysightScopeError(str(exc)) from exc
+            raise OscilloscopeError(str(exc)) from exc
         if operation_result.idn is not None:
             _json_record_scope(scope, operation_result.idn)
         _apply_operation_result(operation_result)
@@ -8874,13 +8874,13 @@ def _cmd_acquisition(args: argparse.Namespace) -> int:
     _configure_scpi_logging(args)
 
     if args.acq_query and (args.acq_type is not None or args.acq_count is not None):
-        raise KeysightScopeError("--query cannot be combined with --type or --count")
+        raise OscilloscopeError("--query cannot be combined with --type or --count")
 
     if args.acq_count is not None:
         if args.acq_type is None:
-            raise KeysightScopeError("--count can only be used with --type average")
+            raise OscilloscopeError("--count can only be used with --type average")
         if normalize_acquisition_type(args.acq_type) != "AVERage":
-            raise KeysightScopeError("--count can only be used with --type average")
+            raise OscilloscopeError("--count can only be used with --type average")
 
     with _open_scope(args, resource) as scope:
         idn = scope.query_idn()
@@ -8913,7 +8913,7 @@ def _cmd_acquisition(args: argparse.Namespace) -> int:
                 scope.set_acquisition_count(validated_count)
                 _json_update_result(operation="set", type=args.acq_type, scpi_type=normalized_type, count=validated_count, commands=[acquisition_type_command(normalized_type), acquisition_count_command(validated_count)])
         else:
-            raise KeysightScopeError("acquisition command requires --query or --type")
+            raise OscilloscopeError("acquisition command requires --query or --type")
 
         entry = scope.query_system_error()
         _json_record_system_error(entry)
@@ -8948,7 +8948,7 @@ def _cmd_cursor(args: argparse.Namespace) -> int:
             print("Command: :MARKer:MODE OFF")
         else:
             if args.source_channel is None or args.x2 is None:
-                raise KeysightScopeError("cursor configure requires --source-channel, --x1, and --x2")
+                raise OscilloscopeError("cursor configure requires --source-channel, --x1, and --x2")
             channel = validate_analog_channel(args.source_channel, scope.capabilities)
             auto_timebase = None
             if getattr(args, "auto_timebase", False):
@@ -9084,7 +9084,7 @@ def _cmd_fft(args: argparse.Namespace) -> int:
             return 1
         if args.fft_query:
             if any(value is not None for value in (args.source_channel, args.units, args.window, args.center_hz, args.span_hz, args.display)):
-                raise KeysightScopeError("--query cannot be combined with FFT configuration options")
+                raise OscilloscopeError("--query cannot be combined with FFT configuration options")
             state = scope.query_fft(args.function)
             _json_update_result(
                 operation="query",
@@ -9103,7 +9103,7 @@ def _cmd_fft(args: argparse.Namespace) -> int:
             print(f"Source: CH{state.source_channel}")
         else:
             if args.source_channel is None:
-                raise KeysightScopeError("fft configure requires --source-channel unless --query is used")
+                raise OscilloscopeError("fft configure requires --source-channel unless --query is used")
             display = None if args.display is None else args.display == "on"
             scope.configure_fft(args.function, args.source_channel, units=args.units, window=args.window, center_hz=args.center_hz, span_hz=args.span_hz, display=display)
             commands = fft_configure_commands(args.function, args.source_channel, units=args.units, window=args.window, center_hz=args.center_hz, span_hz=args.span_hz, display=display, capabilities=scope.capabilities)
@@ -9174,7 +9174,7 @@ def _cmd_simple_advanced(args: argparse.Namespace, command_name: str) -> int:
         return 1 if entry.is_error else 0
 
 
-def _query_system_error_with_temporary_timeout(scope: KeysightScope, timeout_ms: int):
+def _query_system_error_with_temporary_timeout(scope: Oscilloscope, timeout_ms: int):
     original_timeout = scope.scpi.timeout
     scope.scpi.set_timeout(timeout_ms)
     try:
@@ -9209,7 +9209,7 @@ def _cmd_acquisition_check(args: argparse.Namespace) -> int:
             _apply_operation_result(operation_result)
             for line in operation_result.human_lines:
                 print(line)
-            raise KeysightScopeError(str(exc)) from exc
+            raise OscilloscopeError(str(exc)) from exc
         if operation_result.idn is not None:
             _json_record_scope(scope, operation_result.idn)
         _apply_operation_result(operation_result)
@@ -9282,13 +9282,13 @@ def _load_report_json(path: Path) -> dict[str, object]:
         with path.open("r", encoding="utf-8") as handle:
             data = json.load(handle)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_plain_output_file_error("report JSON", path, exc)
         ) from exc
     except json.JSONDecodeError as exc:
-        raise KeysightScopeError(f"could not parse report JSON {path}: {exc.msg}") from exc
+        raise OscilloscopeError(f"could not parse report JSON {path}: {exc.msg}") from exc
     if not isinstance(data, dict):
-        raise KeysightScopeError(f"report JSON must contain an object: {path}")
+        raise OscilloscopeError(f"report JSON must contain an object: {path}")
     return data
 
 
@@ -9492,7 +9492,7 @@ def _format_optional_number(value: float | None) -> str:
 
 
 def _capture_waveform(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     channels: Sequence[int],
     waveform_format: str,
     points: int,
@@ -9500,7 +9500,7 @@ def _capture_waveform(
     normalized_format = waveform_format.lower()
     if normalized_format == "word":
         if scope.capabilities is None:
-            raise KeysightScopeError("Waveform operations require known capabilities.")
+            raise OscilloscopeError("Waveform operations require known capabilities.")
         validate_word_format_supported(scope.capabilities)
     if len(channels) == 1:
         channel = channels[0]
@@ -9518,7 +9518,7 @@ def _resolve_capture_channels(
 ) -> tuple[int, ...]:
     if any(channel == "all" for channel in raw_channels):
         if len(raw_channels) != 1:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "error: --channel all cannot be combined with explicit channel numbers"
             )
         return validate_waveform_channels(
@@ -9544,17 +9544,17 @@ def _parse_measurement_item_list(value: str, *, allow_pair: bool) -> tuple[str, 
         item = normalize_measurement_item(stripped)
         if allow_pair:
             if not is_pair_measurement_item(item):
-                raise KeysightScopeError(
+                raise OscilloscopeError(
                     "--pair-items can only contain phase or delay measurements"
                 )
         elif is_pair_measurement_item(item):
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "--items can only contain single-channel measurements"
             )
         items.append(item)
     if not items:
         option = "--pair-items" if allow_pair else "--items"
-        raise KeysightScopeError(f"{option} must contain at least one measurement item")
+        raise OscilloscopeError(f"{option} must contain at least one measurement item")
     return tuple(items)
 
 
@@ -9562,7 +9562,7 @@ def _parse_stats_items(value: str) -> tuple[str, ...]:
     items = tuple(token.strip() for token in value.split(",") if token.strip())
     try:
         return validate_statistics_items(items)
-    except KeysightScopeError:
+    except OscilloscopeError:
         raise
 
 
@@ -9574,23 +9574,23 @@ def _parse_pair_specs(
     for value in values:
         parts = value.split(":")
         if len(parts) != 2:
-            raise KeysightScopeError("--pair must use SRC:REF, for example 1:2")
+            raise OscilloscopeError("--pair must use SRC:REF, for example 1:2")
         try:
             source = int(parts[0])
             reference = int(parts[1])
         except ValueError as exc:
-            raise KeysightScopeError("--pair channels must be integers") from exc
+            raise OscilloscopeError("--pair channels must be integers") from exc
         source = validate_analog_channel(source, capabilities)
         reference = validate_analog_channel(reference, capabilities)
         if source == reference:
-            raise KeysightScopeError("--pair source and reference channels must differ")
+            raise OscilloscopeError("--pair source and reference channels must differ")
         pairs.append((source, reference))
     return tuple(pairs)
 
 
-def _doctor_snapshot(scope: KeysightScope) -> dict[str, object]:
+def _doctor_snapshot(scope: Oscilloscope) -> dict[str, object]:
     if scope.capabilities is None:
-        raise KeysightScopeError("Capabilities unavailable for this model")
+        raise OscilloscopeError("Capabilities unavailable for this model")
     acquisition = scope.query_acquisition_config()
     channels = []
     for channel in range(1, scope.capabilities.analog_channels + 1):
@@ -9627,7 +9627,7 @@ def _doctor_snapshot(scope: KeysightScope) -> dict[str, object]:
 
 
 def _run_sweep_measurement(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     command: str,
     channel: int,
     item: str,
@@ -9641,7 +9641,7 @@ def _run_sweep_measurement(
             **_measurement_result_json(result, parameters={}),
             "system_error": _system_error_json(system_error),
         }
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         system_error = _query_system_error_best_effort(scope)
         return _sweep_error_record(
             item=item,
@@ -9654,7 +9654,7 @@ def _run_sweep_measurement(
 
 
 def _run_sweep_pair_measurement(
-    scope: KeysightScope,
+    scope: Oscilloscope,
     command: str,
     source_channel: int,
     reference_channel: int,
@@ -9669,7 +9669,7 @@ def _run_sweep_pair_measurement(
             **_measurement_result_json(result, parameters={}),
             "system_error": _system_error_json(system_error),
         }
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         system_error = _query_system_error_best_effort(scope)
         return _sweep_error_record(
             item=item,
@@ -9681,12 +9681,12 @@ def _run_sweep_pair_measurement(
         )
 
 
-def _query_system_error_best_effort(scope: KeysightScope):
+def _query_system_error_best_effort(scope: Oscilloscope):
     try:
         entry = scope.query_system_error()
         _json_record_system_error(entry)
         return entry
-    except KeysightScopeError:
+    except OscilloscopeError:
         return None
 
 
@@ -9696,7 +9696,7 @@ def _sweep_error_record(
     channel: int,
     reference_channel: int | None,
     command: str | None,
-    exc: KeysightScopeError,
+    exc: OscilloscopeError,
     system_error,
 ) -> dict[str, object]:
     return {
@@ -9747,7 +9747,7 @@ def _write_capture_csv(
             )
         return write_waveform_csv(capture, csv_path)
     except OSError as exc:
-        raise KeysightScopeError(_format_output_file_error("CSV", csv_path, exc)) from exc
+        raise OscilloscopeError(_format_output_file_error("CSV", csv_path, exc)) from exc
 
 
 def _write_capture_metadata(
@@ -9771,7 +9771,7 @@ def _write_capture_metadata(
             )
         return write_waveform_metadata(capture, meta_path, idn=idn, resource=resource)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_output_file_error("metadata JSON", meta_path, exc)
         ) from exc
 
@@ -9780,7 +9780,7 @@ def _write_screenshot_png(capture, output_path: Path) -> Path:
     try:
         return write_screenshot_png(capture, output_path)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_output_file_error("screenshot PNG", output_path, exc)
         ) from exc
 
@@ -9790,7 +9790,7 @@ def _write_screenshot(capture, output_path: Path, format_name: str) -> Path:
         return write_screenshot(capture, output_path)
     except OSError as exc:
         label = "screenshot PNG" if format_name == "png" else "screenshot BMP"
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_output_file_error(label, output_path, exc)
         ) from exc
 
@@ -9799,7 +9799,7 @@ def _write_batch_manifest(manifest: BatchManifest, manifest_path: Path) -> Path:
     try:
         return write_batch_manifest(manifest, manifest_path)
     except OSError as exc:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             _format_plain_output_file_error("batch manifest JSON", manifest_path, exc)
         ) from exc
 
@@ -9919,7 +9919,7 @@ def _finite_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_channel_offset(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -9930,7 +9930,7 @@ def _positive_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_channel_scale(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -9953,7 +9953,7 @@ def _probe_ratio_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_probe_ratio(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -9964,7 +9964,7 @@ def _probe_skew_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_probe_skew(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -9975,7 +9975,7 @@ def _finite_timebase_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_timebase_position(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -9986,7 +9986,7 @@ def _positive_timebase_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_timebase_scale(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -9997,7 +9997,7 @@ def _trigger_level_float(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_trigger_level(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -10008,7 +10008,7 @@ def _holdoff_seconds_arg(value: str) -> float:
         raise argparse.ArgumentTypeError("must be a number") from exc
     try:
         return validate_trigger_holdoff(parsed)
-    except KeysightScopeError as exc:
+    except OscilloscopeError as exc:
         raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
@@ -10065,7 +10065,7 @@ def _measurement_query_kwargs(args: argparse.Namespace, item: str) -> dict[str, 
 
     if is_pair_measurement_item(item):
         if values:
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "--time, --level, --slope, and --occurrence cannot be used with "
                 "phase or delay measurements"
             )
@@ -10073,31 +10073,31 @@ def _measurement_query_kwargs(args: argparse.Namespace, item: str) -> dict[str, 
 
     if item == "y_at_x":
         if args.time_s is None:
-            raise KeysightScopeError("y_at_x measurement requires --time")
+            raise OscilloscopeError("y_at_x measurement requires --time")
         if any(value is not None for value in (args.level, args.slope, args.occurrence)):
-            raise KeysightScopeError(
+            raise OscilloscopeError(
                 "--level, --slope, and --occurrence cannot be used with y_at_x"
             )
         return values
 
     if item == "time_at_edge":
         if args.time_s is not None or args.level is not None:
-            raise KeysightScopeError("--time and --level cannot be used with time_at_edge")
+            raise OscilloscopeError("--time and --level cannot be used with time_at_edge")
         values.setdefault("slope", "positive")
         values.setdefault("occurrence", 1)
         return values
 
     if item == "time_at_value":
         if args.level is None:
-            raise KeysightScopeError("time_at_value measurement requires --level")
+            raise OscilloscopeError("time_at_value measurement requires --level")
         if args.time_s is not None:
-            raise KeysightScopeError("--time cannot be used with time_at_value")
+            raise OscilloscopeError("--time cannot be used with time_at_value")
         values.setdefault("slope", "positive")
         values.setdefault("occurrence", 1)
         return values
 
     if values:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--time, --level, --slope, and --occurrence can only be used with "
             "y_at_x, time_at_edge, or time_at_value"
         )
@@ -10106,7 +10106,7 @@ def _measurement_query_kwargs(args: argparse.Namespace, item: str) -> dict[str, 
 
 def _resolve_measurement_source_channel(args: argparse.Namespace) -> int | None:
     if args.channel is not None and args.source_channel is not None:
-        raise KeysightScopeError("--channel cannot be combined with --source-channel")
+        raise OscilloscopeError("--channel cannot be combined with --source-channel")
     return args.source_channel if args.source_channel is not None else args.channel
 
 
@@ -10114,12 +10114,12 @@ def _resolve_single_measurement_channel(
     args: argparse.Namespace, capabilities: ScopeCapabilities
 ) -> int:
     if args.reference_channel is not None:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             "--reference-channel can only be used with phase or delay measurements"
         )
     channel = _resolve_measurement_source_channel(args)
     if channel is None:
-        raise KeysightScopeError("measure requires --channel or --source-channel")
+        raise OscilloscopeError("measure requires --channel or --source-channel")
     return validate_analog_channel(channel, capabilities)
 
 
@@ -10130,14 +10130,14 @@ def _resolve_pair_measurement_channels(
 ) -> tuple[int, int]:
     source_channel = _resolve_measurement_source_channel(args)
     if source_channel is None or args.reference_channel is None:
-        raise KeysightScopeError(
+        raise OscilloscopeError(
             f"{item} measurement requires --source-channel or --channel, "
             "plus --reference-channel"
         )
     source_channel = validate_analog_channel(source_channel, capabilities)
     reference_channel = validate_analog_channel(args.reference_channel, capabilities)
     if source_channel == reference_channel:
-        raise KeysightScopeError("source channel and reference channel must be different")
+        raise OscilloscopeError("source channel and reference channel must be different")
     return source_channel, reference_channel
 
 
@@ -10167,7 +10167,7 @@ def _waveform_points_arg(value: str) -> int:
     return parsed
 
 
-def _print_session_header(scope: KeysightScope, resource: str) -> None:
+def _print_session_header(scope: Oscilloscope, resource: str) -> None:
     print(f"Resource: {resource}")
     backend = getattr(scope.backend, "backend", None)
     if backend is not None:

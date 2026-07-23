@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path):
@@ -159,7 +159,7 @@ def test_worker_trigger_tv_query_simulator_execution(tmp_path):
 def test_worker_trigger_tv_rejects_alias_keys(tmp_path, alias):
     runtime = _runtime(tmp_path)
 
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("trigger-tv", {alias: 1}, runtime)
 
 
@@ -197,5 +197,5 @@ def test_worker_trigger_tv_rejects_alias_keys(tmp_path, alias):
 def test_worker_trigger_tv_rejects_invalid_arguments(tmp_path, arguments):
     runtime = _runtime(tmp_path)
 
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("trigger-tv", arguments, runtime)

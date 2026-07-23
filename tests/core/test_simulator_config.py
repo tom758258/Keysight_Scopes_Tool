@@ -4,7 +4,7 @@ import json
 import pytest
 
 from scopes_tool_core.capabilities import capabilities_for_model
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.simulator_config import (
     load_scenario,
     parse_config,
@@ -74,15 +74,15 @@ def test_load_scenario_rejects_invalid_json(tmp_path):
     path = tmp_path / "bad.json"
     path.write_text("{", encoding="utf-8")
 
-    with pytest.raises(KeysightScopeError, match="invalid --simulate-scenario JSON"):
+    with pytest.raises(OscilloscopeError, match="invalid --simulate-scenario JSON"):
         load_scenario(path)
 
 
 def test_parse_config_rejects_unknown_keys_and_bad_channels():
-    with pytest.raises(KeysightScopeError, match="unknown scenario signals CH1 key"):
+    with pytest.raises(OscilloscopeError, match="unknown scenario signals CH1 key"):
         parse_config({"signals": {"CH1": {"bogus": 1}}}, CAPABILITIES)
 
-    with pytest.raises(KeysightScopeError, match="channel 5 is not available"):
+    with pytest.raises(OscilloscopeError, match="channel 5 is not available"):
         parse_config({"errors": {"display_off_channels": ["CH5"]}}, CAPABILITIES)
 
 
@@ -119,7 +119,7 @@ def test_simulator_backend_kwargs_merges_preset_scenario_and_cli_overrides(tmp_p
 
 
 def test_simulator_backend_kwargs_rejects_bad_cli_system_error():
-    with pytest.raises(KeysightScopeError, match="must be an integer"):
+    with pytest.raises(OscilloscopeError, match="must be an integer"):
         simulator_backend_kwargs(
             _args(simulate_system_errors=["not-int"]),
             "SIM::DSOX4024A::INSTR",

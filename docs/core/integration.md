@@ -72,7 +72,7 @@ names are intended for package consumers and tests:
 - `TriggerSweepController`
 - `TriggerSweepState`
 - `IDN`
-- `KeysightScope`
+- `Oscilloscope`
 - `MeasurementController`
 - `MeasurementResult`
 - `MeasurementShowState`
@@ -189,7 +189,7 @@ values plus the corresponding raw instrument readbacks. The existing
 `:DISPlay:DATA? PNG, COLor` behavior remain available for 2000X, 3000X, and
 4000X compatibility.
 
-System/Status Pack v1 is available through `KeysightScope.clear_status()`,
+System/Status Pack v1 is available through `Oscilloscope.clear_status()`,
 `query_operation_complete()`, `query_status_byte()`,
 `query_standard_event_status()`, `query_operation_status()`, and
 `query_system_options()`. These methods do not require an IDN or capability
@@ -200,7 +200,7 @@ event-register read. `query_operation_status()` uses
 remain the APIs for `:SYSTem:ERRor?`.
 
 Save/Export Pack v1 is available through the focused
-`KeysightScope.configure_save_*()` and `KeysightScope.query_save_*()` methods,
+`Oscilloscope.configure_save_*()` and `Oscilloscope.query_save_*()` methods,
 plus `save_image(filename)` and `save_waveform(filename)`. These methods send
 `:SAVE...` commands so the oscilloscope writes to its current instrument-side
 storage location. The start methods require an explicit printable-ASCII

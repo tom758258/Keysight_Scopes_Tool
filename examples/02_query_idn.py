@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-from scopes_tool_core import KeysightScope
+from scopes_tool_core import Oscilloscope
 
 
 def main() -> int:
@@ -14,7 +14,7 @@ def main() -> int:
         print("usage: python examples/02_query_idn.py <VISA_RESOURCE>")
         return 2
 
-    with KeysightScope.open(resource) as scope:
+    with Oscilloscope.open(resource) as scope:
         idn = scope.query_idn()
         print(f"{idn.vendor} {idn.model} serial={idn.serial} firmware={idn.firmware}")
         print(f"series={idn.series or 'unknown'}")

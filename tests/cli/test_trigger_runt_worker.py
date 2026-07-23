@@ -1,7 +1,7 @@
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path):
@@ -154,13 +154,13 @@ def test_worker_trigger_runt_arguments_parse(tmp_path, arguments, expected):
 def test_worker_trigger_runt_rejects_invalid_arguments(tmp_path, arguments):
     runtime = _runtime(tmp_path)
 
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("trigger-runt", arguments, runtime)
 
 
 @pytest.mark.parametrize("command", ["runt-trigger", "trigger-runt-width"])
 def test_worker_rejects_trigger_runt_aliases(command):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.validate_command_request({"command": command, "arguments": {"query": True}})
 
 

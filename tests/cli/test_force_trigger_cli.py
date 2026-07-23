@@ -42,7 +42,7 @@ def test_force_trigger_cli_dry_run_includes_planned_scpi_without_visa(monkeypatc
     def fail_open(resource, visa_library=None):
         raise AssertionError("dry-run must not open VISA")
 
-    monkeypatch.setattr(cli.KeysightScope, "open", staticmethod(fail_open))
+    monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
     assert cli.main(["force-trigger", "--dry-run", "--json"]) == 0
 

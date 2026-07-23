@@ -8,7 +8,7 @@ from urllib import request as urlrequest
 import pytest
 
 from scopes_tool_cli import cli, worker
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path):
@@ -89,7 +89,7 @@ def test_worker_external_trigger_input_commands_accept_canonical_json_and_map_ar
     ],
 )
 def test_worker_external_trigger_input_commands_reject_invalid_forms_before_execution(tmp_path, command, arguments):
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         worker.parse_domain_command(command, arguments, _runtime(tmp_path))
 
 

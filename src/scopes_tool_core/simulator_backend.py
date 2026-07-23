@@ -12,11 +12,11 @@ import zlib
 
 from .capabilities import capabilities_for_model
 from .demo import DEMO_FUNCTION_TOKENS
-from .errors import BackendClosedError, KeysightScopeError
+from .errors import BackendClosedError, OscilloscopeError
 from .trigger import OPERATION_CONDITION_RUN_MASK
 
 
-class SimulatorBackendError(KeysightScopeError):
+class SimulatorBackendError(OscilloscopeError):
     """Raised when the simulator receives unsupported SCPI."""
 
 

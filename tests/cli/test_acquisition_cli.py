@@ -4,7 +4,7 @@ import pytest
 
 from scopes_tool_cli import cli
 from scopes_tool_core.capabilities import capabilities_for_model
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.idn import parse_idn
 from scopes_tool_core.status import SystemErrorEntry
 
@@ -54,7 +54,7 @@ class _AcquisitionDummyScope:
 def _install_acquisition_scope(monkeypatch, model="DSOX4024A"):
     scope = _AcquisitionDummyScope(model=model)
     monkeypatch.setattr(
-        cli.KeysightScope,
+        cli.Oscilloscope,
         "open",
         staticmethod(lambda resource, visa_library=None: scope),
     )

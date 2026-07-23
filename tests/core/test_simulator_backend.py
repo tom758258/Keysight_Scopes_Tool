@@ -1,6 +1,6 @@
 import pytest
 
-from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.simulator_backend import (
     SimulatedSignal,
     SimulatorBackend,
@@ -606,8 +606,8 @@ def test_simulator_measurement_invalid_sentinel_hooks():
 
 
 def test_simulator_failure_and_override_hooks_record_attempted_command():
-    query_error = KeysightScopeError("configured query failure")
-    binary_error = KeysightScopeError("configured binary failure")
+    query_error = OscilloscopeError("configured query failure")
+    binary_error = OscilloscopeError("configured binary failure")
     backend = SimulatorBackend(
         query_failures={":MEASure:VPP? CHANnel1": query_error},
         binary_failures={":WAVeform:DATA?": binary_error},
@@ -615,11 +615,11 @@ def test_simulator_failure_and_override_hooks_record_attempted_command():
         binary_overrides={":DISPlay:DATA? PNG, COLor": []},
     )
 
-    with pytest.raises(KeysightScopeError, match="configured query failure"):
+    with pytest.raises(OscilloscopeError, match="configured query failure"):
         backend.query(":MEASure:VPP? CHANnel1")
     assert backend.history[-1] == ":MEASure:VPP? CHANnel1"
 
-    with pytest.raises(KeysightScopeError, match="configured binary failure"):
+    with pytest.raises(OscilloscopeError, match="configured binary failure"):
         backend.query_binary_values(":WAVeform:DATA?")
     assert backend.history[-1] == ":WAVeform:DATA?"
 

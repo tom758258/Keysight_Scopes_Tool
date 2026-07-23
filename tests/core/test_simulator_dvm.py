@@ -1,13 +1,13 @@
 import pytest
 
-from scopes_tool_core.errors import KeysightScopeError
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.errors import OscilloscopeError
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def _scope():
     backend = SimulatorBackend(model="DSOX4024A")
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
     scope.query_idn()
     return scope, backend
 
@@ -36,11 +36,11 @@ def test_simulator_dvm_configure_query_roundtrips_and_aggregate():
 @pytest.mark.parametrize("command", [":DVM:FREQuency?", ":COUNter:ENABle?", ":MEASure:COUNter?"])
 def test_simulator_keeps_dvm_frequency_and_counter_queries_unsupported(command):
     backend = SimulatorBackend()
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         backend.query(command)
 
 
 def test_simulator_keeps_dvm_frequency_mode_unsupported():
     backend = SimulatorBackend()
-    with pytest.raises(KeysightScopeError):
+    with pytest.raises(OscilloscopeError):
         backend.write(":DVM:MODE FREQuency")

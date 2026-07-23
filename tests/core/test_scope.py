@@ -1,11 +1,11 @@
 from scopes_tool_core.fake_backend import FakeBackend
-from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.errors import ParameterValidationError
 
 
 def test_scope_queries_idn_and_loads_capabilities():
     backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4034A,MY1,02.50"})
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     idn = scope.query_idn()
 
@@ -17,7 +17,7 @@ def test_scope_queries_idn_and_loads_capabilities():
 
 def test_scope_keeps_unknown_capabilities_none():
     backend = FakeBackend(responses={"*IDN?": "ACME,MODEL1,SN1,FW1"})
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     idn = scope.query_idn()
 
@@ -29,7 +29,7 @@ def test_scope_keeps_unknown_capabilities_none():
 def test_scope_context_manager_closes_backend():
     backend = FakeBackend()
 
-    with KeysightScope(backend):
+    with Oscilloscope(backend):
         pass
 
     assert backend.closed is True
@@ -37,7 +37,7 @@ def test_scope_context_manager_closes_backend():
 
 def test_scope_queries_system_error():
     backend = FakeBackend(responses={":SYSTem:ERRor?": '-113,"Undefined header"'})
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     entry = scope.query_system_error()
 
@@ -56,7 +56,7 @@ def test_scope_system_status_methods_delegate_without_identity_query():
             "*OPT?": "0",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.clear_status()
     assert scope.query_operation_complete().complete is True
@@ -76,7 +76,7 @@ def test_scope_system_status_methods_delegate_without_identity_query():
 
 def test_scope_control_methods_send_one_command_each():
     backend = FakeBackend()
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.stop()
     scope.run()
@@ -103,7 +103,7 @@ def test_scope_drains_system_errors_until_no_error():
             return super().query(command)
 
     backend = SequencedBackend()
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     entries = scope.drain_system_errors()
 
@@ -116,7 +116,7 @@ def test_scope_drains_system_errors_until_no_error():
 
 
 def test_scope_rejects_invalid_error_drain_limit():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     try:
         scope.drain_system_errors(max_reads=0)
@@ -127,7 +127,7 @@ def test_scope_rejects_invalid_error_drain_limit():
 
 
 def test_scope_channel_display_requires_known_capabilities():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     try:
         scope.set_channel_display(1, True)
@@ -144,7 +144,7 @@ def test_scope_channel_display_uses_capabilities_from_idn():
             ":CHANnel2:DISPlay?": "0",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.set_channel_display(2, True)
@@ -156,7 +156,7 @@ def test_scope_channel_display_uses_capabilities_from_idn():
 
 def test_scope_rejects_channel_above_capability_before_display_scpi():
     backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20"})
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     try:
@@ -177,7 +177,7 @@ def test_scope_channel_scale_and_offset_use_capabilities_from_idn():
             ":CHANnel1:OFFSet?": "-1.25E-1",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.set_channel_scale(1, 0.5)
@@ -205,7 +205,7 @@ def test_scope_channel_parameters_use_capabilities_from_idn():
             ":CHANnel1:BWLimit?": "0",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.set_channel_coupling(1, "ac")
@@ -241,7 +241,7 @@ def test_scope_channel_advanced_settings_use_capabilities_from_idn():
             ":CHANnel1:PROBe:SKEW?": "1.0E-9",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.set_channel_impedance(1, "one-meg")
@@ -282,7 +282,7 @@ def test_scope_channel_advanced_settings_use_capabilities_from_idn():
 
 def test_scope_rejects_channel_above_capability_before_scale_scpi():
     backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20"})
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     try:
@@ -296,7 +296,7 @@ def test_scope_rejects_channel_above_capability_before_scale_scpi():
 
 
 def test_scope_timebase_requires_known_capabilities():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     try:
         scope.set_timebase_scale(0.001)
@@ -314,7 +314,7 @@ def test_scope_timebase_scale_and_position_use_capabilities_from_idn():
             ":TIMebase:POSition?": "-5.0E-4",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.set_timebase_scale(0.001)
@@ -334,7 +334,7 @@ def test_scope_timebase_scale_and_position_use_capabilities_from_idn():
 
 
 def test_scope_edge_trigger_requires_known_capabilities():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     try:
         scope.configure_trigger_edge(source_channel=1, level_volts=0.0, slope="positive")
@@ -353,7 +353,7 @@ def test_scope_edge_trigger_uses_capabilities_from_idn():
             ":TRIGger:EDGE:SLOPe?": "POS",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.configure_trigger_edge(source_channel=1, level_volts=0.25, slope="positive")
@@ -375,7 +375,7 @@ def test_scope_edge_trigger_uses_capabilities_from_idn():
 
 
 def test_scope_edge_trigger_old_methods_are_removed():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     assert not hasattr(scope, "configure_edge_trigger")
     assert not hasattr(scope, "query_edge_trigger")
@@ -394,7 +394,7 @@ def test_scope_runt_trigger_uses_capabilities_from_idn():
             ":TRIGger:LEVel:HIGH? CHANnel1": "5.0E-1",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.configure_runt_trigger(
@@ -441,7 +441,7 @@ def test_scope_transition_trigger_uses_capabilities_from_idn():
             ":TRIGger:LEVel:HIGH? CHANnel1": "7.5E-1",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     scope.configure_transition_trigger(
@@ -489,7 +489,7 @@ def test_scope_pattern_trigger_uses_capabilities_from_idn():
             ":TRIGger:PATTern:QUALifier?": "ENT",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     configured = scope.configure_pattern_trigger("xxx1")
@@ -516,7 +516,7 @@ def test_scope_pattern_trigger_uses_capabilities_from_idn():
 
 
 def test_scope_waveform_requires_known_capabilities():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     try:
         scope.capture_waveform_byte(1, points=1000)
@@ -527,7 +527,7 @@ def test_scope_waveform_requires_known_capabilities():
 
 
 def test_scope_measurement_requires_known_capabilities():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     try:
         scope.query_measurement(1, "vpp")
@@ -538,7 +538,7 @@ def test_scope_measurement_requires_known_capabilities():
 
 
 def test_scope_screenshot_requires_known_capabilities():
-    scope = KeysightScope(FakeBackend())
+    scope = Oscilloscope(FakeBackend())
 
     try:
         scope.capture_screenshot_png()
@@ -555,7 +555,7 @@ def test_scope_measurement_uses_capabilities_from_idn():
             ":MEASure:VPP? CHANnel1": "5.0E-1",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     result = scope.query_measurement(1, "vpp")
@@ -572,7 +572,7 @@ def test_scope_parameterized_measurement_uses_capabilities_from_idn():
             ":MEASure:VTIMe? 0,CHANnel1": "2.5E-1",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     result = scope.query_measurement(1, "y_at_x", time_s=0.0)
@@ -589,7 +589,7 @@ def test_scope_pair_measurement_uses_capabilities_from_idn():
             ":MEASure:PHASe? CHANnel1,CHANnel2": "9.0E+1",
         }
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     result = scope.query_pair_measurement(1, 2, "phase")
@@ -604,7 +604,7 @@ def test_scope_rejects_delay_pair_on_non_4000x_before_scpi():
     backend = FakeBackend(
         responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX3024A,MY1,07.20"}
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     try:
@@ -625,7 +625,7 @@ def test_scope_waveform_capture_uses_capabilities_from_idn():
         },
         binary_responses={":WAVeform:DATA?": [128, 129]},
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     capture = scope.capture_waveform_byte(1, points=1000)
@@ -649,7 +649,7 @@ def test_scope_word_waveform_capture_uses_capabilities_from_idn():
         },
         binary_responses={":WAVeform:DATA?": [32768, 32769]},
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     capture = scope.capture_waveform_word(1, points=1000)
@@ -678,7 +678,7 @@ def test_scope_screenshot_uses_capabilities_from_idn():
         binary_responses={":DISPlay:DATA? PNG, COLor": list(png_bytes)},
         timeout=2000,
     )
-    scope = KeysightScope(backend)
+    scope = Oscilloscope(backend)
 
     scope.query_idn()
     capture = scope.capture_screenshot_png()
