@@ -1,7 +1,14 @@
 import pytest
+import scopes_tool_core.capabilities as capabilities_module
+import scopes_tool_core.identity as identity_module
 
-from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core import PHYSICAL_MODEL_REGISTRY
+from scopes_tool_core.capabilities import (
+    capabilities_for_model,
+    capabilities_for_model_id,
+)
 from scopes_tool_core.errors import UnsupportedModelError
+from scopes_tool_core.identity import PhysicalModelInfo
 
 
 @pytest.mark.parametrize(
@@ -14,7 +21,6 @@ from scopes_tool_core.errors import UnsupportedModelError
         ("DSOX4024A", "4000X", 4),
         ("DSO-X 4024A", "4000X", 4),
         ("DSOX4034A", "4000X", 4),
-        ("DSOX4022A", "4000X", 2),
     ],
 )
 def test_capabilities_for_supported_models(model, series, channels):
@@ -84,3 +90,89 @@ def test_delay_measurement_support_comes_from_capability_profile(model, expected
 def test_capabilities_reject_unknown_model():
     with pytest.raises(UnsupportedModelError):
         capabilities_for_model("DSO-X-UNKNOWN")
+
+
+@pytest.mark.parametrize(
+    ("model_id", "profile_id", "series"),
+    [
+        (
+            "keysight-dsox2004a",
+            "keysight-infiniivision-2000x",
+            "2000X",
+        ),
+        (
+            "keysight-dsox3024a",
+            "keysight-infiniivision-3000x",
+            "3000X",
+        ),
+        (
+            "keysight-dsox4024a",
+            "keysight-infiniivision-4000x",
+            "4000X",
+        ),
+        (
+            "keysight-dsox4034a",
+            "keysight-infiniivision-4000x",
+            "4000X",
+        ),
+    ],
+)
+def test_registered_models_resolve_declared_capability_profile(
+    model_id, profile_id, series
+):
+    physical_model = next(
+        model for model in PHYSICAL_MODEL_REGISTRY if model.model_id == model_id
+    )
+
+    assert physical_model.capability_profile_id == profile_id
+    assert capabilities_for_model_id(model_id).series == series
+
+
+def test_4000x_registered_models_share_capability_profile():
+    assert capabilities_for_model_id(
+        "keysight-dsox4024a"
+    ) is capabilities_for_model_id("keysight-dsox4034a")
+
+
+def test_capabilities_reject_unknown_canonical_model_id():
+    with pytest.raises(UnsupportedModelError, match="model ID"):
+        capabilities_for_model_id("keysight-dsox9999a")
+
+
+def test_capabilities_reject_unregistered_series_shaped_model():
+    with pytest.raises(UnsupportedModelError):
+        capabilities_for_model("DSOX4054A")
+
+
+def test_model_only_capabilities_reject_ambiguous_vendor_match(monkeypatch):
+    first = PhysicalModelInfo(
+        model_id="vendor-a-model100",
+        vendor_id="vendor-a",
+        canonical_model="MODEL100",
+        display_name="Vendor A Model 100",
+        series="SYNTHETIC",
+        capability_profile_id="synthetic-profile",
+    )
+    second = PhysicalModelInfo(
+        model_id="vendor-b-model100",
+        vendor_id="vendor-b",
+        canonical_model="MODEL100",
+        display_name="Vendor B Model 100",
+        series="SYNTHETIC",
+        capability_profile_id="synthetic-profile",
+    )
+    monkeypatch.setattr(
+        identity_module,
+        "_PHYSICAL_MODELS_BY_MODEL_NAME",
+        {"MODEL100": (first, second)},
+    )
+
+    with pytest.raises(UnsupportedModelError, match="ambiguous"):
+        capabilities_for_model("MODEL100")
+
+
+def test_registered_model_missing_capability_profile_fails_clearly(monkeypatch):
+    monkeypatch.setattr(capabilities_module, "_CAPABILITY_PROFILES", {})
+
+    with pytest.raises(UnsupportedModelError, match="missing capability profile"):
+        capabilities_for_model_id("keysight-dsox4024a")

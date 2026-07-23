@@ -233,11 +233,11 @@ def test_trigger_setup_hold_configure_then_query_simulate_json(capsys):
         [
             "trigger-setup-hold",
             "--model",
-            "DSOX4022A",
+            "DSOX4024A",
             "--clock-channel",
             "1",
             "--data-channel",
-            "3",
+            "5",
             "--slope",
             "positive",
             "--setup-time",

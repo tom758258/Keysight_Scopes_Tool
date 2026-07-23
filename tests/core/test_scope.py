@@ -26,6 +26,18 @@ def test_scope_keeps_unknown_capabilities_none():
     assert scope.capabilities is None
 
 
+def test_scope_live_capabilities_require_manufacturer_and_model_identity():
+    backend = FakeBackend(
+        responses={"*IDN?": "ACME,DSOX4024A,SN1,FW1"}
+    )
+    scope = Oscilloscope(backend)
+
+    idn = scope.query_idn()
+
+    assert idn.model == "DSOX4024A"
+    assert scope.capabilities is None
+
+
 def test_scope_context_manager_closes_backend():
     backend = FakeBackend()
 
@@ -140,27 +152,27 @@ def test_scope_channel_display_requires_known_capabilities():
 def test_scope_channel_display_uses_capabilities_from_idn():
     backend = FakeBackend(
         responses={
-            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20",
-            ":CHANnel2:DISPlay?": "0",
+            "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20",
+            ":CHANnel4:DISPlay?": "0",
         }
     )
     scope = Oscilloscope(backend)
 
     scope.query_idn()
-    scope.set_channel_display(2, True)
-    display = scope.query_channel_display(2)
+    scope.set_channel_display(4, True)
+    display = scope.query_channel_display(4)
 
     assert display is False
-    assert backend.history == ["*IDN?", ":CHANnel2:DISPlay ON", ":CHANnel2:DISPlay?"]
+    assert backend.history == ["*IDN?", ":CHANnel4:DISPlay ON", ":CHANnel4:DISPlay?"]
 
 
 def test_scope_rejects_channel_above_capability_before_display_scpi():
-    backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20"})
+    backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20"})
     scope = Oscilloscope(backend)
 
     scope.query_idn()
     try:
-        scope.set_channel_display(3, True)
+        scope.set_channel_display(5, True)
     except ParameterValidationError:
         pass
     else:
@@ -281,12 +293,12 @@ def test_scope_channel_advanced_settings_use_capabilities_from_idn():
 
 
 def test_scope_rejects_channel_above_capability_before_scale_scpi():
-    backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4022A,MY1,07.20"})
+    backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,07.20"})
     scope = Oscilloscope(backend)
 
     scope.query_idn()
     try:
-        scope.set_channel_scale(3, 0.5)
+        scope.set_channel_scale(5, 0.5)
     except ParameterValidationError:
         pass
     else:

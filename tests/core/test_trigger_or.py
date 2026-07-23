@@ -43,8 +43,11 @@ def test_or_trigger_rejects_invalid_patterns_before_backend_access(pattern):
     assert backend.history == []
 
 
-def test_or_trigger_accepts_lowercase_and_two_channel_models():
-    assert validate_or_trigger_pattern("xr", capabilities_for_model("DSOX4022A")) == "XR"
+def test_or_trigger_accepts_lowercase_for_registered_model():
+    assert (
+        validate_or_trigger_pattern("xxxr", capabilities_for_model("DSOX4024A"))
+        == "XXXR"
+    )
 
 
 def test_or_trigger_four_channel_profile_rejects_two_char_pattern():
@@ -52,9 +55,9 @@ def test_or_trigger_four_channel_profile_rejects_two_char_pattern():
         validate_or_trigger_pattern("XR", capabilities_for_model("DSOX4024A"))
 
 
-def test_or_trigger_two_channel_profile_rejects_four_char_pattern():
+def test_or_trigger_four_channel_profile_rejects_five_char_pattern():
     with pytest.raises(ParameterValidationError):
-        validate_or_trigger_pattern("XXXR", capabilities_for_model("DSOX4022A"))
+        validate_or_trigger_pattern("XXXXR", capabilities_for_model("DSOX4024A"))
 
 
 def test_or_trigger_query_sequence_is_explicit_and_non_acquisition():

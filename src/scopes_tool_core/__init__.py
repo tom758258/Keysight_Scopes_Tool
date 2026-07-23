@@ -1,6 +1,10 @@
 """Keysight InfiniiVision oscilloscope core runtime."""
 
-from .capabilities import ScopeCapabilities, capabilities_for_model
+from .capabilities import (
+    ScopeCapabilities,
+    capabilities_for_model,
+    capabilities_for_model_id,
+)
 from .channel import (
     ChannelController,
     parse_channel_coupling,
@@ -286,6 +290,7 @@ __all__ = [
     "WaveformCapture",
     "WaveformPreamble",
     "capabilities_for_model",
+    "capabilities_for_model_id",
     "canonical_physical_model_id",
     "detect_series",
     "parse_channel_display",

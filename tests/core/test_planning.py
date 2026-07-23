@@ -33,12 +33,12 @@ def test_plan_capture_single_and_all_channels(tmp_path):
 
 
 def test_plan_doctor_uses_capability_channel_count():
-    two = plan_doctor(capabilities_for_model("DSOX4022A"))
-    four = plan_doctor(capabilities_for_model("DSOX4034A"))
+    first = plan_doctor(capabilities_for_model("DSOX2004A"))
+    second = plan_doctor(capabilities_for_model("DSOX4034A"))
 
-    assert ":CHANnel2:BWLimit?" in two.planned_scpi
-    assert ":CHANnel3:BWLimit?" not in two.planned_scpi
-    assert ":CHANnel4:BWLimit?" in four.planned_scpi
+    assert ":CHANnel4:BWLimit?" in first.planned_scpi
+    assert ":CHANnel5:BWLimit?" not in first.planned_scpi
+    assert ":CHANnel4:BWLimit?" in second.planned_scpi
 
 
 def test_plan_measure_single_and_pair():

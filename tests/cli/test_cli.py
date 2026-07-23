@@ -987,8 +987,8 @@ def test_channel_display_cli_rejects_channel_above_detected_capabilities(monkeyp
 
         def query_idn(self):
             self.calls.append("query_idn")
-            self.capabilities = capabilities_for_model("DSOX4022A")
-            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
         def set_channel_display(self, channel, enabled):
             self.calls.append(("set_channel_display", channel, enabled))
@@ -1003,7 +1003,7 @@ def test_channel_display_cli_rejects_channel_above_detected_capabilities(monkeyp
                 "--resource",
                 "USB0::FAKE::INSTR",
                 "--channel",
-                "3",
+                "5",
                 "--on",
             ]
         )
@@ -1012,7 +1012,7 @@ def test_channel_display_cli_rejects_channel_above_detected_capabilities(monkeyp
 
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
-    assert "channel 3 is not available" in err
+    assert "channel 5 is not available" in err
 
 
 def test_channel_scale_cli_sets_scale_then_checks_error(monkeypatch, capsys):
@@ -1255,8 +1255,8 @@ def test_channel_scale_cli_rejects_channel_above_detected_capabilities(monkeypat
 
         def query_idn(self):
             self.calls.append("query_idn")
-            self.capabilities = capabilities_for_model("DSOX4022A")
-            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
         def set_channel_scale(self, channel, volts_per_division):
             self.calls.append(("set_channel_scale", channel, volts_per_division))
@@ -1271,7 +1271,7 @@ def test_channel_scale_cli_rejects_channel_above_detected_capabilities(monkeypat
                 "--resource",
                 "USB0::FAKE::INSTR",
                 "--channel",
-                "3",
+                "5",
                 "--volts-per-division",
                 "0.5",
             ]
@@ -1281,7 +1281,7 @@ def test_channel_scale_cli_rejects_channel_above_detected_capabilities(monkeypat
 
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
-    assert "channel 3 is not available" in err
+    assert "channel 5 is not available" in err
 
 
 def test_channel_coupling_cli_sets_coupling_then_checks_error(monkeypatch, capsys):
@@ -2445,8 +2445,8 @@ def test_capture_cli_channel_all_is_case_insensitive_and_supports_word(
 
         def query_idn(self):
             self.calls.append("query_idn")
-            self.capabilities = capabilities_for_model("DSOX4022A")
-            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
         def capture_waveforms_word(self, channels, points=1000):
             self.calls.append(("capture_waveforms_word", channels, points))
@@ -2481,12 +2481,12 @@ def test_capture_cli_channel_all_is_case_insensitive_and_supports_word(
 
     assert scope.calls == [
         "query_idn",
-        ("capture_waveforms_word", (1, 2), 1000),
+        ("capture_waveforms_word", (1, 2, 3, 4), 1000),
         "query_system_error",
     ]
     out = capsys.readouterr().out
-    assert "Planned capture: CH1, CH2, 1000 points, WORD format" in out
-    assert out.count("Command: :WAVeform:FORMat WORD") == 2
+    assert "Planned capture: CH1, CH2, CH3, CH4, 1000 points, WORD format" in out
+    assert out.count("Command: :WAVeform:FORMat WORD") == 4
 
 
 def test_capture_cli_multi_channel_word_uses_plural_api(monkeypatch, capsys, tmp_path):
@@ -2774,8 +2774,8 @@ def test_capture_cli_rejects_invalid_multi_channel_before_capture(monkeypatch, c
 
         def query_idn(self):
             self.calls.append("query_idn")
-            self.capabilities = capabilities_for_model("DSOX4022A")
-            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
         def capture_waveforms_byte(self, channels, points=1000):
             self.calls.append(("capture_waveforms_byte", channels, points))
@@ -2793,7 +2793,7 @@ def test_capture_cli_rejects_invalid_multi_channel_before_capture(monkeypatch, c
                 "--channel",
                 "1",
                 "--channel",
-                "3",
+                "5",
                 "--csv",
                 str(tmp_path / "capture.csv"),
             ]
@@ -2803,7 +2803,7 @@ def test_capture_cli_rejects_invalid_multi_channel_before_capture(monkeypatch, c
 
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
-    assert "channel 3 is not available" in err
+    assert "channel 5 is not available" in err
 
 
 def test_capture_cli_uses_timestamped_default_csv_when_omitted(monkeypatch, capsys, tmp_path):
@@ -2978,8 +2978,8 @@ def test_capture_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
 
         def query_idn(self):
             self.calls.append("query_idn")
-            self.capabilities = capabilities_for_model("DSOX4022A")
-            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
     scope = DummyScope()
     monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(lambda resource, visa_library=None: scope))
@@ -2991,7 +2991,7 @@ def test_capture_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
                 "--resource",
                 "USB0::FAKE::INSTR",
                 "--channel",
-                "3",
+                "5",
                 "--csv",
                 str(tmp_path / "capture.csv"),
             ]
@@ -3001,7 +3001,7 @@ def test_capture_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
 
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
-    assert "channel 3 is not available" in err
+    assert "channel 5 is not available" in err
 
 
 def test_screenshot_cli_writes_png_then_checks_error(monkeypatch, capsys, tmp_path):
@@ -3621,8 +3621,8 @@ def test_measure_cli_rejects_invalid_parameterized_args_without_query(
             "must be different",
         ),
         (
-            ["--source-channel", "3", "--reference-channel", "1", "--item", "phase"],
-            "channel 3 is not available",
+            ["--source-channel", "5", "--reference-channel", "1", "--item", "phase"],
+            "channel 5 is not available",
         ),
         (
             ["--source-channel", "1", "--reference-channel", "2", "--item", "phase", "--time", "0"],
@@ -3637,7 +3637,7 @@ def test_measure_cli_rejects_invalid_parameterized_args_without_query(
 def test_measure_cli_rejects_invalid_pair_channel_args_without_query(
     monkeypatch, capsys, argv, expected_error
 ):
-    scope = _install_measurement_scope(monkeypatch, 0.25, "2.5E-1", "V", model="DSOX4022A")
+    scope = _install_measurement_scope(monkeypatch, 0.25, "2.5E-1", "V", model="DSOX4024A")
 
     assert cli.main(["measure", "--resource", "USB0::FAKE::INSTR", *argv]) == 1
 
@@ -4131,8 +4131,8 @@ def test_measure_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
 
         def query_idn(self):
             self.calls.append("query_idn")
-            self.capabilities = capabilities_for_model("DSOX4022A")
-            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4022A,MY123,07.20")
+            self.capabilities = capabilities_for_model("DSOX4024A")
+            return parse_idn("KEYSIGHT TECHNOLOGIES,DSOX4024A,MY123,07.20")
 
         def query_measurement(self, channel, item):
             self.calls.append(("query_measurement", channel, item))
@@ -4148,7 +4148,7 @@ def test_measure_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
                 "--resource",
                 "USB0::FAKE::INSTR",
                 "--channel",
-                "3",
+                "5",
                 "--item",
                 "vpp",
             ]
@@ -4158,4 +4158,4 @@ def test_measure_cli_rejects_channel_above_detected_capabilities(monkeypatch, ca
 
     assert scope.calls == ["query_idn"]
     err = capsys.readouterr().err
-    assert "channel 3 is not available" in err
+    assert "channel 5 is not available" in err

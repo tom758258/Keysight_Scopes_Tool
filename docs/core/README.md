@@ -12,8 +12,8 @@ Import package: `scopes_tool_core`
 Core owns runtime behavior:
 
 - Safe resource opening and run-mode resolution.
-- IDN parsing and series detection.
-- Capability profiles for supported InfiniiVision models.
+- IDN parsing and canonical physical model identity resolution.
+- Registry-linked capability profiles for supported InfiniiVision models.
 - Channel, display label, display annotation, common display one-shot,
   timebase, trigger, acquisition, measurement, waveform, screenshot, and
   operation helpers.

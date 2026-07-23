@@ -448,15 +448,15 @@ def test_measurement_controller_rejects_delay_pair_before_scpi_when_unsupported(
     ("source_channel", "reference_channel", "message"),
     [
         (1, 1, "different"),
-        (3, 1, "channel 3 is not available"),
-        (1, 3, "channel 3 is not available"),
+        (5, 1, "channel 5 is not available"),
+        (1, 5, "channel 5 is not available"),
     ],
 )
 def test_measurement_controller_rejects_invalid_pair_channels_before_scpi(
     source_channel, reference_channel, message
 ):
     backend = FakeBackend()
-    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError) as excinfo:
         controller.query_pair(source_channel, reference_channel, "phase")
@@ -622,9 +622,9 @@ def test_measurement_controller_queries_additional_read_only_items(
 
 def test_measurement_controller_rejects_invalid_channel_before_scpi():
     backend = FakeBackend()
-    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = MeasurementController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError):
-        controller.query(3, "vpp")
+        controller.query(5, "vpp")
 
     assert backend.history == []

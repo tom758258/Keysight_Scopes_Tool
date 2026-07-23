@@ -349,9 +349,9 @@ def test_trigger_edge_burst_text_dry_run_rejects_invalid_channel_before_open(cap
             [
                 "trigger-edge-burst",
                 "--model",
-                "DSOX4022A",
+                "DSOX4024A",
                 "--source-channel",
-                "3",
+                "5",
                 "--slope",
                 "positive",
                 "--count",

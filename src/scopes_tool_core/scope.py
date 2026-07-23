@@ -13,7 +13,7 @@ from .advanced import (
     SetupController,
     TriggerHoldoffController,
 )
-from .capabilities import ScopeCapabilities, capabilities_for_model
+from .capabilities import ScopeCapabilities, capabilities_for_model_id
 from .channel import ChannelController
 from .display import AnnotationState, DisplayController, DisplayPersistence
 from .dvm import (
@@ -138,7 +138,7 @@ class Oscilloscope:
         parsed = parse_idn(self.scpi.query("*IDN?"))
         self.idn = parsed
         try:
-            self.capabilities = capabilities_for_model(parsed.model)
+            self.capabilities = capabilities_for_model_id(parsed.model_id)
         except UnsupportedModelError:
             self.capabilities = None
         return parsed

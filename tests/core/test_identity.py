@@ -143,6 +143,7 @@ def _synthetic_model(model_id, vendor_id, canonical_model, *, aliases=()):
         canonical_model=canonical_model,
         display_name=model_id,
         series="SYNTHETIC",
+        capability_profile_id="synthetic-profile",
         model_aliases=aliases,
     )
 

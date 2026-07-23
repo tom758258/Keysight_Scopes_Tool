@@ -526,16 +526,16 @@ def test_simulator_waveform_model_reflects_scale_offset_timebase_and_channel_pha
 
 
 def test_simulator_respects_model_channel_capabilities():
-    backend = SimulatorBackend(model="DSOX4022A")
+    backend = SimulatorBackend(model="DSOX4024A")
 
-    with pytest.raises(SimulatorBackendError, match="CH3 is not available"):
-        backend.write(":WAVeform:SOURce CHANnel3")
+    with pytest.raises(SimulatorBackendError, match="CH5 is not available"):
+        backend.write(":WAVeform:SOURce CHANnel5")
 
-    with pytest.raises(SimulatorBackendError, match="CH3 is not available"):
-        backend.query(":MEASure:VPP? CHANnel3")
+    with pytest.raises(SimulatorBackendError, match="CH5 is not available"):
+        backend.query(":MEASure:VPP? CHANnel5")
 
-    with pytest.raises(SimulatorBackendError, match="CH3 is not available"):
-        backend.write(":TRIGger:EDGE:SOURce CHANnel3")
+    with pytest.raises(SimulatorBackendError, match="CH5 is not available"):
+        backend.write(":TRIGger:EDGE:SOURce CHANnel5")
 
 
 def test_simulator_byte_waveform_uses_requested_5000_points():

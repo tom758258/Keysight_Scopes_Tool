@@ -209,10 +209,10 @@ def test_edge_trigger_controller_configures_and_reads_back_state():
 
 def test_edge_trigger_controller_rejects_invalid_channel_before_scpi():
     backend = FakeBackend()
-    controller = EdgeTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = EdgeTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError):
-        controller.configure(source_channel=3, level_volts=0.0, slope="positive")
+        controller.configure(source_channel=5, level_volts=0.0, slope="positive")
 
     assert backend.history == []
 
@@ -410,11 +410,11 @@ def test_glitch_trigger_rejects_invalid_timing_combinations(kwargs):
 
 def test_glitch_trigger_rejects_invalid_channel_before_scpi():
     backend = FakeBackend()
-    controller = GlitchTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = GlitchTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError):
         controller.configure(
-            channel=3,
+            channel=5,
             polarity="positive",
             qualifier="less-than",
             time_seconds=1e-6,
@@ -592,11 +592,11 @@ def test_runt_trigger_rejects_invalid_timing_and_levels(kwargs):
 
 def test_runt_trigger_rejects_invalid_channel_before_scpi():
     backend = FakeBackend()
-    controller = RuntTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = RuntTriggerController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError):
         controller.configure(
-            channel=3,
+            channel=5,
             polarity="positive",
             qualifier="none",
             low_level_volts=-0.5,

@@ -186,7 +186,7 @@ def test_capture_batch_cli_runs_two_captures_and_writes_outputs(
 def test_capture_batch_cli_channel_all_expands_to_detected_model_channels(
     monkeypatch, capsys, tmp_path
 ):
-    scope = _install_batch_scope(monkeypatch, _BatchDummyScope(model="DSOX4022A"))
+    scope = _install_batch_scope(monkeypatch, _BatchDummyScope(model="DSOX4024A"))
 
     assert (
         cli.main(
@@ -207,10 +207,10 @@ def test_capture_batch_cli_channel_all_expands_to_detected_model_channels(
 
     assert scope.calls == [
         "query_idn",
-        ("capture_waveforms_byte", (1, 2), 1000),
+        ("capture_waveforms_byte", (1, 2, 3, 4), 1000),
         "query_system_error",
     ]
-    assert "Planned batch capture: CH1, CH2" in capsys.readouterr().out
+    assert "Planned batch capture: CH1, CH2, CH3, CH4" in capsys.readouterr().out
 
 
 def test_capture_batch_cli_word_single_channel_uses_single_word_api_each_time(
@@ -421,7 +421,7 @@ def test_capture_batch_cli_rejects_invalid_count_and_interval_before_open(
 def test_capture_batch_cli_rejects_invalid_channel_before_capture(
     monkeypatch, capsys, tmp_path
 ):
-    scope = _install_batch_scope(monkeypatch, _BatchDummyScope(model="DSOX4022A"))
+    scope = _install_batch_scope(monkeypatch, _BatchDummyScope(model="DSOX4024A"))
 
     assert (
         cli.main(
@@ -430,7 +430,7 @@ def test_capture_batch_cli_rejects_invalid_channel_before_capture(
                 "--resource",
                 "USB0::FAKE::INSTR",
                 "--channel",
-                "3",
+                "5",
                 "--count",
                 "1",
                 "--output-dir",
@@ -441,7 +441,7 @@ def test_capture_batch_cli_rejects_invalid_channel_before_capture(
     )
 
     assert scope.calls == ["query_idn"]
-    assert "channel 3 is not available" in capsys.readouterr().err
+    assert "channel 5 is not available" in capsys.readouterr().err
 
 
 def test_capture_batch_cli_writes_interrupted_manifest(monkeypatch, capsys, tmp_path):

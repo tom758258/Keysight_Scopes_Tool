@@ -92,12 +92,12 @@ def test_transition_trigger_rejects_invalid_channel_before_scpi():
     backend = FakeBackend()
     controller = TransitionTriggerController(
         SCPIClient(backend),
-        capabilities_for_model("DSOX4022A"),
+        capabilities_for_model("DSOX4024A"),
     )
 
     with pytest.raises(ParameterValidationError):
         controller.configure(
-            channel=3,
+            channel=5,
             slope="positive",
             qualifier="greater-than",
             time_seconds=5e-6,

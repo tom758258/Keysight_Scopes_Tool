@@ -34,7 +34,7 @@ def test_measurement_control_json_modes(argv, target, mode, capsys):
         ["measure-show", "--off", "--dry-run", "--json"],
         ["measure-source", "--dry-run", "--json"],
         ["measure-source", "--query", "--source-channel", "1", "--dry-run", "--json"],
-        ["measure-source", "--source-channel", "3", "--model", "DSOX2022A", "--dry-run", "--json"],
+        ["measure-source", "--source-channel", "5", "--model", "DSOX2004A", "--dry-run", "--json"],
     ],
 )
 def test_measurement_control_validation_before_open(argv, monkeypatch, capsys):

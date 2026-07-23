@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-import re
+from dataclasses import dataclass
 
 from .errors import UnsupportedModelError
-from .idn import detect_series, normalize_model_key
+from .identity import physical_model_for_id, resolve_registered_model_name
 
 
 @dataclass(frozen=True)
@@ -53,8 +52,8 @@ _DEMO_3000X_EXTENSIONS = frozenset(
 )
 
 
-_BASE_PROFILES = {
-    "2000X": ScopeCapabilities(
+_CAPABILITY_PROFILES = {
+    "keysight-infiniivision-2000x": ScopeCapabilities(
         series="2000X",
         analog_channels=4,
         default_waveform_points=1000,
@@ -80,7 +79,7 @@ _BASE_PROFILES = {
         supports_demo=True,
         demo_functions=_DEMO_COMMON_FUNCTIONS,
     ),
-    "3000X": ScopeCapabilities(
+    "keysight-infiniivision-3000x": ScopeCapabilities(
         series="3000X",
         analog_channels=4,
         default_waveform_points=1000,
@@ -108,7 +107,7 @@ _BASE_PROFILES = {
         supports_demo=True,
         demo_functions=_DEMO_COMMON_FUNCTIONS | _DEMO_3000X_EXTENSIONS,
     ),
-    "4000X": ScopeCapabilities(
+    "keysight-infiniivision-4000x": ScopeCapabilities(
         series="4000X",
         analog_channels=4,
         default_waveform_points=1000,
@@ -147,26 +146,22 @@ _BASE_PROFILES = {
     ),
 }
 
-SUPPORTED_SERIES = tuple(_BASE_PROFILES)
-_CHANNEL_COUNT_RE = re.compile(r"^(?:DSO|MSO)X\d{3}(?P<channels>[24])[A-Z]?$", re.IGNORECASE)
+
+def capabilities_for_model_id(model_id: str) -> ScopeCapabilities:
+    """Return capabilities for a registered canonical physical model ID."""
+
+    physical_model = physical_model_for_id(model_id)
+    profile = _CAPABILITY_PROFILES.get(physical_model.capability_profile_id)
+    if profile is None:
+        raise UnsupportedModelError(
+            f"Physical model {model_id} references missing capability profile: "
+            f"{physical_model.capability_profile_id}"
+        )
+    return profile
 
 
 def capabilities_for_model(model: str) -> ScopeCapabilities:
-    """Return the runtime-supported capability profile for a model string."""
+    """Return capabilities for an unambiguous registered model-only name."""
 
-    series = detect_series(model)
-    if series is None or series not in _BASE_PROFILES:
-        raise UnsupportedModelError(f"Unsupported or unrecognized oscilloscope model: {model}")
-
-    channels = _channel_count_from_model(model)
-    profile = _BASE_PROFILES[series]
-    if channels is None:
-        return profile
-    return replace(profile, analog_channels=channels)
-
-
-def _channel_count_from_model(model: str) -> int | None:
-    match = _CHANNEL_COUNT_RE.match(normalize_model_key(model))
-    if match is None:
-        return None
-    return int(match.group("channels"))
+    physical_model = resolve_registered_model_name(model)
+    return capabilities_for_model_id(physical_model.model_id)

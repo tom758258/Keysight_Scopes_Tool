@@ -176,7 +176,7 @@ def test_edge_burst_query_tolerates_non_analog_source_without_level_query(source
     assert backend.history == edge_burst_trigger_query_commands()
 
 
-@pytest.mark.parametrize("channel", [0, 3, 1.5, "DIG0"])
+@pytest.mark.parametrize("channel", [0, 5, 1.5, "DIG0"])
 def test_edge_burst_validation_rejects_invalid_source_channel(channel):
     with pytest.raises(ParameterValidationError):
         edge_burst_trigger_configure_commands(
@@ -184,7 +184,7 @@ def test_edge_burst_validation_rejects_invalid_source_channel(channel):
             slope="positive",
             count=3,
             idle_time=1e-6,
-            capabilities=capabilities_for_model("DSOX4022A"),
+            capabilities=capabilities_for_model("DSOX4024A"),
         )
 
 

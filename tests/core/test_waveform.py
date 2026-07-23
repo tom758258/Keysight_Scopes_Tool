@@ -270,10 +270,10 @@ def test_waveform_controller_rejects_unexpected_word_preamble_format():
 
 def test_waveform_controller_rejects_invalid_channel_before_scpi():
     backend = FakeBackend()
-    controller = WaveformController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = WaveformController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError):
-        controller.capture_byte(3, points=1000)
+        controller.capture_byte(5, points=1000)
 
     assert backend.history == []
 

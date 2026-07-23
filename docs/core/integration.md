@@ -130,6 +130,7 @@ names are intended for package consumers and tests:
 - `WaveformCapture`
 - `WaveformPreamble`
 - `capabilities_for_model`
+- `capabilities_for_model_id`
 - `canonical_physical_model_id`
 - `detect_series`
 - `parse_channel_display`

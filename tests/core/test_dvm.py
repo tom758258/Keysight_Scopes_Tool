@@ -90,7 +90,7 @@ def test_dvm_mode_rejects_aliases_and_frequency(mode):
         normalize_dvm_mode(mode)
 
 
-@pytest.mark.parametrize("model, channel", [("DSOX4022A", 3), ("DSOX4024A", 5), ("DSOX4024A", 0), ("DSOX4024A", -1)])
+@pytest.mark.parametrize("model, channel", [("DSOX4024A", 5), ("DSOX4024A", 0), ("DSOX4024A", -1)])
 def test_dvm_source_rejects_invalid_analog_channel(model, channel):
     with pytest.raises(ParameterValidationError):
         dvm_source_command(channel, capabilities=capabilities_for_model(model))

@@ -37,11 +37,11 @@ def test_parse_measurement_window(raw, expected):
 
 
 def test_measurement_control_builders_validate_channels_and_values():
-    capabilities = capabilities_for_model("DSOX2022A")
+    capabilities = capabilities_for_model("DSOX2004A")
     assert measurement_source_command(1, 2, capabilities=capabilities) == ":MEASure:SOURce CHANnel1,CHANnel2"
     assert measurement_window_command("gate") == ":MEASure:WINDow GATE"
     with pytest.raises(ParameterValidationError):
-        measurement_source_command(3, capabilities=capabilities)
+        measurement_source_command(5, capabilities=capabilities)
 
 
 def test_measurement_controller_command_order_and_raw_state():
@@ -81,4 +81,3 @@ def test_measurement_control_simulator_roundtrip():
     assert scope.query_measurement_show().enabled is True
     assert scope.query_measurement_source().source2_channel == 2
     assert scope.query_measurement_window().window == "GATE"
-

@@ -42,16 +42,16 @@ def test_pattern_trigger_rejects_invalid_patterns(pattern):
         )
 
 
-def test_pattern_trigger_accepts_lowercase_and_two_channel_models():
+def test_pattern_trigger_accepts_lowercase_for_registered_model():
     assert (
-        validate_pattern_trigger_pattern("x1", capabilities_for_model("DSOX4022A"))
-        == "X1"
+        validate_pattern_trigger_pattern("xxx1", capabilities_for_model("DSOX4024A"))
+        == "XXX1"
     )
 
 
 def test_pattern_trigger_rejects_wrong_length_for_model():
     with pytest.raises(ParameterValidationError):
-        validate_pattern_trigger_pattern("XXX1", capabilities_for_model("DSOX4022A"))
+        validate_pattern_trigger_pattern("XXXX1", capabilities_for_model("DSOX4024A"))
 
 
 def test_pattern_trigger_query_sequence_is_explicit_and_non_acquisition():

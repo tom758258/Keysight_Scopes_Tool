@@ -160,14 +160,14 @@ def test_parse_trigger_mode_supports_tv():
     assert parse_trigger_mode("TV") == "tv"
 
 
-def test_tv_trigger_validation_rejects_unsupported_channel_for_two_channel_profile():
+def test_tv_trigger_validation_rejects_unsupported_channel_for_profile():
     with pytest.raises(ParameterValidationError):
         tv_trigger_configure_commands(
-            source_channel=3,
+            source_channel=5,
             standard="ntsc",
             mode="field1",
             polarity="negative",
-            capabilities=capabilities_for_model("DSOX4022A"),
+            capabilities=capabilities_for_model("DSOX4024A"),
         )
 
 

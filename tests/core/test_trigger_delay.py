@@ -79,14 +79,14 @@ def test_delay_trigger_rejects_invalid_channel_before_scpi():
     backend = FakeBackend()
     controller = DelayTriggerController(
         SCPIClient(backend),
-        capabilities_for_model("DSOX4022A"),
+        capabilities_for_model("DSOX4024A"),
     )
 
     with pytest.raises(ParameterValidationError):
         controller.configure(
             arm_channel=1,
             arm_slope="positive",
-            trigger_channel=3,
+            trigger_channel=5,
             trigger_slope="negative",
             time_seconds=1e-6,
             count=2,

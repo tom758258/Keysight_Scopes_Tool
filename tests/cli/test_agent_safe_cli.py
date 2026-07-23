@@ -791,9 +791,9 @@ def test_simulate_json_error_is_single_json_object(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4022A",
+                "DSOX4024A",
                 "--channel",
-                "3",
+                "5",
                 "--item",
                 "vpp",
             ]
@@ -804,7 +804,7 @@ def test_simulate_json_error_is_single_json_object(capsys):
     payload = _json_stdout(capsys)
     assert payload["ok"] is False
     assert payload["mode"] == "simulate"
-    assert "channel 3 is not available" in payload["error"]["message"]
+    assert "channel 5 is not available" in payload["error"]["message"]
 
 
 def test_simulate_json_backend_error_keeps_single_json_object(monkeypatch, capsys):

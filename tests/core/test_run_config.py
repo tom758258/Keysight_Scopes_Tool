@@ -37,6 +37,29 @@ def test_simulator_options_require_simulate():
         resolve_run_mode(RunModeOptions(dry_run=True, simulate_preset="noisy-sine"))
 
 
+@pytest.mark.parametrize(
+    "model",
+    ["DSOX2004A", "DSOX3024A", "DSOX4024A", "DSOX4034A"],
+)
+@pytest.mark.parametrize(
+    ("flag", "expected_mode"),
+    [("dry_run", "dry_run"), ("simulate", "simulate")],
+)
+def test_registered_models_keep_dry_run_and_simulator_lookup(
+    model, flag, expected_mode
+):
+    assert (
+        resolve_run_mode(RunModeOptions(model=model, **{flag: True}))
+        == expected_mode
+    )
+
+
+@pytest.mark.parametrize("flag", ["dry_run", "simulate"])
+def test_unregistered_series_shaped_model_is_rejected(flag):
+    with pytest.raises(OscilloscopeError):
+        resolve_run_mode(RunModeOptions(model="DSOX4054A", **{flag: True}))
+
+
 def test_resource_fallbacks():
     assert resolve_resource("simulate", None, "DSOX4024A", {}) == "SIM::DSOX4024A::INSTR"
     assert resolve_resource("dry_run", None, "DSOX4024A", {}) == "DRY::DSOX4024A::INSTR"

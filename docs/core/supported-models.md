@@ -14,31 +14,34 @@ Scopes Tool exposes a vendor-neutral product API while the currently
 implemented hardware family remains Keysight InfiniiVision. The canonical
 physical model registry contains:
 
-| Canonical physical model ID | Manufacturer | Model | Series |
-| --- | --- | --- | --- |
-| `keysight-dsox2004a` | Keysight Technologies | DSOX2004A | 2000X |
-| `keysight-dsox3024a` | Keysight Technologies | DSOX3024A | 3000X |
-| `keysight-dsox4024a` | Keysight Technologies | DSOX4024A | 4000X |
-| `keysight-dsox4034a` | Keysight Technologies | DSOX4034A | 4000X |
+| Canonical physical model ID | Manufacturer | Model | Series | Capability profile ID |
+| --- | --- | --- | --- | --- |
+| `keysight-dsox2004a` | Keysight Technologies | DSOX2004A | 2000X | `keysight-infiniivision-2000x` |
+| `keysight-dsox3024a` | Keysight Technologies | DSOX3024A | 3000X | `keysight-infiniivision-3000x` |
+| `keysight-dsox4024a` | Keysight Technologies | DSOX4024A | 4000X | `keysight-infiniivision-4000x` |
+| `keysight-dsox4034a` | Keysight Technologies | DSOX4034A | 4000X | `keysight-infiniivision-4000x` |
 
 Canonical registration identifies a physical model; it does not claim that
-every feature has completed live hardware validation. Capability profile and
-driver-selection refactoring are separate later phases and are not part of the
-canonical identity registry.
+every feature has completed live hardware validation. Each registered model
+explicitly selects its runtime capability profile.
 
 ## Runtime Profiles
 
-Core detects DSO-X and MSO-X 2000X, 3000X, and 4000X series models from
-`*IDN?` responses and maps them to runtime capability profiles.
+Core resolves live `*IDN?` manufacturer and model fields to a canonical
+physical model ID, then follows the registered capability profile ID. Dry-run
+and simulator `--model` values keep their existing model-name syntax, but the
+name must resolve to exactly one registered physical model.
 
-| Series | Example models | Analog channels | Profile status |
+| Profile ID | Series | Registered models | Analog channels |
 | --- | --- | ---: | --- |
-| 2000X | DSOX2004A | 2 or 4 from model key | Supported by capability profile |
-| 3000X | DSOX3024A, MSOX3024A | 2 or 4 from model key | Supported by capability profile |
-| 4000X | DSOX4024A, DSOX4034A | 2 or 4 from model key | Supported by capability profile |
+| `keysight-infiniivision-2000x` | 2000X | DSOX2004A | 4 |
+| `keysight-infiniivision-3000x` | 3000X | DSOX3024A | 4 |
+| `keysight-infiniivision-4000x` | 4000X | DSOX4024A, DSOX4034A | 4 |
 
-The default runtime profile covers four-channel instruments when the model key
-does not encode a two-channel variant.
+A model string that merely resembles a DSO-X or MSO-X series model is not
+sufficient for capability selection. Unregistered names such as `DSOX4054A`
+are rejected even when their shape implies a known series. Model-only lookup
+also rejects normalized names that would be ambiguous across vendors.
 
 ## Capability Summary
 

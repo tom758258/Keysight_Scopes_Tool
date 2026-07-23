@@ -27,6 +27,7 @@ class PhysicalModelInfo:
     canonical_model: str
     display_name: str
     series: str
+    capability_profile_id: str
     model_aliases: tuple[str, ...] = ()
 
 
@@ -50,6 +51,7 @@ PHYSICAL_MODEL_REGISTRY = (
         canonical_model="DSOX2004A",
         display_name="Keysight DSO-X 2004A",
         series="2000X",
+        capability_profile_id="keysight-infiniivision-2000x",
     ),
     PhysicalModelInfo(
         model_id="keysight-dsox3024a",
@@ -57,6 +59,7 @@ PHYSICAL_MODEL_REGISTRY = (
         canonical_model="DSOX3024A",
         display_name="Keysight DSO-X 3024A",
         series="3000X",
+        capability_profile_id="keysight-infiniivision-3000x",
     ),
     PhysicalModelInfo(
         model_id="keysight-dsox4024a",
@@ -64,6 +67,7 @@ PHYSICAL_MODEL_REGISTRY = (
         canonical_model="DSOX4024A",
         display_name="Keysight DSO-X 4024A",
         series="4000X",
+        capability_profile_id="keysight-infiniivision-4000x",
     ),
     PhysicalModelInfo(
         model_id="keysight-dsox4034a",
@@ -71,6 +75,7 @@ PHYSICAL_MODEL_REGISTRY = (
         canonical_model="DSOX4034A",
         display_name="Keysight DSO-X 4034A",
         series="4000X",
+        capability_profile_id="keysight-infiniivision-4000x",
     ),
 )
 
@@ -134,11 +139,37 @@ def _build_model_index(
     return index
 
 
+def _build_model_id_index(
+    models: tuple[PhysicalModelInfo, ...],
+) -> dict[str, PhysicalModelInfo]:
+    index: dict[str, PhysicalModelInfo] = {}
+    for model in models:
+        if model.model_id in index:
+            raise RuntimeError(f"Duplicate physical model ID: {model.model_id}")
+        index[model.model_id] = model
+    return index
+
+
+def _build_model_name_index(
+    models: tuple[PhysicalModelInfo, ...],
+) -> dict[str, tuple[PhysicalModelInfo, ...]]:
+    matches: dict[str, list[PhysicalModelInfo]] = {}
+    for model in models:
+        for model_name in (model.canonical_model, *model.model_aliases):
+            key = _normalize_model_key(model_name)
+            candidates = matches.setdefault(key, [])
+            if model not in candidates:
+                candidates.append(model)
+    return {key: tuple(candidates) for key, candidates in matches.items()}
+
+
 _VENDOR_BY_MANUFACTURER = _build_vendor_index(VENDOR_REGISTRY)
 _PHYSICAL_MODEL_BY_VENDOR_AND_MODEL = _build_model_index(
     VENDOR_REGISTRY,
     PHYSICAL_MODEL_REGISTRY,
 )
+_PHYSICAL_MODEL_BY_ID = _build_model_id_index(PHYSICAL_MODEL_REGISTRY)
+_PHYSICAL_MODELS_BY_MODEL_NAME = _build_model_name_index(PHYSICAL_MODEL_REGISTRY)
 
 
 def resolve_physical_model_identity(
@@ -169,3 +200,25 @@ def canonical_physical_model_id(manufacturer: str, model: str) -> str:
     """Return the canonical physical model ID for an instrument identity."""
 
     return resolve_physical_model_identity(manufacturer, model).model_id
+
+
+def physical_model_for_id(model_id: str) -> PhysicalModelInfo:
+    """Return the registered physical model for a canonical model ID."""
+
+    physical_model = _PHYSICAL_MODEL_BY_ID.get(model_id)
+    if physical_model is None:
+        raise UnsupportedModelError(
+            f"Unsupported physical oscilloscope model ID: {model_id}"
+        )
+    return physical_model
+
+
+def resolve_registered_model_name(model: str) -> PhysicalModelInfo:
+    """Resolve a model-only name when it identifies exactly one registered model."""
+
+    matches = _PHYSICAL_MODELS_BY_MODEL_NAME.get(_normalize_model_key(model), ())
+    if len(matches) != 1:
+        raise UnsupportedModelError(
+            f"Unsupported or ambiguous registered oscilloscope model: {model}"
+        )
+    return matches[0]

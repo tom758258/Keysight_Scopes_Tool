@@ -176,11 +176,11 @@ def test_parse_channel_label_accepts_quoted_or_plain_response():
 
 
 def test_validate_analog_channel_uses_capability_channel_count():
-    capabilities = capabilities_for_model("DSOX4022A")
+    capabilities = capabilities_for_model("DSOX4024A")
 
-    assert validate_analog_channel(2, capabilities) == 2
+    assert validate_analog_channel(4, capabilities) == 4
     with pytest.raises(ParameterValidationError):
-        validate_analog_channel(3, capabilities)
+        validate_analog_channel(5, capabilities)
 
 
 def test_validate_channel_label_enforces_model_length_and_ascii():
@@ -305,10 +305,10 @@ def test_channel_controller_sets_display_and_reads_back_state():
 
 def test_channel_controller_rejects_invalid_channel_before_display_scpi():
     backend = FakeBackend()
-    controller = ChannelController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = ChannelController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError):
-        controller.set_display(3, True)
+        controller.set_display(5, True)
 
     assert backend.history == []
 
@@ -436,12 +436,12 @@ def test_channel_controller_rejects_invalid_scale_before_scpi():
 
 def test_channel_controller_rejects_invalid_channel_before_scale_offset_scpi():
     backend = FakeBackend()
-    controller = ChannelController(SCPIClient(backend), capabilities_for_model("DSOX4022A"))
+    controller = ChannelController(SCPIClient(backend), capabilities_for_model("DSOX4024A"))
 
     with pytest.raises(ParameterValidationError):
-        controller.set_scale(3, 0.5)
+        controller.set_scale(5, 0.5)
     with pytest.raises(ParameterValidationError):
-        controller.set_offset(3, 0.0)
+        controller.set_offset(5, 0.0)
 
     assert backend.history == []
 

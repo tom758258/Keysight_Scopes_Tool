@@ -38,7 +38,7 @@ def test_reference_query_result_preserves_raw_fields(capsys):
     "argv",
     [
         ["reference-save", "--slot", "3", "--source-channel", "1"],
-        ["reference-save", "--slot", "1", "--source-channel", "3", "--model", "DSOX2022A"],
+        ["reference-save", "--slot", "1", "--source-channel", "5", "--model", "DSOX2004A"],
         ["reference-label", "--slot", "1", "--text", "TOO-LONG-11"],
         ["reference-label", "--slot", "1", "--text", 'BAD"LABEL'],
     ],

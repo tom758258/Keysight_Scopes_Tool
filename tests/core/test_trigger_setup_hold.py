@@ -110,7 +110,7 @@ def test_setup_hold_time_readbacks_parse_nr3(raw):
     assert state.hold_time_seconds == 1e-9
 
 
-@pytest.mark.parametrize("model, channel", [("DSOX4022A", 2), ("DSOX4024A", 4)])
+@pytest.mark.parametrize("model, channel", [("DSOX2004A", 4), ("DSOX4024A", 4)])
 def test_setup_hold_validation_accepts_profile_channels(model, channel):
     commands = setup_hold_trigger_configure_commands(
         clock_channel=1,
@@ -125,7 +125,7 @@ def test_setup_hold_validation_accepts_profile_channels(model, channel):
     assert commands[2] == f":TRIGger:SHOLd:SOURce:DATA CHANnel{channel}"
 
 
-@pytest.mark.parametrize("channel", [0, 3, 1.5, "D0", "DIG0", "digital0", "pod", "bus"])
+@pytest.mark.parametrize("channel", [0, 5, 1.5, "D0", "DIG0", "digital0", "pod", "bus"])
 def test_setup_hold_validation_rejects_invalid_channels(channel):
     with pytest.raises(ParameterValidationError):
         setup_hold_trigger_configure_commands(
@@ -134,7 +134,7 @@ def test_setup_hold_validation_rejects_invalid_channels(channel):
             slope="positive",
             setup_time_seconds=1e-9,
             hold_time_seconds=1e-9,
-            capabilities=capabilities_for_model("DSOX4022A"),
+            capabilities=capabilities_for_model("DSOX4024A"),
         )
 
 
