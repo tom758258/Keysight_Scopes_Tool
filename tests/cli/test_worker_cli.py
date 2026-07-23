@@ -1871,6 +1871,7 @@ class _FakeBackend:
         self.idn = idn
         self.history = []
         self.timeout = None
+        self.closed = False
 
     def query(self, command: str) -> str:
         self.history.append(command)
@@ -1884,6 +1885,9 @@ class _FakeBackend:
     def set_timeout(self, timeout_ms: int | None) -> None:
         self.timeout = timeout_ms
 
+    def close(self) -> None:
+        self.closed = True
+
 
 class _FakeScope:
     def __init__(self, idn: str):
@@ -1896,6 +1900,9 @@ class _FakeScope:
 
     def __exit__(self, *args):
         return False
+
+    def close(self):
+        self.backend.close()
 
     def query_idn(self):
         idn = parse_idn(self.backend.query("*IDN?"))
@@ -1922,6 +1929,7 @@ def test_live_worker_identity_mismatch_fails_before_domain_scpi(monkeypatch, tmp
     assert payload["error"]["actual_idn"] == "KEYSIGHT,DSOX3024A,MY0000,1.0"
     assert fake_scope.backend.history == ["*IDN?"]
     assert fake_scope.backend.timeout == cli.WORKER_IDN_TIMEOUT_MS
+    assert fake_scope.backend.closed is True
 
 
 @pytest.mark.parametrize(

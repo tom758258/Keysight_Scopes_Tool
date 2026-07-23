@@ -2842,15 +2842,26 @@ def _open_scope(args: argparse.Namespace, resource: str) -> Oscilloscope:
         backend = _make_simulator_backend(args, resource)
         _LAST_BACKEND = backend
         return Oscilloscope(backend)
-    scope = Oscilloscope.open(resource, visa_library=args.visa_library)
-    _LAST_BACKEND = getattr(scope, "backend", None)
-    if getattr(args, "_worker_live_validation", False):
-        scope = _validate_worker_live_identity(args, scope)
-    elif isinstance(scope, Oscilloscope):
-        scope = _select_one_shot_live_driver(args, scope)
-    if _JSON_RECORD is not None:
-        _JSON_RECORD["backend"] = getattr(scope.backend, "backend", None)
-    return scope
+    opened_scope = Oscilloscope.open(
+        resource,
+        visa_library=args.visa_library,
+    )
+    _LAST_BACKEND = getattr(opened_scope, "backend", None)
+    try:
+        scope = opened_scope
+        if getattr(args, "_worker_live_validation", False):
+            scope = _validate_worker_live_identity(args, scope)
+        elif isinstance(scope, Oscilloscope):
+            scope = _select_one_shot_live_driver(args, scope)
+        if _JSON_RECORD is not None:
+            _JSON_RECORD["backend"] = getattr(scope.backend, "backend", None)
+        return scope
+    except Exception:
+        try:
+            opened_scope.close()
+        except Exception:
+            pass
+        raise
 
 
 def _select_one_shot_live_driver(
@@ -2866,7 +2877,6 @@ def _select_one_shot_live_driver(
         )
     except UnsupportedModelError:
         if args.command not in _DRIVER_OPTIONAL_LIVE_COMMANDS:
-            scope.close()
             raise
         selected_scope = scope
         idn = scope.idn

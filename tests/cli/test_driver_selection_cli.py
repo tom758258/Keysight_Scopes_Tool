@@ -93,3 +93,20 @@ def test_one_shot_live_unknown_driver_blocks_state_change(monkeypatch, capsys):
     assert backend.history == ["*IDN?"]
     assert backend.closed is True
     assert "unregistered driver ID" in capsys.readouterr().err
+
+
+def test_one_shot_live_idn_parse_failure_closes_backend(monkeypatch, capsys):
+    backend = FakeBackend(responses={"*IDN?": "malformed"})
+    monkeypatch.setattr(
+        cli.Oscilloscope,
+        "open",
+        staticmethod(
+            lambda resource, visa_library=None: Oscilloscope(backend)
+        ),
+    )
+
+    assert cli.main(["run", "--resource", "USB0::FAKE::INSTR"]) == 1
+
+    assert backend.history == ["*IDN?"]
+    assert backend.closed is True
+    capsys.readouterr()
