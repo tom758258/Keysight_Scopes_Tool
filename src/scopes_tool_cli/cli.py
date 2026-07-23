@@ -202,6 +202,7 @@ from scopes_tool_core.dvm import (
     dvm_source_query,
 )
 from scopes_tool_core.errors import OscilloscopeError, ParameterValidationError
+from scopes_tool_core.drivers import scope_for_physical_model
 from scopes_tool_core.idn import parse_idn
 from scopes_tool_core.identity import physical_model_for_id
 from scopes_tool_core.measurements import (
@@ -2839,7 +2840,7 @@ def _open_scope(args: argparse.Namespace, resource: str) -> Oscilloscope:
     scope = Oscilloscope.open(resource, visa_library=args.visa_library)
     _LAST_BACKEND = getattr(scope, "backend", None)
     if getattr(args, "_worker_live_validation", False):
-        _validate_worker_live_identity(args, scope)
+        scope = _validate_worker_live_identity(args, scope)
     if _JSON_RECORD is not None:
         _JSON_RECORD["backend"] = getattr(scope.backend, "backend", None)
     return scope
@@ -2848,16 +2849,22 @@ def _open_scope(args: argparse.Namespace, resource: str) -> Oscilloscope:
 def _validate_worker_live_identity(
     args: argparse.Namespace,
     scope: Oscilloscope,
-) -> None:
+) -> Oscilloscope:
     expected = physical_model_for_id(args.model)
     scope.scpi.set_timeout(WORKER_IDN_TIMEOUT_MS)
     idn = scope.query_idn()
-    _json_record_scope(scope, idn)
+    selected_scope = scope_for_physical_model(
+        idn.physical_model,
+        scope.backend,
+        existing_scope=scope,
+    )
+    _json_record_scope(selected_scope, idn)
     if idn.model_id != expected.model_id:
         raise OscilloscopeError(
             "identity_mismatch: "
             f"expected_model={expected.model_id}; actual_idn={idn.raw}"
         )
+    return selected_scope
 
 
 def _make_simulator_backend(args: argparse.Namespace, resource: str) -> SimulatorBackend:

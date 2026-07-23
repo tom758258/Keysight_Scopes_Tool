@@ -14,16 +14,23 @@ Scopes Tool exposes a vendor-neutral product API while the currently
 implemented hardware family remains Keysight InfiniiVision. The canonical
 physical model registry contains:
 
-| Canonical physical model ID | Manufacturer | Model | Series | Capability profile ID |
-| --- | --- | --- | --- | --- |
-| `keysight-dsox2004a` | Keysight Technologies | DSOX2004A | 2000X | `keysight-infiniivision-2000x` |
-| `keysight-dsox3024a` | Keysight Technologies | DSOX3024A | 3000X | `keysight-infiniivision-3000x` |
-| `keysight-dsox4024a` | Keysight Technologies | DSOX4024A | 4000X | `keysight-infiniivision-4000x` |
-| `keysight-dsox4034a` | Keysight Technologies | DSOX4034A | 4000X | `keysight-infiniivision-4000x` |
+| Canonical physical model ID | Manufacturer | Model | Series | Capability profile ID | Driver ID |
+| --- | --- | --- | --- | --- | --- |
+| `keysight-dsox2004a` | Keysight Technologies | DSOX2004A | 2000X | `keysight-infiniivision-2000x` | `keysight-infiniivision` |
+| `keysight-dsox3024a` | Keysight Technologies | DSOX3024A | 3000X | `keysight-infiniivision-3000x` | `keysight-infiniivision` |
+| `keysight-dsox4024a` | Keysight Technologies | DSOX4024A | 4000X | `keysight-infiniivision-4000x` | `keysight-infiniivision` |
+| `keysight-dsox4034a` | Keysight Technologies | DSOX4034A | 4000X | `keysight-infiniivision-4000x` | `keysight-infiniivision` |
 
 Canonical registration identifies a physical model; it does not claim that
 every feature has completed live hardware validation. Each registered model
 explicitly selects its runtime capability profile.
+
+Core has an explicit driver-selection boundary keyed by each physical model's
+registered driver ID. The only currently registered runtime driver is
+`keysight-infiniivision`. Live selection follows the canonical physical model
+resolved from the detected `*IDN?` identity; planning and expected identities
+cannot override it. Unknown vendors, physical models, or missing or
+unregistered driver IDs fail closed.
 
 ## Runtime Profiles
 

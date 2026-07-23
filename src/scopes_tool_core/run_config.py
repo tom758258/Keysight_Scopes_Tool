@@ -7,6 +7,7 @@ import os
 from typing import Literal, Mapping, Sequence
 
 from .capabilities import ScopeCapabilities, capabilities_for_model_id
+from .drivers import scope_for_physical_model
 from .errors import OscilloscopeError
 from .identity import physical_model_for_id
 from .scope import Oscilloscope
@@ -143,9 +144,17 @@ def open_scope_for_run(config: ResolvedRunConfig) -> Oscilloscope:
         raise OscilloscopeError("--resource is required unless SCOPES_TOOL_RESOURCE is set")
     if config.mode == "simulate":
         return Oscilloscope(make_simulator_backend(config.options, config.resource))
-    scope = Oscilloscope.open(config.resource, visa_library=config.visa_library)
+    opened_scope = Oscilloscope.open(
+        config.resource,
+        visa_library=config.visa_library,
+    )
     try:
-        idn = scope.query_idn()
+        idn = opened_scope.query_idn()
+        scope = scope_for_physical_model(
+            idn.physical_model,
+            opened_scope.backend,
+            existing_scope=opened_scope,
+        )
         if (
             config.expected_physical_model_id is not None
             and idn.model_id != config.expected_physical_model_id
@@ -156,5 +165,5 @@ def open_scope_for_run(config: ResolvedRunConfig) -> Oscilloscope:
             )
         return scope
     except Exception:
-        scope.close()
+        opened_scope.close()
         raise

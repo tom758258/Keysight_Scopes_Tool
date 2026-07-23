@@ -144,6 +144,7 @@ def _synthetic_model(model_id, vendor_id, canonical_model, *, aliases=()):
         display_name=model_id,
         series="SYNTHETIC",
         capability_profile_id="synthetic-profile",
+        driver_id="synthetic-driver",
         model_aliases=aliases,
     )
 

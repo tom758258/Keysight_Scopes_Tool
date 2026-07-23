@@ -138,7 +138,20 @@ class Oscilloscope:
         parsed = parse_idn(self.scpi.query("*IDN?"))
         self.idn = parsed
         try:
-            self.capabilities = capabilities_for_model_id(parsed.model_id)
+            physical_model = parsed.physical_model
+        except UnsupportedModelError:
+            self.capabilities = None
+            return parsed
+
+        from .drivers import scope_for_physical_model
+
+        scope_for_physical_model(
+            physical_model,
+            self.backend,
+            existing_scope=self,
+        )
+        try:
+            self.capabilities = capabilities_for_model_id(physical_model.model_id)
         except UnsupportedModelError:
             self.capabilities = None
         return parsed

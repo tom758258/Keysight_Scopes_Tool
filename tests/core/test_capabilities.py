@@ -152,6 +152,7 @@ def test_model_only_capabilities_reject_ambiguous_vendor_match(monkeypatch):
         display_name="Vendor A Model 100",
         series="SYNTHETIC",
         capability_profile_id="synthetic-profile",
+        driver_id="synthetic-driver",
     )
     second = PhysicalModelInfo(
         model_id="vendor-b-model100",
@@ -160,6 +161,7 @@ def test_model_only_capabilities_reject_ambiguous_vendor_match(monkeypatch):
         display_name="Vendor B Model 100",
         series="SYNTHETIC",
         capability_profile_id="synthetic-profile",
+        driver_id="synthetic-driver",
     )
     monkeypatch.setattr(
         identity_module,

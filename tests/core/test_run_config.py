@@ -1,6 +1,8 @@
 import pytest
+import scopes_tool_core.run_config as run_config_module
 
-from scopes_tool_core.errors import OscilloscopeError
+import scopes_tool_core.drivers as drivers_module
+from scopes_tool_core.errors import OscilloscopeError, UnsupportedModelError
 from scopes_tool_core.run_config import (
     ResolvedRunConfig,
     RunModeOptions,
@@ -141,19 +143,56 @@ def test_live_detected_identity_sets_actual_capabilities(monkeypatch):
 
 def test_live_expected_identity_cannot_override_detected_identity(monkeypatch):
     backend = SimulatorBackend(physical_model_id="keysight-dsox3024a")
+    selected_model_ids = []
+    real_scope_for_physical_model = run_config_module.scope_for_physical_model
+
+    def select_detected_driver(physical_model, selected_backend, **kwargs):
+        selected_model_ids.append(physical_model.model_id)
+        return real_scope_for_physical_model(
+            physical_model,
+            selected_backend,
+            **kwargs,
+        )
+
     monkeypatch.setattr(
         "scopes_tool_core.run_config.Oscilloscope.open",
         lambda *args, **kwargs: Oscilloscope(backend),
     )
+    monkeypatch.setattr(
+        "scopes_tool_core.run_config.scope_for_physical_model",
+        select_detected_driver,
+    )
     config = ResolvedRunConfig(
         mode="live",
-        planning_physical_model_id=None,
+        planning_physical_model_id="keysight-dsox4034a",
         expected_physical_model_id="keysight-dsox4024a",
         capabilities=None,
         resource="USB0::FAKE::INSTR",
     )
 
     with pytest.raises(OscilloscopeError, match="does not match"):
+        open_scope_for_run(config)
+
+    assert selected_model_ids == ["keysight-dsox3024a"]
+    assert backend.history == ["*IDN?"]
+
+
+def test_live_unknown_driver_fails_before_command_execution(monkeypatch):
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
+    monkeypatch.setattr(
+        "scopes_tool_core.run_config.Oscilloscope.open",
+        lambda *args, **kwargs: Oscilloscope(backend),
+    )
+    monkeypatch.setattr(drivers_module, "DRIVER_REGISTRY", {})
+    config = ResolvedRunConfig(
+        mode="live",
+        planning_physical_model_id=None,
+        expected_physical_model_id=None,
+        capabilities=None,
+        resource="USB0::FAKE::INSTR",
+    )
+
+    with pytest.raises(UnsupportedModelError, match="driver ID"):
         open_scope_for_run(config)
 
     assert backend.history == ["*IDN?"]

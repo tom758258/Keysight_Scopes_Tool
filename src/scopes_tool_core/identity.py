@@ -28,6 +28,7 @@ class PhysicalModelInfo:
     display_name: str
     series: str
     capability_profile_id: str
+    driver_id: str
     model_aliases: tuple[str, ...] = ()
 
 
@@ -52,6 +53,7 @@ PHYSICAL_MODEL_REGISTRY = (
         display_name="Keysight DSO-X 2004A",
         series="2000X",
         capability_profile_id="keysight-infiniivision-2000x",
+        driver_id="keysight-infiniivision",
     ),
     PhysicalModelInfo(
         model_id="keysight-dsox3024a",
@@ -60,6 +62,7 @@ PHYSICAL_MODEL_REGISTRY = (
         display_name="Keysight DSO-X 3024A",
         series="3000X",
         capability_profile_id="keysight-infiniivision-3000x",
+        driver_id="keysight-infiniivision",
     ),
     PhysicalModelInfo(
         model_id="keysight-dsox4024a",
@@ -68,6 +71,7 @@ PHYSICAL_MODEL_REGISTRY = (
         display_name="Keysight DSO-X 4024A",
         series="4000X",
         capability_profile_id="keysight-infiniivision-4000x",
+        driver_id="keysight-infiniivision",
     ),
     PhysicalModelInfo(
         model_id="keysight-dsox4034a",
@@ -76,6 +80,7 @@ PHYSICAL_MODEL_REGISTRY = (
         display_name="Keysight DSO-X 4034A",
         series="4000X",
         capability_profile_id="keysight-infiniivision-4000x",
+        driver_id="keysight-infiniivision",
     ),
 )
 
