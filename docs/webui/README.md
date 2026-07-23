@@ -1,8 +1,8 @@
-# Keysight Scope WebUI
+# Scopes Tool WebUI
 
-Skeleton package reserved for a future browser-based Keysight Scopes interface.
+Skeleton package reserved for a future browser-based Scopes Tool interface.
 
-Distribution: `keysight-scopes`
+Distribution: `scopes-tool`
 
 Import package: `scopes_tool_webui`
 

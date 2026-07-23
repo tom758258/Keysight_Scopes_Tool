@@ -666,7 +666,7 @@ def test_verify_cli_uses_environment_resource(monkeypatch, capsys):
         def query_idn(self):
             return parse_idn("ACME,MODEL1,SN1,FW1")
 
-    monkeypatch.setenv("KEYSIGHT_SCOPE_RESOURCE", "USB0::ENV::INSTR")
+    monkeypatch.setenv("SCOPES_TOOL_RESOURCE", "USB0::ENV::INSTR")
     monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(lambda resource, visa_library=None: DummyScope()))
 
     assert cli.main(["identify"]) == 0
@@ -677,7 +677,7 @@ def test_verify_cli_uses_environment_resource(monkeypatch, capsys):
 
 
 def test_verify_cli_requires_resource(monkeypatch, capsys):
-    monkeypatch.delenv("KEYSIGHT_SCOPE_RESOURCE", raising=False)
+    monkeypatch.delenv("SCOPES_TOOL_RESOURCE", raising=False)
 
     assert cli.main(["identify"]) == 2
 

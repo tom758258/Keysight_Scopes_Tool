@@ -47,7 +47,7 @@ def test_cli_integration_keeps_cli_fields_out_of_core_schema():
 
     assert "measurement_cli_name" in text
     assert "argparse.Namespace" in text
-    assert "keysight-scopes = scopes_tool_cli.cli:main" in text
+    assert "scopes-tool = scopes_tool_cli.cli:main" in text
 
 
 def test_root_readme_discovers_cli_and_agent_docs():
@@ -123,11 +123,11 @@ def test_scopes_contracts_keep_public_commands_and_schema_fields():
     )
 
     for command in (
-        "keysight-scopes worker",
-        "keysight-scopes send-command",
-        "keysight-scopes status",
-        "keysight-scopes stop",
-        "keysight-scopes wait-ready",
+        "scopes-tool worker",
+        "scopes-tool send-command",
+        "scopes-tool status",
+        "scopes-tool stop",
+        "scopes-tool wait-ready",
     ):
         assert command in text
 

@@ -1,1 +1,1 @@
-"""Keysight Scope WebUI (skeleton)."""
+"""Scopes Tool WebUI (skeleton)."""

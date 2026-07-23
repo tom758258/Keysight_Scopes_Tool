@@ -32,7 +32,7 @@ _FORBIDDEN_COMMANDS = (
 
 
 def test_force_trigger_cli_requires_resource(capsys, monkeypatch):
-    monkeypatch.delenv("KEYSIGHT_SCOPE_RESOURCE", raising=False)
+    monkeypatch.delenv("SCOPES_TOOL_RESOURCE", raising=False)
 
     assert cli.main(["force-trigger"]) == 2
     assert "--resource is required" in capsys.readouterr().err

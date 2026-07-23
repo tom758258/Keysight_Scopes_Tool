@@ -12,11 +12,11 @@ Common fields such as `event`, `schema_version`, `timestamp_utc`, `run_id`,
 `ok`, `message`, `fatal_error`, and `exit_code` keep their Common meanings
 when present. This document lists only the Scopes-specific event fields,
 command result fields, client fields, and artifact fields currently emitted by
-`keysight-scopes`.
+`scopes-tool`.
 
 ## Worker JSONL Events
 
-`keysight-scopes worker --format jsonl` writes one JSON object per stdout line.
+`scopes-tool worker --format jsonl` writes one JSON object per stdout line.
 Human diagnostics belong on stderr or in text mode. The worker emits:
 
 - `ready`: emitted after `/command`, `/status`, and `/stop` are reachable.
@@ -25,7 +25,7 @@ Human diagnostics belong on stderr or in text mode. The worker emits:
 - `summary`: emitted when the worker process exits normally or fatally.
 
 All runtime events include `schema_version: 1`, `timestamp_utc`, and the same
-`run_id`. The Scopes `ready` event includes `service: "keysight-scopes"`,
+`run_id`. The Scopes `ready` event includes `service: "scopes-tool"`,
 `host`, `port`, `mode`, `model`, `resource`, `command_url`, `status_url`, and
 `stop_url`; it means `/command`, `/status`, and `/stop` are reachable. It does
 not include `trigger_url`.
@@ -39,7 +39,7 @@ use `ok: true`. `summary` includes `accepted`, `succeeded`, `failed`,
 
 ## Worker Client JSON
 
-`keysight-scopes send-command`, `status`, `stop`, and `wait-ready` emit one
+`scopes-tool send-command`, `status`, `stop`, and `wait-ready` emit one
 JSON object when called with `--json`.
 
 All worker client JSON includes `schema_version: 1` and `timestamp_utc`.
@@ -60,7 +60,7 @@ failures merge the worker response envelope into client JSON, including
 `command`, `job_id`, `reason`, `error`, and `message` when present.
 
 `status` and `wait-ready` use the same status payload schema. Successful
-responses include `service: "keysight-scopes"`, `status`, `run_id`, `mode`,
+responses include `service: "scopes-tool"`, `status`, `run_id`, `mode`,
 `model`, `resource`, `queue`, `active_job`, `last_job`, `urls`,
 `fatal_error`, and `timestamp_utc`. `run_id` must match the `ready` event from
 the same worker session.
@@ -112,7 +112,7 @@ plus `ok` and command-specific status fields.
 ## One-Shot Live Selection
 
 For one-shot commands, an explicit `--resource` or
-`KEYSIGHT_SCOPE_RESOURCE` selects and opts in to that single live instrument.
+`SCOPES_TOOL_RESOURCE` selects and opts in to that single live instrument.
 The `--live` flag remains accepted for one-shot compatibility but is not
 required. It must not be combined with `--simulate` or `--dry-run`.
 

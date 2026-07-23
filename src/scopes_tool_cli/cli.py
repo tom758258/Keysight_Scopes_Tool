@@ -417,7 +417,7 @@ _JSON_RECORD: dict[str, object] | None = None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the `keysight-scopes` command line interface."""
+    """Run the `scopes-tool` command line interface."""
 
     parser = _build_parser()
     args = parser.parse_args(argv)
@@ -467,7 +467,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="keysight-scopes")
+    parser = argparse.ArgumentParser(prog="scopes-tool")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     worker_parser = subparsers.add_parser("worker", help="run the local Scopes worker")
@@ -2485,7 +2485,7 @@ def _add_scope_connection_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--resource",
         default=None,
-        help="VISA resource string. Defaults to KEYSIGHT_SCOPE_RESOURCE.",
+        help="VISA resource string. Defaults to SCOPES_TOOL_RESOURCE.",
     )
     parser.add_argument(
         "--visa-library",
@@ -3860,7 +3860,7 @@ def _json_error(exc: OscilloscopeError) -> dict[str, object]:
 def _json_envelope(args: argparse.Namespace, *, ok: bool, mode: str) -> dict[str, object]:
     resource = None
     if hasattr(args, "resource"):
-        resource = args.resource or (f"SIM::{args.model}::INSTR" if mode == "simulate" else f"DRY::{args.model}::INSTR" if mode == "dry_run" else os.environ.get("KEYSIGHT_SCOPE_RESOURCE"))
+        resource = args.resource or (f"SIM::{args.model}::INSTR" if mode == "simulate" else f"DRY::{args.model}::INSTR" if mode == "dry_run" else os.environ.get("SCOPES_TOOL_RESOURCE"))
     idn = None
     capabilities = None
     if mode in {"simulate", "dry_run"} and hasattr(args, "model"):
@@ -9872,7 +9872,7 @@ def _require_resource(args: argparse.Namespace) -> str | None:
         return resource
 
     print(
-        "error: --resource is required unless KEYSIGHT_SCOPE_RESOURCE is set",
+        "error: --resource is required unless SCOPES_TOOL_RESOURCE is set",
         file=sys.stderr,
     )
     return None

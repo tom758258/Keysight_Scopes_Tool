@@ -20,7 +20,7 @@ foreach ($argument in $PytestArguments) {
 }
 
 $tempRoot = [System.IO.Path]::GetTempPath()
-$tempPath = Join-Path $tempRoot ("keysight-scopes-pytest-{0}" -f ([guid]::NewGuid().ToString("N")))
+$tempPath = Join-Path $tempRoot ("scopes-tool-pytest-{0}" -f ([guid]::NewGuid().ToString("N")))
 $exitCode = 1
 
 Write-Host "Pytest temporary directory: ${tempPath}"

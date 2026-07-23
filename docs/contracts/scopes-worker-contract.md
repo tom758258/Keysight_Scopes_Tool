@@ -21,8 +21,8 @@ to this document.
 Start the worker with:
 
 ```text
-keysight-scopes worker --host 127.0.0.1 --port 8765 --simulate --model DSOX4024A
-keysight-scopes worker --host 127.0.0.1 --port 8765 --live --resource <RESOURCE> --model DSOX4024A
+scopes-tool worker --host 127.0.0.1 --port 8765 --simulate --model DSOX4024A
+scopes-tool worker --host 127.0.0.1 --port 8765 --live --resource <RESOURCE> --model DSOX4024A
 ```
 
 Arguments:
@@ -163,7 +163,7 @@ by worker `/command`.
 
 Unsupported command names include `snapshot`, `restore`, `diff`, generic
 `math`, and domain `status`. Worker status is reserved for lifecycle
-`GET /status` and `keysight-scopes status`.
+`GET /status` and `scopes-tool status`.
 
 Arguments use the CLI option names without leading dashes and with underscores
 accepted as JSON keys, for example:
@@ -1604,10 +1604,10 @@ fails the job with structured `error.type: "identity_mismatch"`,
 
 Lifecycle clients:
 
-- `keysight-scopes send-command --host 127.0.0.1 --port 8765 --command identify --arguments-json {}`
-- `keysight-scopes status --host 127.0.0.1 --port 8765`
-- `keysight-scopes stop --host 127.0.0.1 --port 8765`
-- `keysight-scopes wait-ready --host 127.0.0.1 --port 8765`
+- `scopes-tool send-command --host 127.0.0.1 --port 8765 --command identify --arguments-json {}`
+- `scopes-tool status --host 127.0.0.1 --port 8765`
+- `scopes-tool stop --host 127.0.0.1 --port 8765`
+- `scopes-tool wait-ready --host 127.0.0.1 --port 8765`
 
 Client exit codes are `0` for accepted/lifecycle success/dry-run success, `2`
 for usage, local validation, or HTTP `400`, and `3` for runtime error,

@@ -1,6 +1,6 @@
 # Testing Guidelines
 
-Tests in Keysight Scopes should protect behavior and public contracts without
+Tests in Scopes Tool should protect behavior and public contracts without
 making routine documentation and implementation improvements unnecessarily
 difficult.
 

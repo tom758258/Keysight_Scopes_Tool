@@ -9,7 +9,7 @@ from scopes_tool_core import Oscilloscope
 
 
 def main() -> int:
-    resource = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("KEYSIGHT_SCOPE_RESOURCE")
+    resource = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("SCOPES_TOOL_RESOURCE")
     if not resource:
         print("usage: python examples/02_query_idn.py <VISA_RESOURCE>")
         return 2

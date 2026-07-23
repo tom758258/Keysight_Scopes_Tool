@@ -1256,7 +1256,7 @@ def test_worker_event_payloads_have_required_fields(tmp_path):
         assert payload["run_id"] == runtime.run_id
         assert "timestamp_utc" in payload
     assert ready["event"] == "ready"
-    assert ready["service"] == "keysight-scopes"
+    assert ready["service"] == "scopes-tool"
     assert ready["host"] == "127.0.0.1"
     assert ready["port"] == 0
     assert ready["mode"] == "simulate"
@@ -1271,7 +1271,7 @@ def test_worker_event_payloads_have_required_fields(tmp_path):
 
 
 def _assert_status_payload_matches_ready(payload, ready):
-    assert payload["service"] == "keysight-scopes"
+    assert payload["service"] == "scopes-tool"
     assert payload["run_id"] == ready["run_id"]
     assert payload["mode"] == ready["mode"]
     assert payload["model"] == ready["model"]
@@ -1321,7 +1321,7 @@ def test_status_and_wait_ready_match_ready_session_and_status_urls(tmp_path, cap
     status_payload = json.loads(output_lines[1])
     assert ready["event"] == "ready"
     assert ready["schema_version"] == 1
-    assert ready["service"] == "keysight-scopes"
+    assert ready["service"] == "scopes-tool"
     assert ready["run_id"]
     assert ready["host"] == "127.0.0.1"
     assert ready["port"] == runtime.port

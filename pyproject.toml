@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "keysight-scopes"
+name = "scopes-tool"
 version = "0.1.0"
-description = "Keysight InfiniiVision oscilloscope tooling with Core, CLI, and WebUI import packages."
+description = "Vendor-neutral oscilloscope tooling with current support for Keysight InfiniiVision models."
 requires-python = ">=3.10"
 dependencies = ["pyvisa>=1.14"]
 
@@ -15,7 +15,7 @@ webui = []
 all = []
 
 [project.scripts]
-keysight-scopes = "scopes_tool_cli.cli:main"
+scopes-tool = "scopes_tool_cli.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

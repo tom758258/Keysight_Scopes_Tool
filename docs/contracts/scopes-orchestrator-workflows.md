@@ -12,13 +12,13 @@ behavior is defined in [Scopes Worker Contract](scopes-worker-contract.md).
 Start a worker in simulator mode:
 
 ```text
-keysight-scopes worker --simulate --model DSOX4024A --port 8765 --format jsonl
+scopes-tool worker --simulate --model DSOX4024A --port 8765 --format jsonl
 ```
 
 For live mode, require an operator-selected resource:
 
 ```text
-keysight-scopes worker --live --resource USB0::...::INSTR --model DSOX4024A --port 8765 --format jsonl
+scopes-tool worker --live --resource USB0::...::INSTR --model DSOX4024A --port 8765 --format jsonl
 ```
 
 Wait for the Common control-plane readiness signal: read the worker stdout
@@ -26,62 +26,62 @@ JSONL `ready` event or poll `GET /status` until a valid status response is
 reachable. The Scopes CLI helper for polling is:
 
 ```text
-keysight-scopes wait-ready --port 8765 --json
+scopes-tool wait-ready --port 8765 --json
 ```
 
 After readiness, submit Scopes domain work with the Common `/command` envelope
-through `keysight-scopes send-command`:
+through `scopes-tool send-command`:
 
 ```text
-keysight-scopes send-command --port 8765 --command identify --arguments-json "{}" --json
-keysight-scopes send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000}" --json
-keysight-scopes send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000,\"wait_trigger\":true,\"trigger_timeout_ms\":5000,\"trigger_poll_interval_ms\":100}" --json
-keysight-scopes send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true,\"maximum\":true}" --json
-keysight-scopes send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command record-length --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command force-trigger --arguments-json "{}" --json
-keysight-scopes send-command --port 8765 --command dvm-enable --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command dvm-source --arguments-json "{\"channel\":1}" --json
-keysight-scopes send-command --port 8765 --command dvm-mode --arguments-json "{\"mode\":\"dc-rms\"}" --json
-keysight-scopes send-command --port 8765 --command dvm-auto-range --arguments-json "{\"enabled\":true}" --json
-keysight-scopes send-command --port 8765 --command dvm-current --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command dvm-query --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command demo-query --arguments-json "{}" --json
-keysight-scopes send-command --port 8765 --command demo-output --arguments-json "{\"enabled\":true}" --json
-keysight-scopes send-command --port 8765 --command demo-function --arguments-json "{\"function\":\"runt\"}" --json
-keysight-scopes send-command --port 8765 --command demo-phase --arguments-json "{\"degrees\":90}" --json
-keysight-scopes send-command --port 8765 --command search-state --arguments-json "{\"enabled\":true}" --json
-keysight-scopes send-command --port 8765 --command search-mode --arguments-json "{\"mode\":\"edge\"}" --json
-keysight-scopes send-command --port 8765 --command search-count --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-edge --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-edge --arguments-json "{\"source_channel\":1,\"level\":0.5,\"slope\":\"positive\"}" --json
-keysight-scopes send-command --port 8765 --command trigger-sweep --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-sweep --arguments-json "{\"mode\":\"normal\"}" --json
-keysight-scopes send-command --port 8765 --command trigger-noise-reject --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-noise-reject --arguments-json "{\"enabled\":false}" --json
-keysight-scopes send-command --port 8765 --command trigger-hf-reject --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-hf-reject --arguments-json "{\"enabled\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-pulse-width --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-pulse-width --arguments-json "{\"channel\":1,\"polarity\":\"positive\",\"qualifier\":\"less_than\",\"time_seconds\":0.000001}" --json
-keysight-scopes send-command --port 8765 --command trigger-runt --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-runt --arguments-json "{\"channel\":1,\"polarity\":\"either\",\"qualifier\":\"none\",\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
-keysight-scopes send-command --port 8765 --command trigger-transition --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-transition --arguments-json "{\"channel\":1,\"slope\":\"positive\",\"qualifier\":\"greater_than\",\"time_seconds\":0.000005,\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
-keysight-scopes send-command --port 8765 --command trigger-delay --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-delay --arguments-json "{\"arm_channel\":1,\"arm_slope\":\"positive\",\"trigger_channel\":2,\"trigger_slope\":\"negative\",\"time_seconds\":0.000001,\"count\":2}" --json
-keysight-scopes send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"source_channel\":1,\"slope\":\"positive\",\"count\":3,\"idle_time\":0.000001}" --json
-keysight-scopes send-command --port 8765 --command trigger-tv --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-tv --arguments-json "{\"source_channel\":1,\"standard\":\"ntsc\",\"mode\":\"line-field1\",\"line\":20,\"polarity\":\"negative\"}" --json
-keysight-scopes send-command --port 8765 --command trigger-pattern --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-pattern --arguments-json "{\"pattern\":\"XXX1\"}" --json
-keysight-scopes send-command --port 8765 --command trigger-or --arguments-json "{\"query\":true}" --json
-keysight-scopes send-command --port 8765 --command trigger-or --arguments-json "{\"pattern\":\"XXXR\"}" --json
-keysight-scopes send-command --port 8765 --command channel-impedance --arguments-json "{\"channel\":1,\"impedance\":\"one-meg\"}" --json
-keysight-scopes send-command --port 8765 --command channel-impedance --arguments-json "{\"channel\":1,\"impedance\":\"fifty\",\"allow_50_ohm\":true}" --json
-keysight-scopes send-command --port 8765 --command channel-range --arguments-json "{\"channel\":1,\"volts_full_scale\":4}" --json
-keysight-scopes send-command --port 8765 --command channel-vernier --arguments-json "{\"channel\":1,\"off\":true}" --json
+scopes-tool send-command --port 8765 --command identify --arguments-json "{}" --json
+scopes-tool send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000}" --json
+scopes-tool send-command --port 8765 --command capture --arguments-json "{\"channel\":[1],\"points\":1000,\"wait_trigger\":true,\"trigger_timeout_ms\":5000,\"trigger_poll_interval_ms\":100}" --json
+scopes-tool send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command sample-rate --arguments-json "{\"query\":true,\"maximum\":true}" --json
+scopes-tool send-command --port 8765 --command acquisition-points --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command record-length --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command force-trigger --arguments-json "{}" --json
+scopes-tool send-command --port 8765 --command dvm-enable --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command dvm-source --arguments-json "{\"channel\":1}" --json
+scopes-tool send-command --port 8765 --command dvm-mode --arguments-json "{\"mode\":\"dc-rms\"}" --json
+scopes-tool send-command --port 8765 --command dvm-auto-range --arguments-json "{\"enabled\":true}" --json
+scopes-tool send-command --port 8765 --command dvm-current --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command dvm-query --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command demo-query --arguments-json "{}" --json
+scopes-tool send-command --port 8765 --command demo-output --arguments-json "{\"enabled\":true}" --json
+scopes-tool send-command --port 8765 --command demo-function --arguments-json "{\"function\":\"runt\"}" --json
+scopes-tool send-command --port 8765 --command demo-phase --arguments-json "{\"degrees\":90}" --json
+scopes-tool send-command --port 8765 --command search-state --arguments-json "{\"enabled\":true}" --json
+scopes-tool send-command --port 8765 --command search-mode --arguments-json "{\"mode\":\"edge\"}" --json
+scopes-tool send-command --port 8765 --command search-count --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-edge --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-edge --arguments-json "{\"source_channel\":1,\"level\":0.5,\"slope\":\"positive\"}" --json
+scopes-tool send-command --port 8765 --command trigger-sweep --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-sweep --arguments-json "{\"mode\":\"normal\"}" --json
+scopes-tool send-command --port 8765 --command trigger-noise-reject --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-noise-reject --arguments-json "{\"enabled\":false}" --json
+scopes-tool send-command --port 8765 --command trigger-hf-reject --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-hf-reject --arguments-json "{\"enabled\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-pulse-width --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-pulse-width --arguments-json "{\"channel\":1,\"polarity\":\"positive\",\"qualifier\":\"less_than\",\"time_seconds\":0.000001}" --json
+scopes-tool send-command --port 8765 --command trigger-runt --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-runt --arguments-json "{\"channel\":1,\"polarity\":\"either\",\"qualifier\":\"none\",\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
+scopes-tool send-command --port 8765 --command trigger-transition --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-transition --arguments-json "{\"channel\":1,\"slope\":\"positive\",\"qualifier\":\"greater_than\",\"time_seconds\":0.000005,\"low_level_volts\":-0.5,\"high_level_volts\":0.5}" --json
+scopes-tool send-command --port 8765 --command trigger-delay --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-delay --arguments-json "{\"arm_channel\":1,\"arm_slope\":\"positive\",\"trigger_channel\":2,\"trigger_slope\":\"negative\",\"time_seconds\":0.000001,\"count\":2}" --json
+scopes-tool send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-edge-burst --arguments-json "{\"source_channel\":1,\"slope\":\"positive\",\"count\":3,\"idle_time\":0.000001}" --json
+scopes-tool send-command --port 8765 --command trigger-tv --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-tv --arguments-json "{\"source_channel\":1,\"standard\":\"ntsc\",\"mode\":\"line-field1\",\"line\":20,\"polarity\":\"negative\"}" --json
+scopes-tool send-command --port 8765 --command trigger-pattern --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-pattern --arguments-json "{\"pattern\":\"XXX1\"}" --json
+scopes-tool send-command --port 8765 --command trigger-or --arguments-json "{\"query\":true}" --json
+scopes-tool send-command --port 8765 --command trigger-or --arguments-json "{\"pattern\":\"XXXR\"}" --json
+scopes-tool send-command --port 8765 --command channel-impedance --arguments-json "{\"channel\":1,\"impedance\":\"one-meg\"}" --json
+scopes-tool send-command --port 8765 --command channel-impedance --arguments-json "{\"channel\":1,\"impedance\":\"fifty\",\"allow_50_ohm\":true}" --json
+scopes-tool send-command --port 8765 --command channel-range --arguments-json "{\"channel\":1,\"volts_full_scale\":4}" --json
+scopes-tool send-command --port 8765 --command channel-vernier --arguments-json "{\"channel\":1,\"off\":true}" --json
 ```
 
 The accepted response only means the Common envelope was accepted and the
@@ -89,7 +89,7 @@ Scopes job was enqueued. It is not command success, trigger success, or query
 success. Poll status or read the job artifact:
 
 ```text
-keysight-scopes status --port 8765 --json
+scopes-tool status --port 8765 --json
 ```
 
 Then read `data/worker/<run_id>/<worker_job_id>/result.json`. Use
@@ -104,7 +104,7 @@ poll state. `timeout` and `unknown` outcomes do not produce capture artifacts.
 Use cooperative cleanup:
 
 ```text
-keysight-scopes stop --port 8765 --json
+scopes-tool stop --port 8765 --json
 ```
 
 ## Subprocess Example
@@ -196,7 +196,7 @@ try:
     ready = wait_event("ready")
     assert ready["event"] == "ready"
     assert ready["schema_version"] == 1
-    assert ready["service"] == "keysight-scopes"
+    assert ready["service"] == "scopes-tool"
     assert ready["run_id"]
     assert ready["host"] == "127.0.0.1"
     assert ready["port"] == 8765
@@ -225,7 +225,7 @@ try:
     wait_payload = json.loads(wait_ready.stdout)
     assert wait_ready.returncode == 0
     assert wait_payload["run_id"] == ready["run_id"]
-    assert wait_payload["service"] == "keysight-scopes"
+    assert wait_payload["service"] == "scopes-tool"
     assert wait_payload["mode"] == ready["mode"]
     assert wait_payload["model"] == ready["model"]
     assert wait_payload["resource"] == ready["resource"]
@@ -443,7 +443,7 @@ selecting the resource.
 
 ## Cleanup Rule
 
-Prefer `keysight-scopes stop` for worker cleanup. Queued jobs become
+Prefer `scopes-tool stop` for worker cleanup. Queued jobs become
 `cancelled`; running jobs stop at cooperative checkpoints. If a blocking device
 operation is still in progress, process termination may be required after the
 operator-defined timeout.

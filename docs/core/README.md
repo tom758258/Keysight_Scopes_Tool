@@ -1,9 +1,9 @@
-# Keysight Scope Core
+# Scopes Tool Core
 
 Core runtime package for Keysight InfiniiVision oscilloscope control through
 PyVISA-compatible backends.
 
-Distribution: `keysight-scopes`
+Distribution: `scopes-tool`
 
 Import package: `scopes_tool_core`
 

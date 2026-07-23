@@ -86,7 +86,7 @@ def resolve_resource(
         return explicit_resource or f"SIM::{model}::INSTR"
     if mode == "dry_run":
         return explicit_resource or f"DRY::{model}::INSTR"
-    return explicit_resource or environ.get("KEYSIGHT_SCOPE_RESOURCE")
+    return explicit_resource or environ.get("SCOPES_TOOL_RESOURCE")
 
 
 def require_resource(
@@ -99,7 +99,7 @@ def require_resource(
 
     resource = resolve_resource(mode, explicit_resource, model, environ)
     if resource is None:
-        raise OscilloscopeError("--resource is required unless KEYSIGHT_SCOPE_RESOURCE is set")
+        raise OscilloscopeError("--resource is required unless SCOPES_TOOL_RESOURCE is set")
     return resource
 
 
@@ -120,7 +120,7 @@ def open_scope_for_run(config: ResolvedRunConfig) -> Oscilloscope:
     if config.mode == "dry_run":
         raise OscilloscopeError("dry-run does not open a backend")
     if config.resource is None:
-        raise OscilloscopeError("--resource is required unless KEYSIGHT_SCOPE_RESOURCE is set")
+        raise OscilloscopeError("--resource is required unless SCOPES_TOOL_RESOURCE is set")
     if config.mode == "simulate":
         return Oscilloscope(make_simulator_backend(config.options, config.resource))
     return Oscilloscope.open(config.resource, visa_library=config.visa_library)

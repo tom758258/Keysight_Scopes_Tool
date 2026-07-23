@@ -217,7 +217,7 @@ class WorkerRuntime:
             ]
         return {
             "schema_version": 1,
-            "service": "keysight-scopes",
+            "service": "scopes-tool",
             "status": "stopping" if self.stopping else "ready",
             "run_id": self.run_id,
             "mode": self.mode,
@@ -1754,7 +1754,7 @@ def _event_payload(runtime: WorkerRuntime, event: str, **values: Any) -> dict[st
     if event == "ready":
         payload.update(
             {
-                "service": "keysight-scopes",
+                "service": "scopes-tool",
                 "host": runtime.host,
                 "port": runtime.port,
                 "mode": runtime.mode,

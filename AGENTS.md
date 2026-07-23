@@ -25,7 +25,7 @@ another language.
 
 ## 3. Project Direction
 
-- This repository is a single-distribution project: `keysight-scopes`.
+- This repository is a single-distribution project: `scopes-tool`.
 - The public import packages are `scopes_tool_core`, `scopes_tool_cli`,
   and `scopes_tool_webui`.
 - CLI and WebUI are parallel adapters over the shared Core runtime. Neither
@@ -57,10 +57,10 @@ another language.
 This project controls real oscilloscopes through VISA/SCPI. Real hardware
 access is opt-in and requires explicit user approval.
 
-- Prefer `keysight-scopes --dry-run --json`, then `keysight-scopes --simulate
+- Prefer `scopes-tool --dry-run --json`, then `scopes-tool --simulate
   --json`, before live commands.
 - For one-shot commands, an explicit `--resource ...` or
-  `KEYSIGHT_SCOPE_RESOURCE` selects and opts in to that single live instrument;
+  `SCOPES_TOOL_RESOURCE` selects and opts in to that single live instrument;
   `--live` is an optional compatibility flag.
 - `list-resources --live-only` is the only discovery command that may open each
   enumerated resource.
@@ -129,5 +129,5 @@ access is opt-in and requires explicit user approval.
   - `src/scopes_tool_webui`: Web interface skeleton.
 - Never let `scopes_tool_core` import from `scopes_tool_cli` or
   `scopes_tool_webui`.
-- CLI commands are invoked via `keysight-scopes` or
+- CLI commands are invoked via `scopes-tool` or
   `python -m scopes_tool_cli.cli`.

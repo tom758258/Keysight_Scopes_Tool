@@ -40,7 +40,7 @@ def test_simulator_options_require_simulate():
 def test_resource_fallbacks():
     assert resolve_resource("simulate", None, "DSOX4024A", {}) == "SIM::DSOX4024A::INSTR"
     assert resolve_resource("dry_run", None, "DSOX4024A", {}) == "DRY::DSOX4024A::INSTR"
-    assert resolve_resource("live", None, "DSOX4024A", {"KEYSIGHT_SCOPE_RESOURCE": "USB"}) == "USB"
+    assert resolve_resource("live", None, "DSOX4024A", {"SCOPES_TOOL_RESOURCE": "USB"}) == "USB"
 
 
 def test_dry_run_open_scope_is_blocked():
