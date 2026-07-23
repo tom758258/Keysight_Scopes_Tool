@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import re
+from typing import TYPE_CHECKING
 
 from .errors import IDNParseError
+
+if TYPE_CHECKING:
+    from .identity import PhysicalModelInfo
 
 _MODEL_RE = re.compile(r"^(?:DSO|MSO)X(?P<series>[234])\d{3}[A-Z]?$", re.IGNORECASE)
 _MODEL_KEY_RE = re.compile(r"[^A-Z0-9]")
@@ -26,6 +30,20 @@ class IDN:
         """Return the detected InfiniiVision series, if recognized."""
 
         return detect_series(self.model)
+
+    @property
+    def physical_model(self) -> PhysicalModelInfo:
+        """Return the registered canonical physical model identity."""
+
+        from .identity import resolve_physical_model_identity
+
+        return resolve_physical_model_identity(self.vendor, self.model)
+
+    @property
+    def model_id(self) -> str:
+        """Return the registered canonical physical model ID."""
+
+        return self.physical_model.model_id
 
 
 def parse_idn(response: str) -> IDN:

@@ -20,6 +20,14 @@ from .dvm import (
     DvmState,
 )
 from .idn import IDN, detect_series, parse_idn
+from .identity import (
+    PHYSICAL_MODEL_REGISTRY,
+    VENDOR_REGISTRY,
+    PhysicalModelInfo,
+    VendorInfo,
+    canonical_physical_model_id,
+    resolve_physical_model_identity,
+)
 from .measurements import (
     MeasurementController,
     MeasurementResult,
@@ -224,6 +232,10 @@ __all__ = [
     "TvTriggerController",
     "TvTriggerState",
     "IDN",
+    "PHYSICAL_MODEL_REGISTRY",
+    "VENDOR_REGISTRY",
+    "PhysicalModelInfo",
+    "VendorInfo",
     "Oscilloscope",
     "MeasurementController",
     "MeasurementResult",
@@ -274,6 +286,7 @@ __all__ = [
     "WaveformCapture",
     "WaveformPreamble",
     "capabilities_for_model",
+    "canonical_physical_model_id",
     "detect_series",
     "parse_channel_display",
     "parse_channel_coupling",
@@ -286,6 +299,7 @@ __all__ = [
     "parse_system_error",
     "parse_system_options",
     "resolve_run_mode",
+    "resolve_physical_model_identity",
     "resolve_resource",
     "require_resource",
     "open_scope_for_run",

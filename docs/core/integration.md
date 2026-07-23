@@ -72,6 +72,10 @@ names are intended for package consumers and tests:
 - `TriggerSweepController`
 - `TriggerSweepState`
 - `IDN`
+- `PHYSICAL_MODEL_REGISTRY`
+- `VENDOR_REGISTRY`
+- `PhysicalModelInfo`
+- `VendorInfo`
 - `Oscilloscope`
 - `MeasurementController`
 - `MeasurementResult`
@@ -126,6 +130,7 @@ names are intended for package consumers and tests:
 - `WaveformCapture`
 - `WaveformPreamble`
 - `capabilities_for_model`
+- `canonical_physical_model_id`
 - `detect_series`
 - `parse_channel_display`
 - `parse_channel_coupling`
@@ -138,6 +143,7 @@ names are intended for package consumers and tests:
 - `parse_system_error`
 - `parse_system_options`
 - `resolve_run_mode`
+- `resolve_physical_model_identity`
 - `resolve_resource`
 - `require_resource`
 - `open_scope_for_run`

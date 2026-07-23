@@ -8,6 +8,24 @@ Capability profiles describe the runtime-supported and guarded feature surface.
 They are not a claim that every feature has completed live validation on every
 model, firmware, or transport.
 
+## Canonical Physical Model Identity
+
+Scopes Tool exposes a vendor-neutral product API while the currently
+implemented hardware family remains Keysight InfiniiVision. The canonical
+physical model registry contains:
+
+| Canonical physical model ID | Manufacturer | Model | Series |
+| --- | --- | --- | --- |
+| `keysight-dsox2004a` | Keysight Technologies | DSOX2004A | 2000X |
+| `keysight-dsox3024a` | Keysight Technologies | DSOX3024A | 3000X |
+| `keysight-dsox4024a` | Keysight Technologies | DSOX4024A | 4000X |
+| `keysight-dsox4034a` | Keysight Technologies | DSOX4034A | 4000X |
+
+Canonical registration identifies a physical model; it does not claim that
+every feature has completed live hardware validation. Capability profile and
+driver-selection refactoring are separate later phases and are not part of the
+canonical identity registry.
+
 ## Runtime Profiles
 
 Core detects DSO-X and MSO-X 2000X, 3000X, and 4000X series models from
