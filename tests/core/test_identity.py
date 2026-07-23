@@ -1,6 +1,7 @@
 import re
 
 import pytest
+import scopes_tool_core.identity as identity_module
 
 from scopes_tool_core import (
     PHYSICAL_MODEL_REGISTRY,
@@ -73,11 +74,6 @@ def test_rejects_unknown_model():
         resolve_physical_model_identity("KEYSIGHT", "DSOX9999A")
 
 
-def test_rejects_manufacturer_model_mismatch():
-    with pytest.raises(UnsupportedModelError):
-        resolve_physical_model_identity("TEKTRONIX", "DSOX4024A")
-
-
 def test_parse_idn_keeps_unknown_four_field_identity():
     idn = parse_idn("UNKNOWN VENDOR,UNKNOWN1000,SERIAL1,1.0")
 
@@ -111,7 +107,10 @@ def test_registry_ids_and_canonical_lookup_keys_are_unambiguous():
         )
     ]
     model_keys = [
-        re.sub(r"[^A-Z0-9]", "", model.canonical_model.strip().upper())
+        (
+            model.vendor_id,
+            re.sub(r"[^A-Z0-9]", "", model.canonical_model.strip().upper()),
+        )
         for model in PHYSICAL_MODEL_REGISTRY
     ]
 
@@ -120,3 +119,100 @@ def test_registry_ids_and_canonical_lookup_keys_are_unambiguous():
     assert len(manufacturer_keys) == len(set(manufacturer_keys))
     assert len(model_keys) == len(set(model_keys))
     assert {model.vendor_id for model in PHYSICAL_MODEL_REGISTRY} <= set(vendor_ids)
+
+
+def _synthetic_vendors():
+    return (
+        VendorInfo(
+            vendor_id="vendor-a",
+            display_name="Vendor A",
+            canonical_manufacturer="VENDOR A",
+        ),
+        VendorInfo(
+            vendor_id="vendor-b",
+            display_name="Vendor B",
+            canonical_manufacturer="VENDOR B",
+        ),
+    )
+
+
+def _synthetic_model(model_id, vendor_id, canonical_model, *, aliases=()):
+    return PhysicalModelInfo(
+        model_id=model_id,
+        vendor_id=vendor_id,
+        canonical_model=canonical_model,
+        display_name=model_id,
+        series="SYNTHETIC",
+        model_aliases=aliases,
+    )
+
+
+def test_different_vendors_can_share_normalized_model_spelling():
+    vendors = _synthetic_vendors()
+    models = (
+        _synthetic_model("vendor-a-model100", "vendor-a", "MODEL100"),
+        _synthetic_model("vendor-b-model100", "vendor-b", "MODEL100"),
+    )
+
+    index = identity_module._build_model_index(vendors, models)
+
+    assert index[("vendor-a", "MODEL100")] == models[0]
+    assert index[("vendor-b", "MODEL100")] == models[1]
+
+
+def test_same_vendor_rejects_normalized_model_conflict():
+    vendors = _synthetic_vendors()
+    models = (
+        _synthetic_model("vendor-a-model100", "vendor-a", "MODEL100"),
+        _synthetic_model(
+            "vendor-a-other",
+            "vendor-a",
+            "OTHER",
+            aliases=("MODEL-100",),
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Ambiguous physical model identity"):
+        identity_module._build_model_index(vendors, models)
+
+
+def test_resolver_uses_manufacturer_to_select_shared_model(monkeypatch):
+    vendors = _synthetic_vendors()
+    models = (
+        _synthetic_model("vendor-a-model100", "vendor-a", "MODEL100"),
+        _synthetic_model("vendor-b-model100", "vendor-b", "MODEL100"),
+    )
+    monkeypatch.setattr(
+        identity_module,
+        "_VENDOR_BY_MANUFACTURER",
+        identity_module._build_vendor_index(vendors),
+    )
+    monkeypatch.setattr(
+        identity_module,
+        "_PHYSICAL_MODEL_BY_VENDOR_AND_MODEL",
+        identity_module._build_model_index(vendors, models),
+    )
+
+    assert resolve_physical_model_identity("VENDOR A", "MODEL100") == models[0]
+    assert resolve_physical_model_identity("VENDOR B", "MODEL100") == models[1]
+
+
+def test_known_vendor_rejects_other_vendor_model(monkeypatch):
+    vendors = _synthetic_vendors()
+    models = (
+        _synthetic_model("vendor-a-model100", "vendor-a", "MODEL100"),
+        _synthetic_model("vendor-b-model200", "vendor-b", "MODEL200"),
+    )
+    monkeypatch.setattr(
+        identity_module,
+        "_VENDOR_BY_MANUFACTURER",
+        identity_module._build_vendor_index(vendors),
+    )
+    monkeypatch.setattr(
+        identity_module,
+        "_PHYSICAL_MODEL_BY_VENDOR_AND_MODEL",
+        identity_module._build_model_index(vendors, models),
+    )
+
+    with pytest.raises(UnsupportedModelError):
+        resolve_physical_model_identity("VENDOR A", "MODEL200")

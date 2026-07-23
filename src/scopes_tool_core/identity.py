@@ -85,9 +85,15 @@ def _normalize_model_key(model: str) -> str:
     return _MODEL_KEY_RE.sub("", model.strip().upper())
 
 
-def _build_vendor_index() -> dict[str, VendorInfo]:
+def _build_vendor_index(
+    vendors: tuple[VendorInfo, ...],
+) -> dict[str, VendorInfo]:
     index: dict[str, VendorInfo] = {}
-    for vendor in VENDOR_REGISTRY:
+    vendor_ids: set[str] = set()
+    for vendor in vendors:
+        if vendor.vendor_id in vendor_ids:
+            raise RuntimeError(f"Duplicate vendor ID: {vendor.vendor_id}")
+        vendor_ids.add(vendor.vendor_id)
         for manufacturer in (
             vendor.canonical_manufacturer,
             *vendor.manufacturer_aliases,
@@ -100,26 +106,39 @@ def _build_vendor_index() -> dict[str, VendorInfo]:
     return index
 
 
-def _build_model_index() -> dict[str, PhysicalModelInfo]:
-    vendor_ids = {vendor.vendor_id for vendor in VENDOR_REGISTRY}
-    index: dict[str, PhysicalModelInfo] = {}
-    for model in PHYSICAL_MODEL_REGISTRY:
+def _build_model_index(
+    vendors: tuple[VendorInfo, ...],
+    models: tuple[PhysicalModelInfo, ...],
+) -> dict[tuple[str, str], PhysicalModelInfo]:
+    vendor_ids = {vendor.vendor_id for vendor in vendors}
+    model_ids: set[str] = set()
+    index: dict[tuple[str, str], PhysicalModelInfo] = {}
+    for model in models:
         if model.vendor_id not in vendor_ids:
             raise RuntimeError(
                 f"Physical model {model.model_id} references unknown vendor "
                 f"{model.vendor_id}"
             )
+        if model.model_id in model_ids:
+            raise RuntimeError(f"Duplicate physical model ID: {model.model_id}")
+        model_ids.add(model.model_id)
         for model_name in (model.canonical_model, *model.model_aliases):
-            key = _normalize_model_key(model_name)
+            key = (model.vendor_id, _normalize_model_key(model_name))
             existing = index.get(key)
             if existing is not None and existing != model:
-                raise RuntimeError(f"Ambiguous physical model identity: {model_name}")
+                raise RuntimeError(
+                    "Ambiguous physical model identity for vendor "
+                    f"{model.vendor_id}: {model_name}"
+                )
             index[key] = model
     return index
 
 
-_VENDOR_BY_MANUFACTURER = _build_vendor_index()
-_PHYSICAL_MODEL_BY_MODEL = _build_model_index()
+_VENDOR_BY_MANUFACTURER = _build_vendor_index(VENDOR_REGISTRY)
+_PHYSICAL_MODEL_BY_VENDOR_AND_MODEL = _build_model_index(
+    VENDOR_REGISTRY,
+    PHYSICAL_MODEL_REGISTRY,
+)
 
 
 def resolve_physical_model_identity(
@@ -136,15 +155,12 @@ def resolve_physical_model_identity(
             f"Unsupported oscilloscope manufacturer: {manufacturer}"
         )
 
-    physical_model = _PHYSICAL_MODEL_BY_MODEL.get(_normalize_model_key(model))
+    physical_model = _PHYSICAL_MODEL_BY_VENDOR_AND_MODEL.get(
+        (vendor.vendor_id, _normalize_model_key(model))
+    )
     if physical_model is None:
         raise UnsupportedModelError(
             f"Unsupported physical oscilloscope model: {model}"
-        )
-    if physical_model.vendor_id != vendor.vendor_id:
-        raise UnsupportedModelError(
-            "Oscilloscope manufacturer and model identities do not match: "
-            f"{manufacturer}, {model}"
         )
     return physical_model
 
