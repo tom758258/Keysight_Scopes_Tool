@@ -20,7 +20,7 @@ from keysight_scope_core.dvm import (
     parse_dvm_mode,
     parse_dvm_source,
 )
-from keysight_scope_core.errors import ParameterValidationError
+from keysight_scope_core.errors import DvmResponseError, ParameterValidationError
 from keysight_scope_core.fake_backend import FakeBackend
 from keysight_scope_core.scpi import SCPIClient
 
@@ -60,9 +60,28 @@ def test_parse_dvm_source_common_keysight_forms(raw, expected):
     assert parse_dvm_source(raw) == expected
 
 
-@pytest.mark.parametrize("raw, expected", [("DC", "dc"), ("DCRMS", "dc-rms"), ("DCRMs", "dc-rms"), ("ACRMS", "ac-rms"), ("ACRMs", "ac-rms")])
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("DC", "dc"),
+        ("DCRM", "dc-rms"),
+        ("DCRMS", "dc-rms"),
+        ("ACRM", "ac-rms"),
+        ("ACRMS", "ac-rms"),
+        (" dc ", "dc"),
+        ("dcrm", "dc-rms"),
+        ("\tDcRmS\r\n", "dc-rms"),
+        ("acrm", "ac-rms"),
+        (" ACrMs ", "ac-rms"),
+    ],
+)
 def test_parse_dvm_mode_common_keysight_forms(raw, expected):
     assert parse_dvm_mode(raw) == expected
+
+
+def test_parse_dvm_mode_rejects_unknown_readback():
+    with pytest.raises(DvmResponseError, match="Could not parse DVM mode response"):
+        parse_dvm_mode("FREQUENCY")
 
 
 @pytest.mark.parametrize("mode", ["frequency", "freq", "dcrms", "acrms", "DCRMS", "ACRMS", "unknown"])
@@ -85,12 +104,18 @@ def test_dvm_current_preserves_invalid_sentinel():
     assert reading.reason == DVM_INVALID_SENTINEL_REASON
 
 
-def test_dvm_controller_aggregate_query_preserves_normalized_and_raw_fields():
+@pytest.mark.parametrize(
+    ("raw_mode", "expected_mode"),
+    [("DCRMs", "dc-rms"), ("DCRM", "dc-rms"), ("ACRM", "ac-rms")],
+)
+def test_dvm_controller_aggregate_query_preserves_normalized_and_raw_fields(
+    raw_mode, expected_mode
+):
     backend = FakeBackend(
         responses={
             ":DVM:ENABle?": "1",
             ":DVM:SOURce?": "CHANnel2",
-            ":DVM:MODE?": "DCRMs",
+            ":DVM:MODE?": raw_mode,
             ":DVM:ARANge?": "0",
             ":DVM:CURRent?": "+1.23400000E+000",
         }
@@ -102,7 +127,7 @@ def test_dvm_controller_aggregate_query_preserves_normalized_and_raw_fields():
     assert state.to_json() == {
         "enabled": True,
         "source_channel": 2,
-        "mode": "dc-rms",
+        "mode": expected_mode,
         "auto_range_enabled": False,
         "value": 1.234,
         "valid": True,
@@ -110,7 +135,7 @@ def test_dvm_controller_aggregate_query_preserves_normalized_and_raw_fields():
         "raw": {
             "enabled": "1",
             "source": "CHANnel2",
-            "mode": "DCRMs",
+            "mode": raw_mode,
             "auto_range": "0",
             "current": "+1.23400000E+000",
         },

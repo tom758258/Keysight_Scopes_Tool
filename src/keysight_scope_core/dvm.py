@@ -24,7 +24,9 @@ _DVM_MODE_COMMANDS = {
 
 _DVM_MODE_READBACKS = {
     "DC": "dc",
+    "DCRM": "dc-rms",
     "DCRMS": "dc-rms",
+    "ACRM": "ac-rms",
     "ACRMS": "ac-rms",
 }
 
