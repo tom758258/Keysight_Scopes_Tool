@@ -1,20 +1,20 @@
-﻿import json
+import json
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 
 import pytest
 
-from keysight_scope_cli import cli
-import keysight_scope_core.output_files as core_output_files
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import KeysightScopeError, VisaBackendError
-from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.measurements import MeasurementResult
-from keysight_scope_core.screenshot import ScreenshotCapture
-from keysight_scope_core.status import SystemErrorEntry
-from keysight_scope_core.visa_backend import VisaLiveVerification, VisaResourceListing
-from keysight_scope_core.waveform import (
+from scopes_tool_cli import cli
+import scopes_tool_core.output_files as core_output_files
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import KeysightScopeError, VisaBackendError
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.measurements import MeasurementResult
+from scopes_tool_core.screenshot import ScreenshotCapture
+from scopes_tool_core.status import SystemErrorEntry
+from scopes_tool_core.visa_backend import VisaLiveVerification, VisaResourceListing
+from scopes_tool_core.waveform import (
     MultiChannelWaveformCapture,
     WaveformCapture,
     WaveformPreamble,

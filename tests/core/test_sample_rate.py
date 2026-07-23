@@ -2,15 +2,15 @@
 
 import pytest
 
-from keysight_scope_core.acquisition import (
+from scopes_tool_core.acquisition import (
     parse_sample_rate,
     sample_rate_maximum_query,
     sample_rate_query,
 )
-from keysight_scope_core.errors import AcquisitionResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from scopes_tool_core.errors import AcquisitionResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
+from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def test_sample_rate_query_returns_keysight_short_form():

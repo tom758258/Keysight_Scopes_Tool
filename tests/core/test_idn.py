@@ -1,7 +1,7 @@
-﻿import pytest
+import pytest
 
-from keysight_scope_core.errors import IDNParseError
-from keysight_scope_core.idn import detect_series, parse_idn
+from scopes_tool_core.errors import IDNParseError
+from scopes_tool_core.idn import detect_series, parse_idn
 
 
 def test_parse_keysight_idn():

@@ -1,9 +1,9 @@
-﻿"""Tests for acquisition configuration."""
+"""Tests for acquisition configuration."""
 
 import math
 import pytest
 
-from keysight_scope_core.acquisition import (
+from scopes_tool_core.acquisition import (
     AcquisitionConfig,
     AcquisitionController,
     normalize_acquisition_type,
@@ -15,9 +15,9 @@ from keysight_scope_core.acquisition import (
     acquisition_count_command,
     acquisition_count_query,
 )
-from keysight_scope_core.errors import ParameterValidationError, AcquisitionResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
+from scopes_tool_core.errors import ParameterValidationError, AcquisitionResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
 
 
 class TestAcquisitionTypeNormalization:
@@ -171,7 +171,7 @@ class TestAcquisitionConfigDataclass:
 class TestAcquisitionControllerWithFakeBackend:
     def test_set_type_writes_correct_scpi(self):
         backend = FakeBackend()
-        from keysight_scope_core.scpi import SCPIClient
+        from scopes_tool_core.scpi import SCPIClient
         scpi = SCPIClient(backend)
         controller = AcquisitionController(scpi)
 
@@ -181,7 +181,7 @@ class TestAcquisitionControllerWithFakeBackend:
 
     def test_query_type_reads_and_parses_response(self):
         backend = FakeBackend(responses={":ACQuire:TYPE?": "AVER"})
-        from keysight_scope_core.scpi import SCPIClient
+        from scopes_tool_core.scpi import SCPIClient
         scpi = SCPIClient(backend)
         controller = AcquisitionController(scpi)
 
@@ -192,7 +192,7 @@ class TestAcquisitionControllerWithFakeBackend:
 
     def test_set_count_writes_correct_scpi(self):
         backend = FakeBackend()
-        from keysight_scope_core.scpi import SCPIClient
+        from scopes_tool_core.scpi import SCPIClient
         scpi = SCPIClient(backend)
         controller = AcquisitionController(scpi)
 
@@ -202,7 +202,7 @@ class TestAcquisitionControllerWithFakeBackend:
 
     def test_query_count_reads_and_parses_response(self):
         backend = FakeBackend(responses={":ACQuire:COUNt?": "32"})
-        from keysight_scope_core.scpi import SCPIClient
+        from scopes_tool_core.scpi import SCPIClient
         scpi = SCPIClient(backend)
         controller = AcquisitionController(scpi)
 
@@ -218,7 +218,7 @@ class TestAcquisitionControllerWithFakeBackend:
                 ":ACQuire:COUNt?": "64",
             }
         )
-        from keysight_scope_core.scpi import SCPIClient
+        from scopes_tool_core.scpi import SCPIClient
         scpi = SCPIClient(backend)
         controller = AcquisitionController(scpi)
 

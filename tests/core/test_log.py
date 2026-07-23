@@ -1,16 +1,16 @@
-﻿"""Tests for the log module."""
+"""Tests for the log module."""
 
 import logging
 
-from keysight_scope_core import log
+from scopes_tool_core import log
 
 
 class TestLoggerName:
     """Tests for the logger name constant."""
 
-    def test_logger_name_is_keysight_scope_core(self):
-        """Verify the base logger name is 'keysight_scope_core'."""
-        assert log.LOGGER_NAME == "keysight_scope_core"
+    def test_logger_name_is_scopes_tool_core(self):
+        """Verify the base logger name is 'scopes_tool_core'."""
+        assert log.LOGGER_NAME == "scopes_tool_core"
 
 
 class TestGetLogger:
@@ -19,25 +19,25 @@ class TestGetLogger:
     def test_get_logger_without_name_returns_base_logger(self):
         """Test that get_logger() without arguments returns the base logger."""
         logger = log.get_logger()
-        assert logger.name == "keysight_scope_core"
+        assert logger.name == "scopes_tool_core"
         assert isinstance(logger, logging.Logger)
 
     def test_get_logger_with_none_returns_base_logger(self):
         """Test that get_logger(None) returns the base logger."""
         logger = log.get_logger(None)
-        assert logger.name == "keysight_scope_core"
+        assert logger.name == "scopes_tool_core"
 
     def test_get_logger_with_name_returns_child_logger(self):
         """Test that get_logger with a name returns a child logger."""
         logger = log.get_logger("scpi")
-        assert logger.name == "keysight_scope_core.scpi"
+        assert logger.name == "scopes_tool_core.scpi"
 
     def test_get_logger_with_submodule_name(self):
         """Test get_logger with various submodule names."""
         test_cases = [
-            ("visa_backend", "keysight_scope_core.visa_backend"),
-            ("channel", "keysight_scope_core.channel"),
-            ("waveform", "keysight_scope_core.waveform"),
+            ("visa_backend", "scopes_tool_core.visa_backend"),
+            ("channel", "scopes_tool_core.channel"),
+            ("waveform", "scopes_tool_core.waveform"),
         ]
         for submodule, expected_name in test_cases:
             logger = log.get_logger(submodule)
@@ -78,7 +78,7 @@ class TestLoggerConfiguration:
     def test_logger_can_log_at_different_levels(self, caplog):
         """Test that the logger can log at different levels."""
         logger = log.get_logger("test")
-        with caplog.at_level(logging.DEBUG, logger="keysight_scope_core"):
+        with caplog.at_level(logging.DEBUG, logger="scopes_tool_core"):
             logger.debug("Debug message")
             logger.info("Info message")
             logger.warning("Warning message")
@@ -94,7 +94,7 @@ class TestLoggerConfiguration:
     def test_logger_respects_level_filtering(self, caplog):
         """Test that the logger respects level filtering."""
         logger = log.get_logger("test_filter")
-        with caplog.at_level(logging.WARNING, logger="keysight_scope_core"):
+        with caplog.at_level(logging.WARNING, logger="scopes_tool_core"):
             logger.debug("This should not appear")
             logger.info("This should not appear either")
             logger.warning("This should appear")

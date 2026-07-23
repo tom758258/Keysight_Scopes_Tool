@@ -1,8 +1,8 @@
-﻿"""Tests for the errors module."""
+"""Tests for the errors module."""
 
 import pytest
 
-from keysight_scope_core import errors
+from scopes_tool_core import errors
 
 
 class TestKeysightScopeError:

@@ -1,9 +1,9 @@
 import pytest
 
-from keysight_scope_core.errors import StatusResponseError, SystemErrorParseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.status import (
+from scopes_tool_core.errors import StatusResponseError, SystemErrorParseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
+from scopes_tool_core.status import (
     StatusController,
     parse_operation_complete,
     parse_status_register,

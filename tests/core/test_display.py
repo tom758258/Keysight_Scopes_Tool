@@ -1,7 +1,7 @@
 import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.display import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.display import (
     DisplayController,
     annotation_commands,
     annotation_query_commands,
@@ -25,9 +25,9 @@ from keysight_scope_core.display import (
     validate_display_intensity,
     validate_display_persistence,
 )
-from keysight_scope_core.errors import ChannelResponseError, ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
+from scopes_tool_core.errors import ChannelResponseError, ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
 
 
 @pytest.mark.parametrize("raw", ["1", "+1", "ON", " on "])

@@ -1,5 +1,5 @@
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def test_simulator_system_status_queries_are_deterministic():

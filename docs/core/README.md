@@ -5,7 +5,7 @@ PyVISA-compatible backends.
 
 Distribution: `keysight-scopes`
 
-Import package: `keysight_scope_core`
+Import package: `scopes_tool_core`
 
 ## Scope
 
@@ -270,7 +270,7 @@ script documentation, or WebUI workflow.
 The Core runtime exposes a one-shot force-trigger helper:
 
 ```python
-from keysight_scope_core.trigger import force_trigger_command
+from scopes_tool_core.trigger import force_trigger_command
 
 force_trigger_command() == ":TRIGger:FORCe"
 ```

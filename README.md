@@ -9,9 +9,9 @@ package behavior, and shared machine contracts.
 
 | Area | Distribution | Import / entry point | Public docs |
 | --- | --- | --- | --- |
-| Core | `keysight-scopes` | `keysight_scope_core` | `docs/core/README.md`, `docs/core/integration.md`, `docs/core/supported-models.md` |
-| CLI | `keysight-scopes` | `keysight-scopes`, `python -m keysight_scope_cli.cli` | `docs/cli/README.md`, `docs/cli/cli-integration.md` |
-| WebUI | `keysight-scopes` | `keysight_scope_webui` skeleton | `docs/webui/README.md` |
+| Core | `keysight-scopes` | `scopes_tool_core` | `docs/core/README.md`, `docs/core/integration.md`, `docs/core/supported-models.md` |
+| CLI | `keysight-scopes` | `keysight-scopes`, `python -m scopes_tool_cli.cli` | `docs/cli/README.md`, `docs/cli/cli-integration.md` |
+| WebUI | `keysight-scopes` | `scopes_tool_webui` skeleton | `docs/webui/README.md` |
 
 Runtime APIs, console scripts, package metadata, SCPI behavior, and JSON
 contracts are owned by the root package metadata, area docs, and root contracts.

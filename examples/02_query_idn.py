@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 
-from keysight_scope_core import KeysightScope
+from scopes_tool_core import KeysightScope
 
 
 def main() -> int:

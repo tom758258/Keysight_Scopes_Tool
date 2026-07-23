@@ -13,17 +13,17 @@ from urllib import request as urlrequest
 
 import pytest
 
-from keysight_scope_cli import cli
-from keysight_scope_cli import worker
-from keysight_scope_core.advanced import trigger_holdoff_commands, trigger_holdoff_query
-from keysight_scope_core.acquisition import (
+from scopes_tool_cli import cli
+from scopes_tool_cli import worker
+from scopes_tool_core.advanced import trigger_holdoff_commands, trigger_holdoff_query
+from scopes_tool_core.acquisition import (
     acquisition_points_query,
     record_length_query,
     sample_rate_maximum_query,
     sample_rate_query,
 )
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.channel import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.channel import (
     channel_impedance_command,
     channel_impedance_query,
     channel_invert_command,
@@ -37,7 +37,7 @@ from keysight_scope_core.channel import (
     channel_vernier_command,
     channel_vernier_query,
 )
-from keysight_scope_core.display import (
+from scopes_tool_core.display import (
     display_clear_command,
     display_intensity_command,
     display_intensity_query,
@@ -46,9 +46,9 @@ from keysight_scope_core.display import (
     display_vectors_command,
     display_vectors_query,
 )
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.trigger import (
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.trigger import (
     force_trigger_command,
     operation_condition_query,
     single_command,

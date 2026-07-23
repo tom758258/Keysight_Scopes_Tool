@@ -47,7 +47,7 @@ def test_cli_integration_keeps_cli_fields_out_of_core_schema():
 
     assert "measurement_cli_name" in text
     assert "argparse.Namespace" in text
-    assert "keysight-scopes = keysight_scope_cli.cli:main" in text
+    assert "keysight-scopes = scopes_tool_cli.cli:main" in text
 
 
 def test_root_readme_discovers_cli_and_agent_docs():

@@ -23,7 +23,7 @@ def test_webui_docs_are_root_level():
 def test_webui_readme_names_public_package_identity():
     text = read_doc("README.md")
 
-    assert "keysight_scope_webui" in text
+    assert "scopes_tool_webui" in text
 
 
 def test_root_readme_discovers_webui_and_agent_docs():

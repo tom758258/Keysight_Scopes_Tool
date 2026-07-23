@@ -1,7 +1,7 @@
-﻿import pytest
+import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.channel import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.channel import (
     ChannelController,
     channel_bandwidth_limit_command,
     channel_bandwidth_limit_query,
@@ -48,9 +48,9 @@ from keysight_scope_core.channel import (
     validate_probe_skew,
     validate_probe_ratio,
 )
-from keysight_scope_core.errors import ChannelResponseError, ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
+from scopes_tool_core.errors import ChannelResponseError, ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
 
 
 def test_channel_display_command_uses_keysight_channel_syntax():

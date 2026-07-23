@@ -26,8 +26,8 @@ another language.
 ## 3. Project Direction
 
 - This repository is a single-distribution project: `keysight-scopes`.
-- The public import packages are `keysight_scope_core`, `keysight_scope_cli`,
-  and `keysight_scope_webui`.
+- The public import packages are `scopes_tool_core`, `scopes_tool_cli`,
+  and `scopes_tool_webui`.
 - CLI and WebUI are parallel adapters over the shared Core runtime. Neither
   adapter owns SCPI behavior.
 - Keep adapter behavior aligned with the root contracts and area docs.
@@ -124,10 +124,10 @@ access is opt-in and requires explicit user approval.
   `packages/*/pyproject.toml` unless the user explicitly requests it.
 - The repository is organized as a single-distribution project under the root
   `src/` directory:
-  - `src/keysight_scope_core`: Core runtime layer.
-  - `src/keysight_scope_cli`: Command line interface adapter.
-  - `src/keysight_scope_webui`: Web interface skeleton.
-- Never let `keysight_scope_core` import from `keysight_scope_cli` or
-  `keysight_scope_webui`.
+  - `src/scopes_tool_core`: Core runtime layer.
+  - `src/scopes_tool_cli`: Command line interface adapter.
+  - `src/scopes_tool_webui`: Web interface skeleton.
+- Never let `scopes_tool_core` import from `scopes_tool_cli` or
+  `scopes_tool_webui`.
 - CLI commands are invoked via `keysight-scopes` or
-  `python -m keysight_scope_cli.cli`.
+  `python -m scopes_tool_cli.cli`.

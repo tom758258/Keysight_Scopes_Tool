@@ -3,8 +3,8 @@ import math
 
 import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.demo import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.demo import (
     DemoController,
     demo_function_command,
     demo_function_query,
@@ -17,9 +17,9 @@ from keysight_scope_core.demo import (
     parse_demo_function,
     parse_demo_phase,
 )
-from keysight_scope_core.errors import DemoResponseError, ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
+from scopes_tool_core.errors import DemoResponseError, ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
 
 
 def test_demo_scpi_builders():

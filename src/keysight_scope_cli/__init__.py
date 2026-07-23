@@ -1,1 +1,0 @@
-﻿"""Keysight Scope CLI."""

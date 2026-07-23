@@ -14,7 +14,7 @@ import sys
 import time
 from typing import Sequence
 
-from keysight_scope_core.acquisition import (
+from scopes_tool_core.acquisition import (
     acquisition_count_command,
     acquisition_count_query,
     acquisition_points_query,
@@ -29,7 +29,7 @@ from keysight_scope_core.acquisition import (
     sample_rate_query,
     validate_acquisition_count,
 )
-from keysight_scope_core.advanced import (
+from scopes_tool_core.advanced import (
     autoscale_commands,
     cursor_auto_vertical_dry_run_plan,
     cursor_auto_vertical_json,
@@ -46,7 +46,7 @@ from keysight_scope_core.advanced import (
     trigger_holdoff_query,
     validate_trigger_holdoff,
 )
-from keysight_scope_core.batch import (
+from scopes_tool_core.batch import (
     BatchManifest,
     batch_capture_paths,
     batch_iso_timestamp,
@@ -58,8 +58,8 @@ from keysight_scope_core.batch import (
     system_error_manifest_dict,
     write_batch_manifest,
 )
-from keysight_scope_core.measure_logger import measure_log_paths
-from keysight_scope_core.operations import (
+from scopes_tool_core.measure_logger import measure_log_paths
+from scopes_tool_core.operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
     MeasureLogRequest,
@@ -75,13 +75,13 @@ from keysight_scope_core.operations import (
     run_measure_sweep,
     run_smoke,
 )
-from keysight_scope_core.output_files import (
+from scopes_tool_core.output_files import (
     capture_output_paths,
     default_capture_csv_path,
     write_json_file,
     write_json_file_best_effort,
 )
-from keysight_scope_core.planning import (
+from scopes_tool_core.planning import (
     AcquisitionCheckPlanRequest,
     CapturePlanRequest,
     MeasurePlanRequest,
@@ -94,13 +94,13 @@ from keysight_scope_core.planning import (
     plan_measure_sweep,
     plan_smoke,
 )
-from keysight_scope_core.run_config import (
+from scopes_tool_core.run_config import (
     RunModeOptions,
     make_simulator_backend,
     resolve_resource,
     resolve_run_mode,
 )
-from keysight_scope_core.save_export import (
+from scopes_tool_core.save_export import (
     SAVE_IMAGE_FORMATS,
     SAVE_IMAGE_PALETTES,
     SAVE_WAVEFORM_FORMATS,
@@ -127,8 +127,8 @@ from keysight_scope_core.save_export import (
     validate_save_quoted_string,
     validate_save_waveform_length,
 )
-from keysight_scope_core.capabilities import ScopeCapabilities, capabilities_for_model
-from keysight_scope_core.channel import (
+from scopes_tool_core.capabilities import ScopeCapabilities, capabilities_for_model
+from scopes_tool_core.channel import (
     channel_bandwidth_limit_command,
     channel_bandwidth_limit_query,
     channel_coupling_command,
@@ -167,7 +167,7 @@ from keysight_scope_core.channel import (
     validate_probe_skew,
     validate_probe_ratio,
 )
-from keysight_scope_core.display import (
+from scopes_tool_core.display import (
     annotation_commands,
     annotation_query_commands,
     display_clear_command,
@@ -185,7 +185,7 @@ from keysight_scope_core.display import (
     validate_display_intensity,
     validate_display_persistence,
 )
-from keysight_scope_core.dvm import (
+from scopes_tool_core.dvm import (
     DVM_MODES,
     dvm_auto_range_command,
     dvm_auto_range_query,
@@ -198,9 +198,9 @@ from keysight_scope_core.dvm import (
     dvm_source_command,
     dvm_source_query,
 )
-from keysight_scope_core.errors import KeysightScopeError, ParameterValidationError
-from keysight_scope_core.idn import normalize_model_key, parse_idn
-from keysight_scope_core.measurements import (
+from scopes_tool_core.errors import KeysightScopeError, ParameterValidationError
+from scopes_tool_core.idn import normalize_model_key, parse_idn
+from scopes_tool_core.measurements import (
     MEASUREMENT_ITEM_CHOICES,
     MEASUREMENT_WINDOW_CHOICES,
     MeasurementStatisticsResult,
@@ -222,7 +222,7 @@ from keysight_scope_core.measurements import (
     validate_statistics_max_count,
     validate_statistics_settle_seconds,
 )
-from keysight_scope_core.reference import (
+from scopes_tool_core.reference import (
     reference_clear_command,
     reference_display_command,
     reference_display_query,
@@ -233,7 +233,7 @@ from keysight_scope_core.reference import (
     validate_reference_label,
     validate_reference_slot,
 )
-from keysight_scope_core.demo import (
+from scopes_tool_core.demo import (
     DEMO_FUNCTIONS,
     demo_function_command,
     demo_function_query,
@@ -245,7 +245,7 @@ from keysight_scope_core.demo import (
     validate_demo_function,
     validate_demo_phase,
 )
-from keysight_scope_core.search import (
+from scopes_tool_core.search import (
     SEARCH_MODES,
     search_count_query,
     search_mode_command,
@@ -254,7 +254,7 @@ from keysight_scope_core.search import (
     search_state_query,
     validate_search_mode,
 )
-from keysight_scope_core.status import (
+from scopes_tool_core.status import (
     system_clear_status_command,
     system_opc_query,
     system_operation_status_query,
@@ -262,7 +262,7 @@ from keysight_scope_core.status import (
     system_standard_event_query,
     system_status_byte_query,
 )
-from keysight_scope_core.screenshot import (
+from scopes_tool_core.screenshot import (
     DEFAULT_SCREENSHOT_BACKGROUND,
     SCREENSHOT_TIMEOUT_MS,
     ScreenshotOptions,
@@ -281,15 +281,15 @@ from keysight_scope_core.screenshot import (
     write_screenshot,
     write_screenshot_png,
 )
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.simulator_backend import SimulatedSignal, SimulatorBackend, simulator_idn
-from keysight_scope_core.simulator_config import (
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.simulator_backend import SimulatedSignal, SimulatorBackend, simulator_idn
+from scopes_tool_core.simulator_config import (
     PRESET_NAMES,
     parse_simulate_signal_spec,
     simulator_backend_kwargs,
     validate_simulator_args,
 )
-from keysight_scope_core.timebase import (
+from scopes_tool_core.timebase import (
     timebase_position_command,
     timebase_position_query,
     timebase_scale_command,
@@ -297,7 +297,7 @@ from keysight_scope_core.timebase import (
     validate_timebase_position,
     validate_timebase_scale,
 )
-from keysight_scope_core.trigger import (
+from scopes_tool_core.trigger import (
     TriggerWaitConfig,
     delay_trigger_configure_commands,
     delay_trigger_query_commands,
@@ -376,12 +376,12 @@ from keysight_scope_core.trigger import (
     validate_trigger_level,
     validate_trigger_time,
 )
-from keysight_scope_core.visa_backend import (
+from scopes_tool_core.visa_backend import (
     is_asrl_resource,
     list_visa_resources,
     verify_asrl_resource_live,
 )
-from keysight_scope_core.waveform import (
+from scopes_tool_core.waveform import (
     MultiChannelWaveformCapture,
     SUPPORTED_WAVEFORM_POINTS,
     WORD_BYTE_ORDER,

@@ -1,10 +1,10 @@
-﻿import sys
+import sys
 from types import SimpleNamespace
 
 import pytest
 
-from keysight_scope_core.errors import VisaBackendError
-from keysight_scope_core.visa_backend import (
+from scopes_tool_core.errors import VisaBackendError
+from scopes_tool_core.visa_backend import (
     ASRL_VERIFY_TIMEOUT_MS,
     VisaBackend,
     is_asrl_resource,

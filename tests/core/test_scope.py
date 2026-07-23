@@ -1,6 +1,6 @@
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.errors import ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.errors import ParameterValidationError
 
 
 def test_scope_queries_idn_and_loads_capabilities():

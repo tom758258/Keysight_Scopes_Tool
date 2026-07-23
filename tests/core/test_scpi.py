@@ -1,16 +1,16 @@
-﻿import logging
+import logging
 
 import pytest
 
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
 
 
 def test_scpi_query_strips_response_and_logs(caplog):
     backend = FakeBackend(responses={"*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,02.50\n"})
     client = SCPIClient(backend)
 
-    with caplog.at_level(logging.DEBUG, logger="keysight_scope_core.scpi"):
+    with caplog.at_level(logging.DEBUG, logger="scopes_tool_core.scpi"):
         response = client.query("*IDN?")
 
     assert response == "KEYSIGHT TECHNOLOGIES,DSOX4024A,MY1,02.50"

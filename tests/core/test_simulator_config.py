@@ -1,11 +1,11 @@
-﻿import argparse
+import argparse
 import json
 
 import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.simulator_config import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.simulator_config import (
     load_scenario,
     parse_config,
     simulator_backend_kwargs,

@@ -1,10 +1,10 @@
-﻿"""Logging helpers for SCPI communication."""
+"""Logging helpers for SCPI communication."""
 
 from __future__ import annotations
 
 import logging
 
-LOGGER_NAME = "keysight_scope_core"
+LOGGER_NAME = "scopes_tool_core"
 
 
 def get_logger(name: str | None = None) -> logging.Logger:

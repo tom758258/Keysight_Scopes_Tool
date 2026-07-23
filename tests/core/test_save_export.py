@@ -1,8 +1,8 @@
 import pytest
 
-from keysight_scope_core.errors import ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.save_export import (
+from scopes_tool_core.errors import ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.save_export import (
     SaveExportController,
     parse_save_image_format,
     parse_save_waveform_format,
@@ -20,7 +20,7 @@ from keysight_scope_core.save_export import (
     validate_save_filename_base,
     validate_save_quoted_string,
 )
-from keysight_scope_core.scpi import SCPIClient
+from scopes_tool_core.scpi import SCPIClient
 
 
 def test_save_export_v1_scpi_builders_use_common_commands():

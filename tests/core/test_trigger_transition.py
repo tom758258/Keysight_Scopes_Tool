@@ -1,10 +1,10 @@
 import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.trigger import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
+from scopes_tool_core.trigger import (
     TransitionTriggerController,
     normalize_transition_qualifier,
     normalize_transition_slope,

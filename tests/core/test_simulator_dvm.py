@@ -1,8 +1,8 @@
 import pytest
 
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def _scope():

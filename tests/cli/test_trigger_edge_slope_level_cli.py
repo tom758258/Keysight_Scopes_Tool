@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from keysight_scope_cli import cli
+from scopes_tool_cli import cli
 
 
 def _payload(capsys):

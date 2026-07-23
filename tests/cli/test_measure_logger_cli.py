@@ -1,6 +1,6 @@
-﻿import json
+import json
 
-from keysight_scope_cli import cli
+from scopes_tool_cli import cli
 
 
 def test_measure_log_cli_dry_run_json(capsys):

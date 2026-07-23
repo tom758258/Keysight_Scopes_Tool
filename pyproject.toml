@@ -15,11 +15,11 @@ webui = []
 all = []
 
 [project.scripts]
-keysight-scopes = "keysight_scope_cli.cli:main"
+keysight-scopes = "scopes_tool_cli.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["keysight_scope_*"]
+include = ["scopes_tool_*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

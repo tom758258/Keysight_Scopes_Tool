@@ -1,12 +1,12 @@
-﻿import json
+import json
 
 import pytest
 
-from keysight_scope_cli import cli
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.status import SystemErrorEntry
-from keysight_scope_core.waveform import (
+from scopes_tool_cli import cli
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.status import SystemErrorEntry
+from scopes_tool_core.waveform import (
     MultiChannelWaveformCapture,
     WaveformCapture,
     WaveformPreamble,

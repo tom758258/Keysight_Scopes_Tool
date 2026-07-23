@@ -1,13 +1,13 @@
-﻿import csv
+import csv
 from datetime import datetime
 import json
 
 import pytest
 
-from keysight_scope_core import measure_logger
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from scopes_tool_core import measure_logger
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.simulator_backend import SimulatorBackend
 
 def test_prepare_default_measure_log_output_dir_uses_timestamp_and_collision_suffix(tmp_path, monkeypatch):
     now = datetime(2026, 5, 16, 12, 34, 56)

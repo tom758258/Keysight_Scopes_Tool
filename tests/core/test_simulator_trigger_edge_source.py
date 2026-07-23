@@ -1,6 +1,6 @@
 import pytest
 
-from keysight_scope_core.simulator_backend import SimulatorBackend, SimulatorBackendError
+from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
 def test_simulator_trigger_edge_source_roundtrip_and_isolation():

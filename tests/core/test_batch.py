@@ -1,13 +1,13 @@
-﻿import json
+import json
 import logging
 from datetime import datetime
 
 import pytest
 
-from keysight_scope_core import batch
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.status import SystemErrorEntry
+from scopes_tool_core import batch
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.status import SystemErrorEntry
 
 
 def test_prepare_default_batch_output_dir_uses_timestamp_and_collision_suffix(tmp_path):
@@ -116,13 +116,13 @@ def test_write_batch_manifest_json_fields_and_capture_list(tmp_path):
 
 def test_capture_batch_scpi_logging_writes_package_debug_to_file(tmp_path):
     log_path = tmp_path / "scpi.log"
-    logger = logging.getLogger("keysight_scope_core.scpi")
+    logger = logging.getLogger("scopes_tool_core.scpi")
 
     with batch.capture_batch_scpi_logging(log_path):
         logger.debug("SCPI >> *IDN?")
         logger.debug("SCPI << IDN")
 
     assert log_path.read_text(encoding="utf-8").splitlines() == [
-        "keysight_scope_core.scpi DEBUG: SCPI >> *IDN?",
-        "keysight_scope_core.scpi DEBUG: SCPI << IDN",
+        "scopes_tool_core.scpi DEBUG: SCPI >> *IDN?",
+        "scopes_tool_core.scpi DEBUG: SCPI << IDN",
     ]

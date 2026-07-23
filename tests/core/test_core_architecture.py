@@ -2,9 +2,9 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CORE_SRC = REPO_ROOT / "src" / "keysight_scope_core"
-CLI_SRC = REPO_ROOT / "src" / "keysight_scope_cli"
-WEBUI_SRC = REPO_ROOT / "src" / "keysight_scope_webui"
+CORE_SRC = REPO_ROOT / "src" / "scopes_tool_core"
+CLI_SRC = REPO_ROOT / "src" / "scopes_tool_cli"
+WEBUI_SRC = REPO_ROOT / "src" / "scopes_tool_webui"
 
 
 def _python_texts(root: Path) -> str:
@@ -32,7 +32,7 @@ def test_import_packages_keep_dependency_boundaries():
     cli_text = _python_texts(CLI_SRC)
     webui_text = _python_texts(WEBUI_SRC)
 
-    assert "keysight_scope_cli" not in core_text
-    assert "keysight_scope_webui" not in core_text
-    assert "keysight_scope_webui" not in cli_text
-    assert "keysight_scope_cli" not in webui_text
+    assert "scopes_tool_cli" not in core_text
+    assert "scopes_tool_webui" not in core_text
+    assert "scopes_tool_webui" not in cli_text
+    assert "scopes_tool_cli" not in webui_text

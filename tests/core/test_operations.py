@@ -1,7 +1,7 @@
 import json
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.operations import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.operations import (
     AcquisitionCheckRequest,
     CaptureRequest,
     MeasureLogRequest,
@@ -17,9 +17,9 @@ from keysight_scope_core.operations import (
     run_measure_sweep,
     run_smoke,
 )
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.simulator_backend import SimulatorBackend
-from keysight_scope_core.trigger import TriggerWaitConfig
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.simulator_backend import SimulatorBackend
+from scopes_tool_core.trigger import TriggerWaitConfig
 
 
 class _StepClock:

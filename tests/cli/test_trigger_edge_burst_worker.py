@@ -1,7 +1,7 @@
 import pytest
 
-from keysight_scope_cli import cli, worker
-from keysight_scope_core.errors import KeysightScopeError
+from scopes_tool_cli import cli, worker
+from scopes_tool_core.errors import KeysightScopeError
 
 
 def _runtime(tmp_path):

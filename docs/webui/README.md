@@ -4,7 +4,7 @@ Skeleton package reserved for a future browser-based Keysight Scopes interface.
 
 Distribution: `keysight-scopes`
 
-Import package: `keysight_scope_webui`
+Import package: `scopes_tool_webui`
 
 Current status:
 

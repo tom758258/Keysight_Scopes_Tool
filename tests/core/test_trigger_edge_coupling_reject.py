@@ -1,8 +1,8 @@
 import pytest
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.errors import ParameterValidationError, TriggerResponseError
-from keysight_scope_core.trigger import (
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.errors import ParameterValidationError, TriggerResponseError
+from scopes_tool_core.trigger import (
     EdgeTriggerCouplingController,
     EdgeTriggerCouplingState,
     EdgeTriggerRejectController,

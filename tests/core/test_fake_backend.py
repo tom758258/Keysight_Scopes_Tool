@@ -1,7 +1,7 @@
-﻿import pytest
+import pytest
 
-from keysight_scope_core.errors import BackendClosedError
-from keysight_scope_core.fake_backend import FakeBackend, FakeBackendError
+from scopes_tool_core.errors import BackendClosedError
+from scopes_tool_core.fake_backend import FakeBackend, FakeBackendError
 
 
 def test_fake_backend_records_write_and_query_order():

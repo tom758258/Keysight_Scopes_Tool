@@ -2,11 +2,11 @@ import math
 
 import pytest
 
-import keysight_scope_core
-from keysight_scope_core.errors import ParameterValidationError, TriggerResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.trigger import (
+import scopes_tool_core
+from scopes_tool_core.errors import ParameterValidationError, TriggerResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.trigger import (
     ExternalTriggerProbeController,
     ExternalTriggerProbeState,
     ExternalTriggerSettingsController,
@@ -154,9 +154,9 @@ def test_external_trigger_settings_controller_scope_api_and_public_exports():
     assert units.units == "volts"
     assert settings.range_value == 8.0
     assert external_trigger_settings_query() == ":EXTernal?"
-    assert keysight_scope_core.ExternalTriggerProbeController is ExternalTriggerProbeController
-    assert keysight_scope_core.ExternalTriggerProbeState is ExternalTriggerProbeState
-    assert keysight_scope_core.ExternalTriggerUnitsController is ExternalTriggerUnitsController
-    assert keysight_scope_core.ExternalTriggerUnitsState is ExternalTriggerUnitsState
-    assert keysight_scope_core.ExternalTriggerSettingsController is ExternalTriggerSettingsController
-    assert keysight_scope_core.ExternalTriggerSettingsState is ExternalTriggerSettingsState
+    assert scopes_tool_core.ExternalTriggerProbeController is ExternalTriggerProbeController
+    assert scopes_tool_core.ExternalTriggerProbeState is ExternalTriggerProbeState
+    assert scopes_tool_core.ExternalTriggerUnitsController is ExternalTriggerUnitsController
+    assert scopes_tool_core.ExternalTriggerUnitsState is ExternalTriggerUnitsState
+    assert scopes_tool_core.ExternalTriggerSettingsController is ExternalTriggerSettingsController
+    assert scopes_tool_core.ExternalTriggerSettingsState is ExternalTriggerSettingsState

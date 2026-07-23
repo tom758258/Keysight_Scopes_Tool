@@ -1,7 +1,7 @@
 import pytest
 
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.simulator_backend import (
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.simulator_backend import (
     SimulatedSignal,
     SimulatorBackend,
     SimulatorBackendError,

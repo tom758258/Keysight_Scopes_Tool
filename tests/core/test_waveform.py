@@ -1,14 +1,14 @@
-﻿import json
+import json
 from dataclasses import replace
 
 import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import ParameterValidationError, WaveformResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.waveform import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import ParameterValidationError, WaveformResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.scpi import SCPIClient
+from scopes_tool_core.waveform import (
     MultiChannelWaveformCapture,
     WaveformController,
     convert_byte_waveform,

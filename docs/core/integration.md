@@ -3,10 +3,10 @@
 Import the Core runtime with:
 
 ```python
-import keysight_scope_core
+import scopes_tool_core
 ```
 
-The public import surface is defined by `keysight_scope_core.__all__`. These
+The public import surface is defined by `scopes_tool_core.__all__`. These
 names are intended for package consumers and tests:
 
 - `ChannelController`
@@ -169,7 +169,7 @@ from adapter packages.
 For 4000X Screenshot Format Pack v1 capture and hardcopy state queries:
 
 ```python
-from keysight_scope_core import ScreenshotOptions
+from scopes_tool_core import ScreenshotOptions
 
 capture = scope.capture_screenshot(
     options=ScreenshotOptions(

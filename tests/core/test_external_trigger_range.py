@@ -2,11 +2,11 @@ import math
 
 import pytest
 
-import keysight_scope_core
-from keysight_scope_core.errors import ParameterValidationError, TriggerResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.trigger import (
+import scopes_tool_core
+from scopes_tool_core.errors import ParameterValidationError, TriggerResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.trigger import (
     ExternalTriggerRangeController,
     ExternalTriggerRangeState,
     external_trigger_range_command,
@@ -65,5 +65,5 @@ def test_external_trigger_range_scope_api_and_public_exports():
 
     assert backend.history[-2:] == [":EXTernal:RANGe 1.6", ":EXTernal:RANGe?"]
     assert state.range_volts == 1.6
-    assert keysight_scope_core.ExternalTriggerRangeController is ExternalTriggerRangeController
-    assert keysight_scope_core.ExternalTriggerRangeState is ExternalTriggerRangeState
+    assert scopes_tool_core.ExternalTriggerRangeController is ExternalTriggerRangeController
+    assert scopes_tool_core.ExternalTriggerRangeState is ExternalTriggerRangeState

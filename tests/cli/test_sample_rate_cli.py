@@ -4,17 +4,17 @@ import json
 
 import pytest
 
-from keysight_scope_cli import cli
-from keysight_scope_core.acquisition import (
+from scopes_tool_cli import cli
+from scopes_tool_core.acquisition import (
     parse_sample_rate,
     sample_rate_maximum_query,
     sample_rate_query,
 )
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.status import SystemErrorEntry
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.scpi import SCPIClient
+from scopes_tool_core.status import SystemErrorEntry
 
 
 class _SampleRateBackend:

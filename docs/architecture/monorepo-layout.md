@@ -15,9 +15,9 @@ Last updated: 2026-06-10
 |-- pyproject.toml
 |-- scripts/
 |-- src/
-|   |-- keysight_scope_cli/
-|   |-- keysight_scope_core/
-|   |-- keysight_scope_webui/
+|   |-- scopes_tool_cli/
+|   |-- scopes_tool_core/
+|   |-- scopes_tool_webui/
 |-- tests/
 |   |-- cli/
 |   |-- core/

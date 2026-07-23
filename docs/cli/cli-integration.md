@@ -38,13 +38,13 @@ path that opens each enumerated resource.
 The installed console script remains:
 
 ```text
-keysight-scopes = keysight_scope_cli.cli:main
+keysight-scopes = scopes_tool_cli.cli:main
 ```
 
 The module form remains:
 
 ```powershell
-python -m keysight_scope_cli.cli
+python -m scopes_tool_cli.cli
 ```
 
 CLI JSON behavior is documented by the root Scopes contract:

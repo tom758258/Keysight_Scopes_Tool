@@ -1,10 +1,10 @@
 import pytest
 
-import keysight_scope_core
-from keysight_scope_core.errors import ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.trigger import (
+import scopes_tool_core
+from scopes_tool_core.errors import ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.trigger import (
     EdgeTriggerSlopeController,
     EdgeTriggerSlopeState,
     edge_trigger_slope_command,
@@ -81,5 +81,5 @@ def test_edge_trigger_slope_controller_query_and_scope_api_exports():
         ":TRIGger:EDGE:SLOPe?",
     ]
     assert state == EdgeTriggerSlopeState("alternate", "ALT")
-    assert keysight_scope_core.EdgeTriggerSlopeController is EdgeTriggerSlopeController
-    assert keysight_scope_core.EdgeTriggerSlopeState is EdgeTriggerSlopeState
+    assert scopes_tool_core.EdgeTriggerSlopeController is EdgeTriggerSlopeController
+    assert scopes_tool_core.EdgeTriggerSlopeState is EdgeTriggerSlopeState

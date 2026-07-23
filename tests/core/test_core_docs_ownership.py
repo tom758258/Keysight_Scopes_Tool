@@ -3,7 +3,7 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
-import keysight_scope_core as core
+import scopes_tool_core as core
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +41,7 @@ def test_core_docs_are_root_level():
 def test_core_integration_names_public_core_api():
     text = read_doc("integration.md")
 
-    assert "keysight_scope_core" in text
+    assert "scopes_tool_core" in text
     for name in core.__all__:
         assert name in text
 

@@ -1,10 +1,10 @@
-﻿import json
+import json
 from datetime import datetime
 
 import pytest
 
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.output_files import (
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.output_files import (
     capture_output_paths,
     default_capture_csv_path,
     write_json_file,

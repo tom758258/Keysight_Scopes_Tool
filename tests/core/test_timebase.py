@@ -1,9 +1,9 @@
-﻿import pytest
+import pytest
 
-from keysight_scope_core.errors import ParameterValidationError, TimebaseResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.timebase import (
+from scopes_tool_core.errors import ParameterValidationError, TimebaseResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
+from scopes_tool_core.timebase import (
     TimebaseController,
     parse_timebase_float,
     timebase_position_command,

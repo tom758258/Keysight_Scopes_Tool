@@ -1,10 +1,10 @@
 import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import ParameterValidationError, SearchResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.search import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import ParameterValidationError, SearchResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.search import (
     SearchController,
     parse_search_count,
     parse_search_mode,
@@ -15,7 +15,7 @@ from keysight_scope_core.search import (
     search_state_command,
     search_state_query,
 )
-from keysight_scope_core.scpi import SCPIClient
+from scopes_tool_core.scpi import SCPIClient
 
 
 def test_search_basic_scpi_builders():

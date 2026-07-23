@@ -4,11 +4,11 @@ import json
 
 import pytest
 
-from keysight_scope_cli import cli
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scpi import SCPIClient
-from keysight_scope_core.simulator_backend import SimulatorBackend, SimulatorBackendError
-from keysight_scope_core.trigger import force_trigger_command
+from scopes_tool_cli import cli
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scpi import SCPIClient
+from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
+from scopes_tool_core.trigger import force_trigger_command
 
 
 _FORBIDDEN_COMMANDS = (

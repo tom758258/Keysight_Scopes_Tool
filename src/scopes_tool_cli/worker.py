@@ -18,11 +18,11 @@ from urllib import error as urlerror
 from urllib import request as urlrequest
 from uuid import uuid4
 
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.channel import validate_analog_channel
-from keysight_scope_core.demo import validate_demo_function, validate_demo_phase
-from keysight_scope_core.save_export import (
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.channel import validate_analog_channel
+from scopes_tool_core.demo import validate_demo_function, validate_demo_phase
+from scopes_tool_core.save_export import (
     SAVE_IMAGE_FORMATS,
     SAVE_IMAGE_PALETTES,
     SAVE_WAVEFORM_FORMATS,

@@ -24,17 +24,17 @@ function Invoke-Cli {
         [string[]] $Arguments
     )
 
-    $output = & $Python -m keysight_scope_cli.cli @Arguments
+    $output = & $Python -m scopes_tool_cli.cli @Arguments
     if ($LASTEXITCODE -ne 0) {
-        throw "Command failed with exit code ${LASTEXITCODE}: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
+        throw "Command failed with exit code ${LASTEXITCODE}: $Python -m scopes_tool_cli.cli $($Arguments -join ' ')"
     }
     try {
         $payload = $output | ConvertFrom-Json -ErrorAction Stop
     } catch {
-        throw "Command did not return JSON: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
+        throw "Command did not return JSON: $Python -m scopes_tool_cli.cli $($Arguments -join ' ')"
     }
     if (-not $payload.ok) {
-        throw "Command JSON reported ok=false: $Python -m keysight_scope_cli.cli $($Arguments -join ' ')"
+        throw "Command JSON reported ok=false: $Python -m scopes_tool_cli.cli $($Arguments -join ' ')"
     }
     return $payload
 }
@@ -108,7 +108,7 @@ if (-not (Test-Path -LiteralPath $reportPath)) {
 
 $summaryPath = Join-Path (Split-Path -Parent $reportPath) "summary.md"
 Write-Host "Rendering summary: ${summaryPath}"
-$summary = & $Python -m keysight_scope_cli.cli hardware-report $reportPath
+$summary = & $Python -m scopes_tool_cli.cli hardware-report $reportPath
 if ($LASTEXITCODE -ne 0) {
     throw "hardware-report failed for ${reportPath}"
 }

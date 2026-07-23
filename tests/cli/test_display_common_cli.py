@@ -4,8 +4,8 @@ import json
 
 import pytest
 
-from keysight_scope_cli import cli
-from keysight_scope_core.display import (
+from scopes_tool_cli import cli
+from scopes_tool_core.display import (
     display_clear_command,
     display_intensity_command,
     display_intensity_query,

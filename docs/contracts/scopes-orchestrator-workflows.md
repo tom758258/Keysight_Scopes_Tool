@@ -132,7 +132,7 @@ worker = subprocess.Popen(
     [
         sys.executable,
         "-m",
-        "keysight_scope_cli.cli",
+        "scopes_tool_cli.cli",
         "worker",
         "--simulate",
         "--model",
@@ -212,7 +212,7 @@ try:
         [
             sys.executable,
             "-m",
-            "keysight_scope_cli.cli",
+            "scopes_tool_cli.cli",
             "wait-ready",
             "--port",
             "8765",
@@ -243,7 +243,7 @@ try:
         [
             sys.executable,
             "-m",
-            "keysight_scope_cli.cli",
+            "scopes_tool_cli.cli",
             "send-command",
             "--port",
             "8765",
@@ -305,7 +305,7 @@ finally:
         [
             sys.executable,
             "-m",
-            "keysight_scope_cli.cli",
+            "scopes_tool_cli.cli",
             "stop",
             "--port",
             "8765",
@@ -372,7 +372,7 @@ import subprocess
 
 def run_scope_json(args):
     proc = subprocess.run(
-        ["python", "-m", "keysight_scope_cli.cli", *args, "--json"],
+        ["python", "-m", "scopes_tool_cli.cli", *args, "--json"],
         text=True,
         capture_output=True,
         check=False,

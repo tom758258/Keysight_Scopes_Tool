@@ -1,7 +1,7 @@
-﻿from pathlib import Path
+from pathlib import Path
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.planning import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.planning import (
     AcquisitionCheckPlanRequest,
     CapturePlanRequest,
     MeasurePlanRequest,

@@ -3,9 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from keysight_scope_cli import cli
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from scopes_tool_cli import cli
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def _json_stdout(capsys):

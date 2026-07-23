@@ -1,11 +1,11 @@
-﻿import pytest
+import pytest
 
 from dataclasses import replace
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import MeasurementResponseError, ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.measurements import (
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import MeasurementResponseError, ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.measurements import (
     INVALID_MEASUREMENT_REASON,
     MeasurementController,
     measurement_query,
@@ -18,7 +18,7 @@ from keysight_scope_core.measurements import (
     statistics_mode_scpi,
     validate_statistics_items,
 )
-from keysight_scope_core.scpi import SCPIClient
+from scopes_tool_core.scpi import SCPIClient
 
 
 def test_measurement_query_uses_keysight_measure_syntax():

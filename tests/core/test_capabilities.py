@@ -1,7 +1,7 @@
 import pytest
 
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import UnsupportedModelError
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import UnsupportedModelError
 
 
 @pytest.mark.parametrize(

@@ -1,10 +1,10 @@
 import pytest
 
-import keysight_scope_core
-from keysight_scope_core.errors import ParameterValidationError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.trigger import (
+import scopes_tool_core
+from scopes_tool_core.errors import ParameterValidationError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.trigger import (
     EdgeTriggerSourceController,
     EdgeTriggerSourceState,
     parse_trigger_edge_source,
@@ -110,8 +110,8 @@ def test_scope_public_edge_trigger_source_methods_and_exports():
     assert state.source is None
     assert state.source_channel is None
     assert state.raw_source == "WGEN1"
-    assert keysight_scope_core.EdgeTriggerSourceController is EdgeTriggerSourceController
-    assert keysight_scope_core.EdgeTriggerSourceState is EdgeTriggerSourceState
+    assert scopes_tool_core.EdgeTriggerSourceController is EdgeTriggerSourceController
+    assert scopes_tool_core.EdgeTriggerSourceState is EdgeTriggerSourceState
 
 
 def test_trigger_edge_source_builder_rejects_invalid_configuration():
@@ -128,6 +128,6 @@ def test_trigger_edge_source_builder_rejects_invalid_configuration():
 
 
 def _capabilities():
-    from keysight_scope_core.capabilities import capabilities_for_model
+    from scopes_tool_core.capabilities import capabilities_for_model
 
     return capabilities_for_model("DSOX4024A")

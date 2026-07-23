@@ -2,11 +2,11 @@ import math
 
 import pytest
 
-import keysight_scope_core
-from keysight_scope_core.errors import ParameterValidationError, TriggerResponseError
-from keysight_scope_core.fake_backend import FakeBackend
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.trigger import (
+import scopes_tool_core
+from scopes_tool_core.errors import ParameterValidationError, TriggerResponseError
+from scopes_tool_core.fake_backend import FakeBackend
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.trigger import (
     EdgeTriggerExternalLevelController,
     EdgeTriggerExternalLevelState,
     edge_trigger_external_level_command,
@@ -71,5 +71,5 @@ def test_external_edge_level_scope_api_and_public_exports():
         ":TRIGger:EDGE:LEVel? EXTernal",
     ]
     assert state.level_volts == 0.5
-    assert keysight_scope_core.EdgeTriggerExternalLevelController is EdgeTriggerExternalLevelController
-    assert keysight_scope_core.EdgeTriggerExternalLevelState is EdgeTriggerExternalLevelState
+    assert scopes_tool_core.EdgeTriggerExternalLevelController is EdgeTriggerExternalLevelController
+    assert scopes_tool_core.EdgeTriggerExternalLevelState is EdgeTriggerExternalLevelState

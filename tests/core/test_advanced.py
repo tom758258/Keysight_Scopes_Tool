@@ -1,6 +1,6 @@
-﻿import pytest
+import pytest
 
-from keysight_scope_core.advanced import (
+from scopes_tool_core.advanced import (
     autoscale_commands,
     cursor_auto_vertical_plan,
     cursor_auto_timebase_plan,
@@ -11,10 +11,10 @@ from keysight_scope_core.advanced import (
     trigger_holdoff_command,
     trigger_holdoff_commands,
 )
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import ParameterValidationError
-from keysight_scope_core.scope import KeysightScope
-from keysight_scope_core.simulator_backend import SimulatorBackend, SimulatorBackendError
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import ParameterValidationError
+from scopes_tool_core.scope import KeysightScope
+from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
 def test_advanced_command_formatting():

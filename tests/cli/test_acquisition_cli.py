@@ -1,12 +1,12 @@
-﻿"""Tests for acquisition CLI command."""
+"""Tests for acquisition CLI command."""
 
 import pytest
 
-from keysight_scope_cli import cli
-from keysight_scope_core.capabilities import capabilities_for_model
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.idn import parse_idn
-from keysight_scope_core.status import SystemErrorEntry
+from scopes_tool_cli import cli
+from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.status import SystemErrorEntry
 
 
 class _AcquisitionDummyScope:
@@ -43,7 +43,7 @@ class _AcquisitionDummyScope:
 
     def query_acquisition_config(self):
         self.calls.append("query_acquisition_config")
-        from keysight_scope_core.acquisition import AcquisitionConfig
+        from scopes_tool_core.acquisition import AcquisitionConfig
         return AcquisitionConfig(type="normal", count=16)
 
     def query_system_error(self):

@@ -2,7 +2,7 @@ import copy
 
 import pytest
 
-from keysight_scope_core.simulator_backend import SimulatorBackend, SimulatorBackendError
+from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBackendError
 
 
 def _unrelated_trigger_state(backend):

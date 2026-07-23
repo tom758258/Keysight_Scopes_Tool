@@ -1,14 +1,14 @@
-﻿import pytest
+import pytest
 
-from keysight_scope_core.errors import KeysightScopeError
-from keysight_scope_core.run_config import (
+from scopes_tool_core.errors import KeysightScopeError
+from scopes_tool_core.run_config import (
     ResolvedRunConfig,
     RunModeOptions,
     open_scope_for_run,
     resolve_resource,
     resolve_run_mode,
 )
-from keysight_scope_core.simulator_backend import SimulatorBackend
+from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def test_resolve_run_mode_rejects_simulate_and_dry_run():
