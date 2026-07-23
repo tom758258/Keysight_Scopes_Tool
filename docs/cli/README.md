@@ -47,8 +47,12 @@ Current implemented scope:
 - List VISA resource strings reported by the selected backend.
 - Filter that list to resources that can be opened and respond to `*IDN?`.
 - Verify basic communication by querying and parsing `*IDN?`.
-- Detect 2000X, 3000X, and 4000X series models.
-- Load runtime-supported capability profiles.
+- Select runtime capabilities through the canonical physical model registry.
+  `--model` keeps its existing model-name syntax, but the supplied name must
+  resolve uniquely to a registered physical model. A model string that merely
+  resembles a supported series is rejected.
+- Support the currently registered physical models `DSOX2004A`, `DSOX3024A`,
+  `DSOX4024A`, and `DSOX4034A`.
 - Read one or more entries from the system error queue with
   `:SYSTem:ERRor?`.
 - Send basic acquisition control commands: `:STOP`, `:RUN`, and `:SINGle`.
@@ -107,9 +111,10 @@ Current implemented scope:
   `:TRIGger:PATTern "<pattern>"`, and
   `:TRIGger:PATTern:QUALifier ENTered`.
 - Configure or query DSO analog-only OR trigger settings with
-  `:TRIGger:MODE OR` and `:TRIGger:OR "<pattern>"`. Pattern order follows
-  Keysight OR trigger bit assignment: CH4, CH3, CH2, CH1 on 4-channel DSO
-  models and CH2, CH1 on 2-channel DSO models.
+  `:TRIGger:MODE OR` and `:TRIGger:OR "<pattern>"`. Pattern width follows the
+  selected registered model's analog-channel capability. The currently
+  registered models are all four-channel models, with Keysight OR trigger bit
+  assignment CH4, CH3, CH2, CH1.
 - Enable, disable, or query display labels with `:DISPlay:LABel`; clear
   waveform display data with `:DISPlay:CLEar`; set/query display persistence,
   waveform intensity, and vector display with `:DISPlay:PERSistence`,
@@ -1371,13 +1376,12 @@ edge string using only `R` for rising edge, `F` for falling edge, `E` for
 either edge, and `X` for don't care; lowercase input is normalized to
 uppercase. The CLI rejects empty strings, whitespace, commas, quotes, digits
 `0`/`1`, `0x...`, and other characters before opening an instrument. Pattern
-length must match the selected model profile analog channel count.
+length must match the selected registered model's analog-channel capability.
 
 For DSO analog-only mapping, string order follows Keysight OR trigger bit
-assignment. On 4-channel DSO models, positions are CH4, CH3, CH2, CH1, so CH1
-rising only is `XXXR`, CH1 rising OR CH2 falling is `XXFR`, and any analog
-channel either edge is `EEEE`. On 2-channel DSO models, positions are CH2,
-CH1, so CH1 rising only is `XR`.
+assignment. The currently registered models are all four-channel models, so
+positions are CH4, CH3, CH2, CH1. CH1 rising only is `XXXR`, CH1 rising OR CH2
+falling is `XXFR`, and any analog channel either edge is `EEEE`.
 
 Query mode reads `:TRIGger:MODE?` and `:TRIGger:OR?`. JSON preserves
 `raw_mode` and `raw_pattern`, normalizes common quoted or unquoted valid

@@ -31,8 +31,9 @@ Arguments:
 - `--port`: bind port, default `8765`; `0` requests an available port.
 - `--simulate` or `--live`: required run mode. Live mode requires
   `--resource`.
-- `--model`: capability profile used before opening a device, default
-  `DSOX4024A`.
+- `--model`: registered physical model name, default `DSOX4024A`. The
+  registered physical model selects its associated capability profile.
+  Unknown or unregistered model names are rejected during validation.
 - `--resource`: live resource string, required with `--live`.
 - `--artifact-root`: default `data/worker`.
 - `--queue-max`: accepted pending job limit, default `32`.
