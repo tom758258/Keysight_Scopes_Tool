@@ -1197,7 +1197,18 @@ The worker accepts the common v1 measurement control commands:
 
 Query forms use `{"query": true}`. Measurement marker OFF is not accepted.
 Measurement sources are limited to one or two analog channels, and measurement
-windows are `main`, `zoom`, `auto`, or `gate`.
+windows are `main`, `zoom`, `auto`, or `gate`. A `source_channel`-only command
+sets source1 but does not require the instrument to clear an existing source2.
+A subsequent query may preserve and report source2; source1 matching with a
+clean instrument error queue is a successful result. Supply both
+`source_channel` and `source2_channel` when an explicit two-source default is
+required. Source2 is mainly meaningful for two-source measurements such as
+delay and phase.
+
+The `zoom` window is conditional on the oscilloscope already displaying the
+zoomed timebase. On DSO-X 4034A firmware 07.20, selecting it without that
+display state may return `-221,"Settings conflict"`. Callers that do not know
+the current zoom state should prefer `auto`.
 
 The worker also accepts the common v1 reference waveform commands:
 
@@ -1224,7 +1235,11 @@ The worker also accepts the common v1 reference waveform commands:
 Reference display and label also support query forms with `query: true`.
 Slots are limited to 1 and 2; save sources are analog channels only; labels
 are 1-10 printable ASCII characters without double quotes. Unknown keys and
-invalid values are rejected before enqueue and artifact creation.
+invalid values are rejected before enqueue and artifact creation. On DSO-X
+4034A, enabling one reference slot for display may turn off display for the
+other slot. Clients must treat that instrument-managed display interaction as
+normal behavior rather than failure. These observations come from focused USB
+CLI validation; worker live behavior has not been separately validated.
 
 ### DVM Common Pack v1 Commands
 

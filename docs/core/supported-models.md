@@ -30,9 +30,13 @@ All supported series profiles currently expose:
 - Read-only measurement helpers and screenshot capture.
 - Measurement Control Pack v1 helpers for clearing measurements, enabling or
   querying measurement markers, selecting analog measurement sources, and
-  selecting the MAIN, ZOOM, AUTO, or GATE measurement window.
+  selecting the MAIN, ZOOM, AUTO, or GATE measurement window. ZOOM is
+  conditional on the zoomed timebase already being displayed; AUTO is safer
+  when that state is unknown. A source1-only write may preserve source2 in
+  instrument readback.
 - Reference Waveform Pack v1 helpers for runtime-managed reference waveform
-  slots 1 and 2.
+  slots 1 and 2. The instrument may turn off one slot's display when the other
+  is enabled.
 - DVM Common Pack v1 helpers for enable, analog source, `dc`, `dc-rms`, and
   `ac-rms` voltage modes, auto range, current voltage, and aggregate queries.
   DVM can be option/license dependent. This pack has hardware-free validation
@@ -116,7 +120,7 @@ hardware-free.
 | --- | --- | --- | --- |
 | DSOX4024A | 4000X | USB | Full documented USB hardware plan passed by user report for the supported workflow set. |
 | DSOX4024A | 4000X | LAN | Deferred until an explicit LAN resource is available and approved. |
-| DSOX4034A | 4000X | USB | Focused validations passed by user report for recent compatibility work, including sample-rate, acquisition-points, record-length, force-trigger, triggered capture wait, channel labels, display labels, and indexed annotation. A full model matrix remains deferred. |
+| DSOX4034A | 4000X | USB | Focused validations passed by user report for recent compatibility work, including sample-rate, acquisition-points, record-length, force-trigger, triggered capture wait, channel labels, display labels, indexed annotation, Measurement Control Pack v1, and Reference Waveform Pack v1. Measurement-window zoom requires the zoomed timebase to be displayed; source1-only writes may preserve source2; enabling one reference display may turn off the other. A full model matrix remains deferred. |
 | DSOX4034A | 4000X | LAN | Deferred until an explicit LAN resource is available and approved. |
 | DSOX3024A | 3000X | USB or LAN | Runtime profile exists; live validation is deferred until hardware is available. |
 | DSOX2004A | 2000X | USB or LAN | Runtime profile exists; live validation is deferred until hardware is available. |

@@ -1415,7 +1415,19 @@ ON and query only; OFF is intentionally not exposed because the common
 2000X/3000X behavior documents always-on measurement markers. `measure-source`
 accepts one or two analog channels validated against the selected model
 profile. Digital, math/function, and reference measurement sources are not
-accepted. `measure-window` accepts `main`, `zoom`, `auto`, or `gate`.
+accepted. `--source-channel <n>` sets source1 but does not necessarily clear an
+existing source2 selection. A later query may therefore report source1 together
+with the preserved source2; treat that as success when source1 matches and the
+instrument error queue is clean. Use both `--source-channel <n>` and
+`--source2-channel <m>` when an explicit two-source default is required.
+Source2 is mainly meaningful for two-source measurements such as delay and
+phase.
+
+`measure-window` accepts `main`, `zoom`, `auto`, or `gate`. `zoom` is
+conditional on the oscilloscope already displaying the zoomed timebase. On
+DSO-X 4034A firmware 07.20, setting `zoom` while that timebase is not displayed
+may return `-221,"Settings conflict"`. Use `auto` as the safer portable choice
+when the current zoom state is unknown.
 
 Control or query DVM Common Pack v1:
 
@@ -1500,10 +1512,13 @@ display state, `reference-label` configures or queries a 1-10 character
 printable ASCII label without double quotes, and `reference-query` reads both
 display and label state while preserving raw readbacks in JSON. File-based
 `:SAVE:WMEMory`/`:RECall:WMEMory` workflows and reference skew, offset, range,
-and scale controls are not implemented. These paths have hardware-free
-validation only; live hardware and LAN validation have not been run. The
-simulator tracks the two display states independently and does not emulate the
-4000X rule that displaying one reference may hide the other.
+and scale controls are not implemented. Focused DSO-X 4034A USB CLI live
+validation passed for save, display, label, query, and clear operations on
+slots 1 and 2. Enabling display for one reference slot may turn off display for
+the other slot on this instrument; this instrument-managed interaction is
+normal behavior, not a command failure. The simulator tracks the two display
+states independently and does not emulate that interaction. LAN, worker live,
+other-model, and broader reference-waveform validation have not been run.
 
 Control Search Basic Pack v1:
 

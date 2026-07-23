@@ -43,6 +43,12 @@ Core owns runtime behavior:
   enabling or querying measurement markers, selecting one or two analog
   measurement source channels, and selecting `MAIN`, `ZOOM`, `AUTO`, or
   `GATE` measurement windows. Marker OFF is intentionally not exposed in v1.
+  A source1-only write sets source1 but may preserve an existing source2
+  selection in instrument readback; callers that require an explicit
+  two-source default should set both sources. `ZOOM` is conditional on the
+  zoomed timebase already being displayed. DSO-X 4034A firmware 07.20 may
+  return `-221,"Settings conflict"` otherwise, so `AUTO` is safer when zoom
+  state is unknown.
 - DVM Common Pack v1 helpers for enabling DVM, selecting one analog source,
   selecting `dc`, `dc-rms`, or `ac-rms` voltage mode, controlling auto range,
   reading current voltage, and querying aggregate state. DVM availability may
@@ -70,7 +76,10 @@ Core owns runtime behavior:
   slot, and querying aggregate display/label state. Labels are limited to
   1-10 printable ASCII characters without double quotes. File-based reference
   save/recall and reference scale, skew, offset, and range controls are not
-  implemented.
+  implemented. Focused DSO-X 4034A USB CLI live validation passed for save,
+  display, label, query, and clear operations on both slots. Enabling one
+  reference slot for display may turn off the other slot on that instrument;
+  this is normal instrument-managed display behavior.
 - Read-only analog acquisition sample rate query helpers.
 - Screenshot Format Pack v1 helpers for 4000X screen-dump PNG, BMP, and
   8-bit BMP capture plus hardcopy ink saver, palette, layout, and aggregate
