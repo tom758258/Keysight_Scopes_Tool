@@ -18,7 +18,7 @@ def test_trigger_setup_hold_query_dry_run_text_does_not_open_visa(capsys):
                 "trigger-setup-hold",
                 "--dry-run",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--query",
             ]
         )
@@ -27,7 +27,7 @@ def test_trigger_setup_hold_query_dry_run_text_does_not_open_visa(capsys):
 
     captured = capsys.readouterr()
     assert captured.err == ""
-    assert "Resource: DRY::DSOX4034A::INSTR" in captured.out
+    assert "Resource: DRY::keysight-dsox4034a::INSTR" in captured.out
     assert "Command: :TRIGger:MODE?" in captured.out
     assert "Command: :TRIGger:SHOLd:SOURce:CLOCk?" in captured.out
     assert "Failed to open VISA resource" not in captured.out
@@ -42,7 +42,7 @@ def test_trigger_setup_hold_query_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--query",
             ]
         )
@@ -74,7 +74,7 @@ def test_trigger_setup_hold_configure_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--clock-channel",
                 "1",
                 "--data-channel",
@@ -233,7 +233,7 @@ def test_trigger_setup_hold_configure_then_query_simulate_json(capsys):
         [
             "trigger-setup-hold",
             "--model",
-            "DSOX4024A",
+            "keysight-dsox4024a",
             "--clock-channel",
             "1",
             "--data-channel",

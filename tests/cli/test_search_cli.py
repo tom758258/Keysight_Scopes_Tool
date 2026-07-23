@@ -28,7 +28,7 @@ def _payload(capsys):
     ],
 )
 def test_search_commands_dry_run_json(capsys, args, expected):
-    assert cli.main([*args, "--dry-run", "--json", "--model", "DSOX4034A"]) == 0
+    assert cli.main([*args, "--dry-run", "--json", "--model", "keysight-dsox4034a"]) == 0
     payload = _payload(capsys)
     assert payload["scpi"]["planned"] == [*expected, ":SYSTem:ERRor?"]
 
@@ -77,7 +77,7 @@ def test_search_simulator_queries_are_deterministic_and_preserve_raw(capsys):
 )
 def test_search_action_validation_fails_before_open(monkeypatch, capsys, args):
     monkeypatch.setattr(cli, "_open_scope", lambda *unused: pytest.fail("opened scope"))
-    assert cli.main([*args, "--simulate", "--json", "--model", "DSOX4034A"]) == 1
+    assert cli.main([*args, "--simulate", "--json", "--model", "keysight-dsox4034a"]) == 1
     assert _payload(capsys)["ok"] is False
 
 
@@ -92,9 +92,9 @@ def test_search_mode_rejects_aliases(mode, capsys):
 @pytest.mark.parametrize(
     "model, mode",
     [
-        ("DSOX2004A", "edge"),
-        ("DSOX2004A", "serial2"),
-        ("DSOX3024A", "peak"),
+        ("keysight-dsox2004a", "edge"),
+        ("keysight-dsox2004a", "serial2"),
+        ("keysight-dsox3024a", "peak"),
     ],
 )
 def test_search_mode_profile_rejection_happens_before_open(monkeypatch, capsys, model, mode):

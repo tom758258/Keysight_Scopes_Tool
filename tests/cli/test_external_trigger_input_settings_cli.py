@@ -19,7 +19,15 @@ def test_external_trigger_input_commands_publish_help(capsys, command):
     assert command in capsys.readouterr().out
 
 
-@pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A", "DSOX4024A", "DSOX4034A"])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "keysight-dsox2004a",
+        "keysight-dsox3024a",
+        "keysight-dsox4024a",
+        "keysight-dsox4034a",
+    ],
+)
 def test_external_trigger_probe_dry_run_and_simulate_paths(capsys, model):
     assert cli.main([
         "external-trigger-probe", "--dry-run", "--json", "--model", model, "--attenuation", "10"
@@ -49,7 +57,7 @@ def test_external_trigger_probe_dry_run_and_simulate_paths(capsys, model):
     ],
 )
 def test_external_trigger_units_and_settings_simulate_paths(capsys, command, args, result, sent):
-    assert cli.main([command, "--simulate", "--json", "--model", "DSOX4034A", *args]) == 0
+    assert cli.main([command, "--simulate", "--json", "--model", "keysight-dsox4034a", *args]) == 0
     payload = _payload(capsys)
     assert {key: payload["result"][key] for key in result} == result
     assert payload["scpi"]["sent"] == sent
@@ -116,7 +124,7 @@ def test_external_trigger_input_commands_reject_aliases_or_noncanonical_choices(
     ],
 )
 def test_external_trigger_input_dry_run_text_shows_specific_command(capsys, command, arguments, expected):
-    assert cli.main([command, "--dry-run", "--model", "DSOX4034A", *arguments]) == 0
+    assert cli.main([command, "--dry-run", "--model", "keysight-dsox4034a", *arguments]) == 0
     output = capsys.readouterr().out
     assert f"Command: {expected}" in output
     assert "Command: :SYSTem:ERRor?" not in output

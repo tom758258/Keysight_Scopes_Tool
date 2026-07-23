@@ -13,7 +13,7 @@ def test_trigger_edge_coupling_dry_run_json(capsys):
         "trigger-edge-coupling",
         "--dry-run",
         "--json",
-        "--model", "DSOX4024A",
+        "--model", "keysight-dsox4024a",
         "--coupling", "ac"
     ]) == 0
     payload = _json_stdout(capsys)
@@ -33,7 +33,7 @@ def test_trigger_edge_coupling_dry_run_json(capsys):
         "trigger-edge-coupling",
         "--dry-run",
         "--json",
-        "--model", "DSOX4024A",
+        "--model", "keysight-dsox4024a",
         "--query"
     ]) == 0
     payload = _json_stdout(capsys)
@@ -57,7 +57,7 @@ def test_trigger_edge_coupling_dry_run_text_uses_result_command(capsys, monkeypa
     assert cli.main([
         "trigger-edge-coupling",
         "--dry-run",
-        "--model", "DSOX4024A",
+        "--model", "keysight-dsox4024a",
         "--coupling", "ac",
     ]) == 0
 
@@ -98,7 +98,7 @@ def test_trigger_edge_reject_dry_run_json(capsys):
         "trigger-edge-reject",
         "--dry-run",
         "--json",
-        "--model", "DSOX4024A",
+        "--model", "keysight-dsox4024a",
         "--reject", "hf-reject"
     ]) == 0
     payload = _json_stdout(capsys)
@@ -118,7 +118,7 @@ def test_trigger_edge_reject_dry_run_json(capsys):
         "trigger-edge-reject",
         "--dry-run",
         "--json",
-        "--model", "DSOX4024A",
+        "--model", "keysight-dsox4024a",
         "--query"
     ]) == 0
     payload = _json_stdout(capsys)
@@ -142,7 +142,7 @@ def test_trigger_edge_reject_query_dry_run_text_uses_result_command(capsys, monk
     assert cli.main([
         "trigger-edge-reject",
         "--dry-run",
-        "--model", "DSOX4024A",
+        "--model", "keysight-dsox4024a",
         "--query",
     ]) == 0
 

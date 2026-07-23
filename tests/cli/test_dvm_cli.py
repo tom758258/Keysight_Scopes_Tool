@@ -30,7 +30,7 @@ def _payload(capsys):
     ],
 )
 def test_dvm_command_dry_run_json(capsys, args, expected):
-    assert cli.main([*args, "--dry-run", "--json", "--model", "DSOX4024A"]) == 0
+    assert cli.main([*args, "--dry-run", "--json", "--model", "keysight-dsox4024a"]) == 0
     payload = _payload(capsys)
     assert payload["scpi"]["planned"][0] == expected
     assert payload["scpi"]["planned"][-1] == ":SYSTem:ERRor?"
@@ -107,6 +107,6 @@ def test_dvm_invalid_or_out_of_scope_cli_fails_argparse(capsys, args):
 )
 def test_dvm_validation_fails_before_open(monkeypatch, capsys, args):
     monkeypatch.setattr(cli, "_open_scope", lambda *unused: pytest.fail("opened scope"))
-    assert cli.main([*args, "--simulate", "--json", "--model", "DSOX4024A"]) == 1
+    assert cli.main([*args, "--simulate", "--json", "--model", "keysight-dsox4024a"]) == 1
     payload = _payload(capsys)
     assert payload["ok"] is False

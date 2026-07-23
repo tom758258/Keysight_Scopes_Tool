@@ -22,7 +22,10 @@ from scopes_tool_core.acquisition import (
     sample_rate_maximum_query,
     sample_rate_query,
 )
-from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.capabilities import (
+    capabilities_for_model,
+    capabilities_for_model_id,
+)
 from scopes_tool_core.channel import (
     channel_impedance_command,
     channel_impedance_query,
@@ -55,7 +58,11 @@ from scopes_tool_core.trigger import (
 )
 
 
-def _runtime(artifact_root=Path("data/worker"), queue_max=32, model="DSOX4024A"):
+def _runtime(
+    artifact_root=Path("data/worker"),
+    queue_max=32,
+    model="keysight-dsox4024a",
+):
     return worker.WorkerRuntime(
         host="127.0.0.1",
         port=0,
@@ -73,7 +80,7 @@ def _live_runtime(artifact_root=Path("data/worker")):
         host="127.0.0.1",
         port=0,
         mode="live",
-        model="DSOX4024A",
+        model="keysight-dsox4024a",
         resource="USB0::FAKE::INSTR",
         artifact_root=Path(artifact_root),
         queue_max=32,
@@ -86,7 +93,7 @@ def test_live_worker_requires_explicit_resource():
         simulate=False,
         host="127.0.0.1",
         port=0,
-        model="DSOX4024A",
+        model="keysight-dsox4024a",
         resource=None,
         artifact_root="data/worker",
         queue_max=32,
@@ -94,6 +101,22 @@ def test_live_worker_requires_explicit_resource():
     )
 
     with pytest.raises(OscilloscopeError, match="worker --live requires --resource"):
+        worker.run_worker(args)
+
+
+def test_worker_startup_rejects_unregistered_canonical_model_id():
+    args = argparse.Namespace(
+        simulate=True,
+        host="127.0.0.1",
+        port=0,
+        model="keysight-dsox4054a",
+        resource=None,
+        artifact_root="data/worker",
+        queue_max=32,
+        format="jsonl",
+    )
+
+    with pytest.raises(OscilloscopeError, match="model ID"):
         worker.run_worker(args)
 
 
@@ -639,7 +662,7 @@ def test_worker_http_rejects_invalid_capture_wait_trigger_before_artifacts(tmp_p
 
 
 def test_worker_http_rejects_fifty_ohm_without_allow_before_artifacts(tmp_path):
-    runtime = _runtime(tmp_path, model="DSOX3024A")
+    runtime = _runtime(tmp_path, model="keysight-dsox3024a")
 
     with _worker_server(runtime):
         status, payload = _post_command(
@@ -666,25 +689,25 @@ def test_worker_http_rejects_fifty_ohm_without_allow_before_artifacts(tmp_path):
         (
             "annotation",
             {"query": True, "text": "bad"},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             "--query cannot be combined",
         ),
         (
             "annotation",
             {"text": "Note", "x": 10},
-            "DSOX3024A",
+            "keysight-dsox3024a",
             "annotation x is supported only",
         ),
         (
             "annotation",
             {"text": "x" * 255},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             "annotation text must be at most 254 characters",
         ),
         (
             "channel-label",
             {"channel": 1, "text": "12345678901"},
-            "DSOX3024A",
+            "keysight-dsox3024a",
             "channel label must be at most 10 characters",
         ),
     ),
@@ -821,7 +844,7 @@ def test_worker_parses_fifty_ohm_with_allow_without_opening_backend():
     parsed = worker.parse_domain_command(
         "channel-impedance",
         {"channel": 1, "impedance": "fifty", "allow_50_ohm": True},
-        _runtime(model="DSOX3024A"),
+        _runtime(model="keysight-dsox3024a"),
     )
 
     assert parsed.command == "channel-impedance"
@@ -838,25 +861,25 @@ def test_worker_parses_fifty_ohm_with_allow_without_opening_backend():
         (
             "channel-label",
             {"channel": 1, "text": "Input A"},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [':CHANnel1:LABel "Input A"', ":SYSTem:ERRor?"],
         ),
         (
             "channel-label",
             {"channel": 1, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [":CHANnel1:LABel?", ":SYSTem:ERRor?"],
         ),
         (
             "display-label",
             {"off": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [":DISPlay:LABel OFF", ":SYSTem:ERRor?"],
         ),
         (
             "display-label",
             {"query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [":DISPlay:LABel?", ":SYSTem:ERRor?"],
         ),
         (
@@ -870,7 +893,7 @@ def test_worker_parses_fifty_ohm_with_allow_without_opening_backend():
                 "x": 10,
                 "y": 20,
             },
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [
                 ":DISPlay:ANNotation2 ON",
                 ':DISPlay:ANNotation2:TEXT "Run note"',
@@ -884,7 +907,7 @@ def test_worker_parses_fifty_ohm_with_allow_without_opening_backend():
         (
             "annotation",
             {"slot": 2, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [
                 ":DISPlay:ANNotation2?",
                 ":DISPlay:ANNotation2:TEXT?",
@@ -898,7 +921,7 @@ def test_worker_parses_fifty_ohm_with_allow_without_opening_backend():
         (
             "annotation",
             {"query": True},
-            "DSOX3024A",
+            "keysight-dsox3024a",
             [
                 ":DISPlay:ANNotation?",
                 ":DISPlay:ANNotation:TEXT?",
@@ -910,73 +933,73 @@ def test_worker_parses_fifty_ohm_with_allow_without_opening_backend():
         (
             "channel-impedance",
             {"channel": 1, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_impedance_query(1), ":SYSTem:ERRor?"],
         ),
         (
             "channel-impedance",
             {"channel": 1, "impedance": "fifty", "allow_50_ohm": True},
-            "DSOX3024A",
+            "keysight-dsox3024a",
             [channel_impedance_command(1, "fifty"), ":SYSTem:ERRor?"],
         ),
         (
             "channel-invert",
             {"channel": 1, "on": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_invert_command(1, True), ":SYSTem:ERRor?"],
         ),
         (
             "channel-invert",
             {"channel": 1, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_invert_query(1), ":SYSTem:ERRor?"],
         ),
         (
             "channel-range",
             {"channel": 1, "volts_full_scale": 4},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_range_command(1, 4), ":SYSTem:ERRor?"],
         ),
         (
             "channel-range",
             {"channel": 1, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_range_query(1), ":SYSTem:ERRor?"],
         ),
         (
             "channel-units",
             {"channel": 1, "units": "amp"},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_units_command(1, "amp"), ":SYSTem:ERRor?"],
         ),
         (
             "channel-units",
             {"channel": 1, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_units_query(1), ":SYSTem:ERRor?"],
         ),
         (
             "channel-vernier",
             {"channel": 1, "off": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_vernier_command(1, False), ":SYSTem:ERRor?"],
         ),
         (
             "channel-vernier",
             {"channel": 1, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_vernier_query(1), ":SYSTem:ERRor?"],
         ),
         (
             "channel-probe-skew",
             {"channel": 1, "seconds": 1e-9},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_probe_skew_command(1, 1e-9), ":SYSTem:ERRor?"],
         ),
         (
             "channel-probe-skew",
             {"channel": 1, "query": True},
-            "DSOX4024A",
+            "keysight-dsox4024a",
             [channel_probe_skew_query(1), ":SYSTem:ERRor?"],
         ),
     ),
@@ -1260,7 +1283,7 @@ def test_worker_event_payloads_have_required_fields(tmp_path):
     assert ready["host"] == "127.0.0.1"
     assert ready["port"] == 0
     assert ready["mode"] == "simulate"
-    assert ready["model"] == "DSOX4024A"
+    assert ready["model"] == "keysight-dsox4024a"
     assert ready["resource"] is None
     assert "trigger_url" not in ready
     assert started["job_id"] == "client-job"
@@ -1326,7 +1349,7 @@ def test_status_and_wait_ready_match_ready_session_and_status_urls(tmp_path, cap
     assert ready["host"] == "127.0.0.1"
     assert ready["port"] == runtime.port
     assert ready["mode"] == "simulate"
-    assert ready["model"] == "DSOX4024A"
+    assert ready["model"] == "keysight-dsox4024a"
     assert ready["resource"] is None
     assert ready["command_url"].endswith("/command")
     assert ready["status_url"].endswith("/status")
@@ -1771,7 +1794,7 @@ def test_worker_executes_channel_advanced_settings_in_simulator(
 
 
 def test_worker_2000x_rejects_fifty_ohm_with_allow_before_impedance_scpi(tmp_path):
-    runtime = _runtime(tmp_path, model="DSOX2004A")
+    runtime = _runtime(tmp_path, model="keysight-dsox2004a")
 
     job, result = _execute_worker_job(
         runtime,
@@ -1876,7 +1899,7 @@ class _FakeScope:
 
     def query_idn(self):
         idn = parse_idn(self.backend.query("*IDN?"))
-        self.capabilities = capabilities_for_model(idn.model)
+        self.capabilities = capabilities_for_model_id(idn.model_id)
         return idn
 
 
@@ -1895,7 +1918,39 @@ def test_live_worker_identity_mismatch_fails_before_domain_scpi(monkeypatch, tmp
     assert exit_code == 3
     assert payload["ok"] is False
     assert payload["error"]["type"] == "identity_mismatch"
-    assert payload["error"]["expected_model"] == "DSOX4024A"
+    assert payload["error"]["expected_model"] == "keysight-dsox4024a"
     assert payload["error"]["actual_idn"] == "KEYSIGHT,DSOX3024A,MY0000,1.0"
     assert fake_scope.backend.history == ["*IDN?"]
     assert fake_scope.backend.timeout == cli.WORKER_IDN_TIMEOUT_MS
+
+
+@pytest.mark.parametrize(
+    "raw_idn",
+    [
+        "UNKNOWN,DSOX4024A,MY0000,1.0",
+        "KEYSIGHT,DSOX4054A,MY0000,1.0",
+    ],
+)
+def test_live_worker_unknown_identity_fails_before_domain_scpi(
+    monkeypatch,
+    tmp_path,
+    raw_idn,
+):
+    fake_scope = _FakeScope(raw_idn)
+    monkeypatch.setattr(
+        cli.Oscilloscope,
+        "open",
+        lambda *args, **kwargs: fake_scope,
+    )
+    parsed = worker.parse_domain_command(
+        "capture",
+        {"channel": [1]},
+        _live_runtime(tmp_path),
+        tmp_path / "job",
+    )
+
+    payload, exit_code = cli._execute_json_command(parsed)
+
+    assert exit_code == 1
+    assert payload["ok"] is False
+    assert fake_scope.backend.history == ["*IDN?"]

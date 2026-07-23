@@ -48,11 +48,11 @@ Current implemented scope:
 - Filter that list to resources that can be opened and respond to `*IDN?`.
 - Verify basic communication by querying and parsing `*IDN?`.
 - Select runtime capabilities through the canonical physical model registry.
-  `--model` keeps its existing model-name syntax, but the supplied name must
-  resolve uniquely to a registered physical model. A model string that merely
-  resembles a supported series is rejected.
-- Support the currently registered physical models `DSOX2004A`, `DSOX3024A`,
-  `DSOX4024A`, and `DSOX4034A`.
+  `--model` accepts a registered canonical physical model ID. A raw model name
+  or a model string that merely resembles a supported series is rejected.
+- Support canonical IDs `keysight-dsox2004a`, `keysight-dsox3024a`,
+  `keysight-dsox4024a`, and `keysight-dsox4034a`, corresponding to physical
+  models DSOX2004A, DSOX3024A, DSOX4024A, and DSOX4034A.
 - Read one or more entries from the system error queue with
   `:SYSTem:ERRor?`.
 - Send basic acquisition control commands: `:STOP`, `:RUN`, and `:SINGle`.
@@ -252,12 +252,19 @@ combined with `--simulate` or `--dry-run`. Live workers still require
 `--live --resource`. SCPI debug logs from `--log-scpi` are written to stderr
 and must not be parsed as JSON.
 
+For dry-run and simulator modes, `--model` is the planning canonical physical
+model ID. Simulator IDN fields and capabilities come from that registry entry.
+One-shot live execution derives physical identity and capabilities from the
+actual `*IDN?`; its `--model` value does not replace the detected identity.
+For live workers, `--model` is an expected canonical physical model ID and a
+mismatch fails before command-specific SCPI.
+
 ```powershell
 uv run python -m scopes_tool_cli.cli identify --dry-run --json
 uv run python -m scopes_tool_cli.cli identify --simulate --json
-uv run python -m scopes_tool_cli.cli acquisition-points --query --dry-run --json --model DSOX4024A
-uv run python -m scopes_tool_cli.cli acquisition-points --query --simulate --json --model DSOX4024A
-uv run python -m scopes_tool_cli.cli record-length --query --simulate --json --model DSOX4024A
+uv run python -m scopes_tool_cli.cli acquisition-points --query --dry-run --json --model keysight-dsox4024a
+uv run python -m scopes_tool_cli.cli acquisition-points --query --simulate --json --model keysight-dsox4024a
+uv run python -m scopes_tool_cli.cli record-length --query --simulate --json --model keysight-dsox4024a
 uv run python -m scopes_tool_cli.cli capture --simulate --json --simulate-preset phase-shifted-pair --channel 1 --channel 2 --csv .tmp_tests\preset.csv
 uv run python -m scopes_tool_cli.cli measure --simulate --json --simulate-scenario path\to\scenario.json --channel 1 --item frequency
 uv run python -m scopes_tool_cli.cli measure --simulate --json --simulate-signal CH1:square:1000:1.0:0:0:0.02 --channel 1 --item vpp
@@ -521,8 +528,8 @@ Run the acquisition configuration validation workflow and write a report
 directory:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli acquisition-check --dry-run --json --model DSOX4034A
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli acquisition-check --simulate --json --model DSOX4034A --output-dir .tmp_tests\acquisition_check
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli acquisition-check --dry-run --json --model keysight-dsox4034a
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli acquisition-check --simulate --json --model keysight-dsox4034a --output-dir .tmp_tests\acquisition_check
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli acquisition-check --resource "$env:SCOPES_TOOL_RESOURCE" --json --log-scpi
 ```
 
@@ -676,7 +683,7 @@ Set, clear, or query display annotations:
 ```powershell
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli annotation --resource "$env:SCOPES_TOOL_RESOURCE" --on --text "Run note" --color white --background opaque --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli annotation --resource "$env:SCOPES_TOOL_RESOURCE" --query --log-scpi
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli annotation --resource "$env:SCOPES_TOOL_RESOURCE" --model DSOX4024A --slot 2 --text "Run note" --x 10 --y 20 --log-scpi
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli annotation --resource "$env:SCOPES_TOOL_RESOURCE" --model keysight-dsox4024a --slot 2 --text "Run note" --x 10 --y 20 --log-scpi
 ```
 
 `annotation --query` cannot be combined with setters. Non-query annotation
@@ -730,8 +737,8 @@ canonical `trigger-edge` command:
 ```powershell
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge --resource "$env:SCOPES_TOOL_RESOURCE" --source-channel 1 --level 0.25 --slope positive --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge --resource "$env:SCOPES_TOOL_RESOURCE" --query --log-scpi
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge --dry-run --json --model DSOX4024A --query
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge --simulate --json --model DSOX4024A --source-channel 1 --level 0.5 --slope positive
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge --dry-run --json --model keysight-dsox4024a --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge --simulate --json --model keysight-dsox4024a --source-channel 1 --level 0.5 --slope positive
 ```
 
 The configure command sends `:TRIGger:MODE EDGE`, then sets source, level, and
@@ -756,10 +763,10 @@ Configure or query only the Edge Trigger source with the canonical
 `trigger-edge-source` command:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --dry-run --json --model DSOX2004A --source-channel 1
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --simulate --json --model DSOX3024A --source external
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --simulate --json --model DSOX4024A --source line
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --simulate --json --model DSOX4034A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --dry-run --json --model keysight-dsox2004a --source-channel 1
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --simulate --json --model keysight-dsox3024a --source external
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --simulate --json --model keysight-dsox4024a --source line
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-source --simulate --json --model keysight-dsox4034a --query
 ```
 
 Exactly one operation is required: `--query`, `--source-channel <int>`, or
@@ -802,8 +809,8 @@ commands. `trigger-edge-slope` accepts exactly one of `--query` or
 `--slope positive|negative|either|alternate`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-slope --dry-run --json --model DSOX2004A --slope positive
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-slope --simulate --json --model DSOX4034A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-slope --dry-run --json --model keysight-dsox2004a --slope positive
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-slope --simulate --json --model keysight-dsox4034a --query
 ```
 
 Its configure mappings are `positive` to `:TRIGger:EDGE:SLOPe POSitive`,
@@ -817,8 +824,8 @@ queries nor changes trigger mode, and it does not redirect to TV polarity.
 exactly one of `--query` or `--level-volts <number>`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-level --dry-run --json --model DSOX2004A --source-channel 1 --level-volts 0.5
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-level --simulate --json --model DSOX4034A --source-channel 2 --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-level --dry-run --json --model keysight-dsox2004a --source-channel 1 --level-volts 0.5
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-level --simulate --json --model keysight-dsox4034a --source-channel 2 --query
 ```
 
 Configure sends `:TRIGger:EDGE:LEVel <level>,CHANnel<n>` and query sends
@@ -846,8 +853,8 @@ Phase 14 adds two independent External-input controls. `external-trigger-range`
 accepts exactly one of `--query` or `--range-volts <finite-positive-number>`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli external-trigger-range --dry-run --json --model DSOX2004A --range-volts 8.0
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli external-trigger-range --simulate --json --model DSOX4034A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli external-trigger-range --dry-run --json --model keysight-dsox2004a --range-volts 8.0
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli external-trigger-range --simulate --json --model keysight-dsox4034a --query
 ```
 
 It sends only `:EXTernal:RANGe <range>` or `:EXTernal:RANGe?`; it does not
@@ -864,8 +871,8 @@ emulate every model/probe-dependent range rejection.
 `--level-volts <finite-number>`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-external-level --dry-run --json --model DSOX2004A --level-volts 0.5
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-external-level --simulate --json --model DSOX4034A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-external-level --dry-run --json --model keysight-dsox2004a --level-volts 0.5
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-external-level --simulate --json --model keysight-dsox4034a --query
 ```
 
 It always sends `:TRIGger:EDGE:LEVel <level>,EXTernal` or
@@ -928,9 +935,9 @@ Configure or query common trigger general settings:
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-hf-reject --resource "$env:SCOPES_TOOL_RESOURCE" --query --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-hf-reject --resource "$env:SCOPES_TOOL_RESOURCE" --enabled true --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-hf-reject --resource "$env:SCOPES_TOOL_RESOURCE" --enabled false --log-scpi
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-sweep --dry-run --json --model DSOX4024A --query
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-noise-reject --simulate --json --model DSOX4024A --query
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-hf-reject --simulate --json --model DSOX4024A --enabled true
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-sweep --dry-run --json --model keysight-dsox4024a --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-noise-reject --simulate --json --model keysight-dsox4024a --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-hf-reject --simulate --json --model keysight-dsox4024a --enabled true
 ```
 
 `trigger-sweep` uses `:TRIGger:SWEep` and accepts only `--mode auto` or
@@ -975,8 +982,8 @@ Set or query fixed trigger holdoff:
 ```powershell
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-holdoff --query --json
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-holdoff --seconds 1e-6 --json
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-holdoff --dry-run --json --model DSOX4024A --seconds 1e-6
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-holdoff --simulate --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-holdoff --dry-run --json --model keysight-dsox4024a --seconds 1e-6
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-holdoff --simulate --json --model keysight-dsox4024a --query
 ```
 
 `trigger-holdoff --seconds` is an explicit state-changing command. It disables
@@ -1142,7 +1149,7 @@ the canonical `trigger-delay` command:
 ```powershell
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-delay --resource "$env:SCOPES_TOOL_RESOURCE" --arm-channel 1 --arm-slope positive --trigger-channel 2 --trigger-slope negative --time-seconds 1e-6 --count 2 --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-delay --resource "$env:SCOPES_TOOL_RESOURCE" --query --log-scpi
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-delay --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-delay --dry-run --json --model keysight-dsox4024a --query
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-delay --simulate --json --query
 ```
 
@@ -1183,7 +1190,7 @@ canonical `trigger-setup-hold` command:
 ```powershell
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-setup-hold --resource "$env:SCOPES_TOOL_RESOURCE" --clock-channel 1 --data-channel 2 --slope positive --setup-time 1e-9 --hold-time 1e-9 --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-setup-hold --resource "$env:SCOPES_TOOL_RESOURCE" --query --log-scpi
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-setup-hold --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-setup-hold --dry-run --json --model keysight-dsox4024a --query
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-setup-hold --simulate --json --query
 ```
 
@@ -1237,8 +1244,8 @@ canonical `trigger-edge-burst` command:
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --resource "$env:SCOPES_TOOL_RESOURCE" --source-channel 1 --slope positive --count 3 --idle-time 1e-6 --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --resource "$env:SCOPES_TOOL_RESOURCE" --source-channel 1 --slope positive --count 3 --idle-time 1e-6 --level-volts 0.5 --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --resource "$env:SCOPES_TOOL_RESOURCE" --query --log-scpi
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --dry-run --model DSOX4024A --query
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --dry-run --model keysight-dsox4024a --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --dry-run --json --model keysight-dsox4024a --query
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-edge-burst --simulate --json --query
 ```
 
@@ -1284,7 +1291,7 @@ the canonical `trigger-tv` command:
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-tv --resource "$env:SCOPES_TOOL_RESOURCE" --source-channel 1 --standard ntsc --mode field1 --polarity negative --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-tv --resource "$env:SCOPES_TOOL_RESOURCE" --source-channel 1 --standard ntsc --mode line-field1 --line 20 --polarity negative --log-scpi
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-tv --resource "$env:SCOPES_TOOL_RESOURCE" --source-channel 2 --standard pal --mode line-field2 --line 400 --polarity positive --log-scpi
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-tv --dry-run --json --model DSOX4024A --query
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-tv --dry-run --json --model keysight-dsox4024a --query
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli trigger-tv --simulate --json --query
 ```
 
@@ -1529,9 +1536,9 @@ Control Search Basic Pack v1:
 ```powershell
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-state --enabled true --simulate --json
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-state --query --simulate --json
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-mode --mode serial1 --simulate --json --model DSOX2004A
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-mode --mode edge --simulate --json --model DSOX3024A
-.\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-mode --mode peak --simulate --json --model DSOX4034A
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-mode --mode serial1 --simulate --json --model keysight-dsox2004a
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-mode --mode edge --simulate --json --model keysight-dsox3024a
+.\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-mode --mode peak --simulate --json --model keysight-dsox4034a
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-mode --query --simulate --json
 .\.venv\Scripts\python.exe -m scopes_tool_cli.cli search-count --query --simulate --json
 ```

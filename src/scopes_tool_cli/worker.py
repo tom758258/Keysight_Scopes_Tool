@@ -19,9 +19,10 @@ from urllib import request as urlrequest
 from uuid import uuid4
 
 from scopes_tool_core.errors import OscilloscopeError
-from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.capabilities import capabilities_for_model_id
 from scopes_tool_core.channel import validate_analog_channel
 from scopes_tool_core.demo import validate_demo_function, validate_demo_phase
+from scopes_tool_core.identity import physical_model_for_id
 from scopes_tool_core.save_export import (
     SAVE_IMAGE_FORMATS,
     SAVE_IMAGE_PALETTES,
@@ -258,6 +259,8 @@ def run_worker(args: argparse.Namespace) -> int:
     mode = "simulate" if args.simulate else "live"
     if mode == "live" and not args.resource:
         raise OscilloscopeError("worker --live requires --resource")
+    physical_model_for_id(args.model)
+    capabilities_for_model_id(args.model)
     runtime = WorkerRuntime(
         host=args.host,
         port=args.port,
@@ -429,12 +432,12 @@ def parse_domain_command(
         parsed = parser.parse_args(argv)
     except SystemExit as exc:
         raise OscilloscopeError(f"invalid arguments for {command}") from exc
+    if runtime.mode == "live":
+        setattr(parsed, "_worker_live_validation", True)
     scope_cli._resolve_cli_mode(parsed)
     scope_cli._validate_pre_open_args(parsed)
     if job_dir is not None:
         _apply_worker_job_paths(parsed, job_dir)
-        if runtime.mode == "live":
-            setattr(parsed, "_worker_expected_model", runtime.model)
     dry_args = argparse.Namespace(
         **{**vars(parsed), "dry_run": True, "simulate": False, "live": False}
     )
@@ -511,7 +514,7 @@ def _normalize_measurement_reference_worker_arguments(
     if command == "reference-label" and "text" in arguments:
         if not isinstance(arguments["text"], str):
             raise OscilloscopeError("reference-label argument text must be a string")
-    capabilities = capabilities_for_model(runtime.model)
+    capabilities = capabilities_for_model_id(runtime.model)
     if "slot" in arguments:
         slot = arguments["slot"]
         if not isinstance(slot, int) or isinstance(slot, bool):
@@ -596,7 +599,7 @@ def _normalize_trigger_edge_source_worker_arguments(
         )
     try:
         source_channel = validate_analog_channel(
-            source_channel, capabilities_for_model(runtime.model)
+            source_channel, capabilities_for_model_id(runtime.model)
         )
     except OscilloscopeError as exc:
         raise OscilloscopeError(
@@ -659,7 +662,7 @@ def _normalize_trigger_edge_level_worker_arguments(
         raise OscilloscopeError("trigger-edge-level argument source_channel must be an integer")
     try:
         source_channel = validate_analog_channel(
-            source_channel, capabilities_for_model(runtime.model)
+            source_channel, capabilities_for_model_id(runtime.model)
         )
     except OscilloscopeError as exc:
         raise OscilloscopeError(
@@ -1293,7 +1296,7 @@ def _normalize_dvm_worker_arguments(
     if command == "dvm-source":
         if not isinstance(value, int) or isinstance(value, bool):
             raise OscilloscopeError("dvm-source argument channel must be an integer")
-        validate_analog_channel(value, capabilities_for_model(runtime.model))
+        validate_analog_channel(value, capabilities_for_model_id(runtime.model))
         return dict(arguments)
     if value not in {"dc", "dc-rms", "ac-rms"}:
         raise OscilloscopeError(
@@ -1341,7 +1344,7 @@ def _normalize_demo_worker_arguments(
     if command == "demo-function":
         if not isinstance(value, str):
             raise OscilloscopeError("demo-function argument function must be a string")
-        validate_demo_function(value, capabilities_for_model(runtime.model))
+        validate_demo_function(value, capabilities_for_model_id(runtime.model))
         return dict(arguments)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise OscilloscopeError("demo-phase argument degrees must be a finite number")
@@ -1402,7 +1405,7 @@ def _normalize_search_worker_arguments(
             "search-mode argument mode must be one of: serial1, serial2, edge, "
             "glitch, runt, transition, peak"
         )
-    capabilities = capabilities_for_model(runtime.model)
+    capabilities = capabilities_for_model_id(runtime.model)
     if value not in capabilities.search_modes:
         raise OscilloscopeError(
             f"Search mode {value!r} is not supported by the selected "

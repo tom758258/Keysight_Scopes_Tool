@@ -16,7 +16,7 @@ def _runtime(tmp_path):
         host="127.0.0.1",
         port=0,
         mode="simulate",
-        model="DSOX4024A",
+        model="keysight-dsox4024a",
         resource=None,
         artifact_root=tmp_path,
         queue_max=1,

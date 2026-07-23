@@ -127,7 +127,10 @@ from scopes_tool_core.save_export import (
     validate_save_quoted_string,
     validate_save_waveform_length,
 )
-from scopes_tool_core.capabilities import ScopeCapabilities, capabilities_for_model
+from scopes_tool_core.capabilities import (
+    ScopeCapabilities,
+    capabilities_for_model_id,
+)
 from scopes_tool_core.channel import (
     channel_bandwidth_limit_command,
     channel_bandwidth_limit_query,
@@ -199,7 +202,8 @@ from scopes_tool_core.dvm import (
     dvm_source_query,
 )
 from scopes_tool_core.errors import OscilloscopeError, ParameterValidationError
-from scopes_tool_core.idn import normalize_model_key, parse_idn
+from scopes_tool_core.idn import parse_idn
+from scopes_tool_core.identity import physical_model_for_id
 from scopes_tool_core.measurements import (
     MEASUREMENT_ITEM_CHOICES,
     MEASUREMENT_WINDOW_CHOICES,
@@ -477,7 +481,7 @@ def _build_parser() -> argparse.ArgumentParser:
     mode_group = worker_parser.add_mutually_exclusive_group(required=True)
     mode_group.add_argument("--simulate", action="store_true")
     mode_group.add_argument("--live", action="store_true")
-    worker_parser.add_argument("--model", default="DSOX4024A")
+    worker_parser.add_argument("--model", default="keysight-dsox4024a")
     worker_parser.add_argument("--resource", default=None)
     worker_parser.add_argument("--artifact-root", default="data/worker")
     worker_parser.add_argument("--queue-max", type=_positive_int, default=32)
@@ -2566,8 +2570,11 @@ def _add_scope_connection_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--model",
-        default="DSOX4024A",
-        help="model profile used by --simulate or --dry-run; defaults to DSOX4024A",
+        default="keysight-dsox4024a",
+        help=(
+            "canonical physical model ID used for planning/simulation or as "
+            "the expected live worker model; defaults to keysight-dsox4024a"
+        ),
     )
     parser.add_argument(
         "--live",
@@ -2778,6 +2785,8 @@ _LAST_BACKEND = None
 def _resolve_cli_mode(args: argparse.Namespace) -> str:
     _validate_cursor_auto_args(args)
     _validate_measure_log_args(args)
+    if hasattr(args, "model"):
+        physical_model_for_id(args.model)
     return resolve_run_mode(_run_mode_options(args))
 
 
@@ -2828,37 +2837,55 @@ def _open_scope(args: argparse.Namespace, resource: str) -> Oscilloscope:
         return Oscilloscope(backend)
     scope = Oscilloscope.open(resource, visa_library=args.visa_library)
     _LAST_BACKEND = getattr(scope, "backend", None)
-    _worker_validate_identity(args, scope)
+    if getattr(args, "_worker_live_validation", False):
+        _validate_worker_live_identity(args, scope)
     if _JSON_RECORD is not None:
         _JSON_RECORD["backend"] = getattr(scope.backend, "backend", None)
     return scope
 
 
-def _worker_validate_identity(args: argparse.Namespace, scope: Oscilloscope) -> None:
-    expected = getattr(args, "_worker_expected_model", None)
-    if expected is None:
-        return
+def _validate_worker_live_identity(
+    args: argparse.Namespace,
+    scope: Oscilloscope,
+) -> None:
+    expected = physical_model_for_id(args.model)
     scope.scpi.set_timeout(WORKER_IDN_TIMEOUT_MS)
     idn = scope.query_idn()
     _json_record_scope(scope, idn)
-    if normalize_model_key(idn.model) != normalize_model_key(expected):
+    if idn.model_id != expected.model_id:
         raise OscilloscopeError(
             "identity_mismatch: "
-            f"expected_model={expected}; actual_idn={idn.raw}"
+            f"expected_model={expected.model_id}; actual_idn={idn.raw}"
         )
 
 
 def _make_simulator_backend(args: argparse.Namespace, resource: str) -> SimulatorBackend:
-    kwargs = simulator_backend_kwargs(args, resource, capabilities_for_model(args.model))
+    kwargs = simulator_backend_kwargs(
+        _run_mode_options(args),
+        resource,
+        capabilities_for_model_id(args.model),
+    )
     return SimulatorBackend(**kwargs)
 
 
 def _run_mode_options(args: argparse.Namespace) -> RunModeOptions:
+    planning_model_id = (
+        getattr(args, "model", "keysight-dsox4024a")
+        if bool(getattr(args, "simulate", False))
+        or bool(getattr(args, "dry_run", False))
+        else None
+    )
+    expected_model_id = (
+        getattr(args, "model", "keysight-dsox4024a")
+        if bool(getattr(args, "_worker_live_validation", False))
+        else None
+    )
     return RunModeOptions(
         simulate=bool(getattr(args, "simulate", False)),
         dry_run=bool(getattr(args, "dry_run", False)),
         live=bool(getattr(args, "live", False)),
-        model=getattr(args, "model", "DSOX4024A"),
+        planning_physical_model_id=planning_model_id,
+        expected_physical_model_id=expected_model_id,
         simulate_signals=tuple(getattr(args, "simulate_signals", ()) or ()),
         simulate_preset=getattr(args, "simulate_preset", None),
         simulate_scenario=getattr(args, "simulate_scenario", None),
@@ -3097,8 +3124,11 @@ def _validate_screenshot_args(args: argparse.Namespace) -> None:
                 f"--format {options.format} requires an output path ending in {expected}."
             )
     if _uses_screenshot_format_pack(args):
-        capabilities = capabilities_for_model(args.model)
-        if not capabilities.supports_screenshot_format_pack:
+        capabilities = _pre_open_capabilities(args)
+        if (
+            capabilities is not None
+            and not capabilities.supports_screenshot_format_pack
+        ):
             raise ParameterValidationError(
                 "Screenshot Format Pack v1 requires a 4000X model profile."
             )
@@ -3245,6 +3275,18 @@ def _validate_pre_open_args(args: argparse.Namespace) -> None:
         _validate_trigger_or_args(args)
 
 
+def _pre_open_capabilities(
+    args: argparse.Namespace,
+) -> ScopeCapabilities | None:
+    if (
+        bool(getattr(args, "simulate", False))
+        or bool(getattr(args, "dry_run", False))
+        or bool(getattr(args, "_worker_live_validation", False))
+    ):
+        return capabilities_for_model_id(args.model)
+    return None
+
+
 def _validate_dvm_args(args: argparse.Namespace) -> None:
     command = args.command
     query = bool(getattr(args, "query", False))
@@ -3266,16 +3308,22 @@ def _validate_dvm_args(args: argparse.Namespace) -> None:
             f"{command} configure requires --{configure_key.replace('_', '-')}."
         )
     if command == "dvm-source":
-        validate_analog_channel(value, capabilities_for_model(args.model))
+        capabilities = _pre_open_capabilities(args)
+        if capabilities is not None:
+            validate_analog_channel(value, capabilities)
 
 
 def _validate_demo_args(args: argparse.Namespace) -> None:
-    capabilities = capabilities_for_model(args.model)
-    if not capabilities.supports_demo:
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None and not capabilities.supports_demo:
         raise ParameterValidationError(
             "Demo Output Pack v1 is not supported by the selected model profile."
         )
-    if args.command == "demo-function" and not args.query:
+    if (
+        capabilities is not None
+        and args.command == "demo-function"
+        and not args.query
+    ):
         validate_demo_function(args.function, capabilities)
     if args.command == "demo-phase" and not args.query:
         validate_demo_phase(args.degrees)
@@ -3283,8 +3331,8 @@ def _validate_demo_args(args: argparse.Namespace) -> None:
 
 def _validate_search_args(args: argparse.Namespace) -> None:
     command = args.command
-    capabilities = capabilities_for_model(args.model)
-    if not capabilities.supports_search_basic:
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None and not capabilities.supports_search_basic:
         raise ParameterValidationError(
             "Search Basic Pack v1 is not supported by the selected model profile."
         )
@@ -3303,7 +3351,7 @@ def _validate_search_args(args: argparse.Namespace) -> None:
         raise ParameterValidationError(
             f"{command} configure requires --{configure_key}."
         )
-    if command == "search-mode":
+    if command == "search-mode" and capabilities is not None:
         validate_search_mode(value, capabilities)
 
 
@@ -3339,10 +3387,11 @@ def _validate_measurement_reference_args(args: argparse.Namespace) -> None:
                 "measure-source configure requires --source-channel."
             )
     if command.startswith("reference-"):
-        capabilities = capabilities_for_model(args.model)
-        validate_reference_slot(args.slot, capabilities)
-        if command == "reference-save":
-            validate_analog_channel(args.source_channel, capabilities)
+        capabilities = _pre_open_capabilities(args)
+        if capabilities is not None:
+            validate_reference_slot(args.slot, capabilities)
+            if command == "reference-save":
+                validate_analog_channel(args.source_channel, capabilities)
         if command == "reference-label" and not args.query:
             validate_reference_label(args.text)
 
@@ -3705,9 +3754,10 @@ def _validate_trigger_delay_args(args: argparse.Namespace) -> None:
             "--trigger-channel, --trigger-slope, --time-seconds, and --count."
         )
 
-    capabilities = capabilities_for_model(args.model)
-    validate_analog_channel(args.arm_channel, capabilities)
-    validate_analog_channel(args.trigger_channel, capabilities)
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None:
+        validate_analog_channel(args.arm_channel, capabilities)
+        validate_analog_channel(args.trigger_channel, capabilities)
     normalize_delay_slope(args.arm_slope)
     normalize_delay_slope(args.trigger_slope)
     validate_delay_trigger_time(args.time_seconds)
@@ -3741,9 +3791,10 @@ def _validate_trigger_setup_hold_args(args: argparse.Namespace) -> None:
             "--slope, --setup-time, and --hold-time."
         )
 
-    capabilities = capabilities_for_model(args.model)
-    validate_analog_channel(args.clock_channel, capabilities)
-    validate_analog_channel(args.data_channel, capabilities)
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None:
+        validate_analog_channel(args.clock_channel, capabilities)
+        validate_analog_channel(args.data_channel, capabilities)
     normalize_setup_hold_slope(args.slope)
     validate_setup_hold_trigger_time(args.setup_time, "setup")
     validate_setup_hold_trigger_time(args.hold_time, "hold")
@@ -3775,8 +3826,9 @@ def _validate_trigger_edge_burst_args(args: argparse.Namespace) -> None:
             "--count, and --idle-time."
         )
 
-    capabilities = capabilities_for_model(args.model)
-    validate_analog_channel(args.source_channel, capabilities)
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None:
+        validate_analog_channel(args.source_channel, capabilities)
     normalize_edge_burst_slope(args.slope)
     validate_edge_burst_count(args.count)
     validate_edge_burst_idle_time(args.idle_time)
@@ -3809,14 +3861,16 @@ def _validate_trigger_tv_args(args: argparse.Namespace) -> None:
             "trigger-tv configure requires --source-channel, --standard, --mode, and --polarity."
         )
 
-    tv_trigger_configure_commands(
-        source_channel=args.source_channel,
-        standard=args.standard,
-        mode=args.mode,
-        polarity=args.polarity,
-        capabilities=capabilities_for_model(args.model),
-        line=args.line,
-    )
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None:
+        tv_trigger_configure_commands(
+            source_channel=args.source_channel,
+            standard=args.standard,
+            mode=args.mode,
+            polarity=args.polarity,
+            capabilities=capabilities,
+            line=args.line,
+        )
 
 
 def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
@@ -3828,7 +3882,9 @@ def _validate_trigger_pattern_args(args: argparse.Namespace) -> None:
         return
     if args.pattern is None:
         raise ParameterValidationError("trigger-pattern configure requires --pattern.")
-    validate_pattern_trigger_pattern(args.pattern, capabilities_for_model(args.model))
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None:
+        validate_pattern_trigger_pattern(args.pattern, capabilities)
 
 
 def _validate_trigger_or_args(args: argparse.Namespace) -> None:
@@ -3840,7 +3896,9 @@ def _validate_trigger_or_args(args: argparse.Namespace) -> None:
         return
     if args.pattern is None:
         raise ParameterValidationError("trigger-or configure requires --pattern.")
-    validate_or_trigger_pattern(args.pattern, capabilities_for_model(args.model))
+    capabilities = _pre_open_capabilities(args)
+    if capabilities is not None:
+        validate_or_trigger_pattern(args.pattern, capabilities)
 
 
 def _json_error(exc: OscilloscopeError) -> dict[str, object]:
@@ -3864,10 +3922,11 @@ def _json_envelope(args: argparse.Namespace, *, ok: bool, mode: str) -> dict[str
     idn = None
     capabilities = None
     if mode in {"simulate", "dry_run"} and hasattr(args, "model"):
-        idn = _idn_json(simulator_idn(args.model))
         try:
-            capabilities = _capabilities_json(capabilities_for_model(args.model))
+            idn = _idn_json(simulator_idn(args.model))
+            capabilities = _capabilities_json(capabilities_for_model_id(args.model))
         except OscilloscopeError:
+            idn = None
             capabilities = None
     return {
         "schema_version": 1,
@@ -3889,7 +3948,7 @@ def _json_envelope(args: argparse.Namespace, *, ok: bool, mode: str) -> dict[str
 
 def _dry_run_payload(args: argparse.Namespace) -> dict[str, object]:
     payload = _json_envelope(args, ok=True, mode="dry_run")
-    capabilities = capabilities_for_model(args.model)
+    capabilities = capabilities_for_model_id(args.model)
     planned, files, result = _dry_run_plan(args, capabilities)
     payload["scpi"]["planned"] = planned
     payload["files"] = files

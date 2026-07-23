@@ -11,7 +11,15 @@ def _payload(capsys):
     return json.loads(captured.out)
 
 
-@pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A", "DSOX4024A", "DSOX4034A"])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "keysight-dsox2004a",
+        "keysight-dsox3024a",
+        "keysight-dsox4024a",
+        "keysight-dsox4034a",
+    ],
+)
 def test_external_trigger_range_dry_run_json_for_all_target_models(capsys, model):
     assert cli.main([
         "external-trigger-range", "--dry-run", "--json", "--model", model,
@@ -28,14 +36,14 @@ def test_external_trigger_range_dry_run_json_for_all_target_models(capsys, model
 def test_external_trigger_range_query_dry_run_text_and_simulate_query(capsys, monkeypatch):
     monkeypatch.setattr(cli, "_open_scope", lambda *_a, **_kw: pytest.fail("opened scope"))
     assert cli.main([
-        "external-trigger-range", "--dry-run", "--json", "--model", "DSOX2004A", "--query",
+        "external-trigger-range", "--dry-run", "--json", "--model", "keysight-dsox2004a", "--query",
     ]) == 0
     assert _payload(capsys)["result"] == {
         "operation": "query", "command": ":EXTernal:RANGe?"
     }
 
     assert cli.main([
-        "external-trigger-range", "--dry-run", "--model", "DSOX4034A", "--range-volts", "8",
+        "external-trigger-range", "--dry-run", "--model", "keysight-dsox4034a", "--range-volts", "8",
     ]) == 0
     output = capsys.readouterr().out
     assert "Command: :EXTernal:RANGe 8" in output
@@ -43,7 +51,7 @@ def test_external_trigger_range_query_dry_run_text_and_simulate_query(capsys, mo
 
     monkeypatch.undo()
     assert cli.main([
-        "external-trigger-range", "--simulate", "--json", "--model", "DSOX4034A", "--query",
+        "external-trigger-range", "--simulate", "--json", "--model", "keysight-dsox4034a", "--query",
     ]) == 0
     payload = _payload(capsys)
     assert {key: payload["result"][key] for key in (
@@ -56,7 +64,7 @@ def test_external_trigger_range_query_dry_run_text_and_simulate_query(capsys, mo
 
 def test_external_trigger_range_simulate_configure_has_no_unrelated_scpi(capsys):
     assert cli.main([
-        "external-trigger-range", "--simulate", "--json", "--model", "DSOX3024A", "--range-volts", "12.5",
+        "external-trigger-range", "--simulate", "--json", "--model", "keysight-dsox3024a", "--range-volts", "12.5",
     ]) == 0
     payload = _payload(capsys)
     assert {key: payload["result"][key] for key in (
@@ -86,7 +94,15 @@ def test_external_trigger_range_rejects_aliases(capsys, alias):
     assert "unrecognized arguments" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("model", ["DSOX2004A", "DSOX3024A", "DSOX4024A", "DSOX4034A"])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "keysight-dsox2004a",
+        "keysight-dsox3024a",
+        "keysight-dsox4024a",
+        "keysight-dsox4034a",
+    ],
+)
 def test_external_edge_level_dry_run_json_for_all_target_models(capsys, model):
     assert cli.main([
         "trigger-edge-external-level", "--dry-run", "--json", "--model", model,
@@ -107,7 +123,7 @@ def test_external_edge_level_dry_run_json_for_all_target_models(capsys, model):
 def test_external_edge_level_dry_run_text_and_simulate_paths(capsys, monkeypatch):
     monkeypatch.setattr(cli, "_open_scope", lambda *_a, **_kw: pytest.fail("opened scope"))
     assert cli.main([
-        "trigger-edge-external-level", "--dry-run", "--model", "DSOX4034A", "--level-volts", "0.5",
+        "trigger-edge-external-level", "--dry-run", "--model", "keysight-dsox4034a", "--level-volts", "0.5",
     ]) == 0
     output = capsys.readouterr().out
     assert "Command: :TRIGger:EDGE:LEVel 0.5,EXTernal" in output
@@ -115,7 +131,7 @@ def test_external_edge_level_dry_run_text_and_simulate_paths(capsys, monkeypatch
 
     monkeypatch.undo()
     assert cli.main([
-        "trigger-edge-external-level", "--simulate", "--json", "--model", "DSOX4034A", "--level-volts", "-0.5",
+        "trigger-edge-external-level", "--simulate", "--json", "--model", "keysight-dsox4034a", "--level-volts", "-0.5",
     ]) == 0
     payload = _payload(capsys)
     assert {key: payload["result"][key] for key in (
@@ -130,7 +146,7 @@ def test_external_edge_level_dry_run_text_and_simulate_paths(capsys, monkeypatch
     ]
 
     assert cli.main([
-        "trigger-edge-external-level", "--simulate", "--json", "--model", "DSOX4034A", "--query",
+        "trigger-edge-external-level", "--simulate", "--json", "--model", "keysight-dsox4034a", "--query",
     ]) == 0
     payload = _payload(capsys)
     assert {key: payload["result"][key] for key in (

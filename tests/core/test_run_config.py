@@ -8,6 +8,7 @@ from scopes_tool_core.run_config import (
     resolve_resource,
     resolve_run_mode,
 )
+from scopes_tool_core.scope import Oscilloscope
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
@@ -38,18 +39,28 @@ def test_simulator_options_require_simulate():
 
 
 @pytest.mark.parametrize(
-    "model",
-    ["DSOX2004A", "DSOX3024A", "DSOX4024A", "DSOX4034A"],
+    "model_id",
+    [
+        "keysight-dsox2004a",
+        "keysight-dsox3024a",
+        "keysight-dsox4024a",
+        "keysight-dsox4034a",
+    ],
 )
 @pytest.mark.parametrize(
     ("flag", "expected_mode"),
     [("dry_run", "dry_run"), ("simulate", "simulate")],
 )
 def test_registered_models_keep_dry_run_and_simulator_lookup(
-    model, flag, expected_mode
+    model_id, flag, expected_mode
 ):
     assert (
-        resolve_run_mode(RunModeOptions(model=model, **{flag: True}))
+        resolve_run_mode(
+            RunModeOptions(
+                planning_physical_model_id=model_id,
+                **{flag: True},
+            )
+        )
         == expected_mode
     )
 
@@ -57,35 +68,92 @@ def test_registered_models_keep_dry_run_and_simulator_lookup(
 @pytest.mark.parametrize("flag", ["dry_run", "simulate"])
 def test_unregistered_series_shaped_model_is_rejected(flag):
     with pytest.raises(OscilloscopeError):
-        resolve_run_mode(RunModeOptions(model="DSOX4054A", **{flag: True}))
+        resolve_run_mode(
+            RunModeOptions(
+                planning_physical_model_id="DSOX4054A",
+                **{flag: True},
+            )
+        )
 
 
 def test_resource_fallbacks():
-    assert resolve_resource("simulate", None, "DSOX4024A", {}) == "SIM::DSOX4024A::INSTR"
-    assert resolve_resource("dry_run", None, "DSOX4024A", {}) == "DRY::DSOX4024A::INSTR"
-    assert resolve_resource("live", None, "DSOX4024A", {"SCOPES_TOOL_RESOURCE": "USB"}) == "USB"
+    model_id = "keysight-dsox4024a"
+    assert resolve_resource("simulate", None, model_id, {}) == f"SIM::{model_id}::INSTR"
+    assert resolve_resource("dry_run", None, model_id, {}) == f"DRY::{model_id}::INSTR"
+    assert resolve_resource(
+        "live",
+        None,
+        model_id,
+        {"SCOPES_TOOL_RESOURCE": "USB"},
+    ) == "USB"
 
 
 def test_dry_run_open_scope_is_blocked():
     config = ResolvedRunConfig(
         mode="dry_run",
-        model="DSOX4024A",
+        planning_physical_model_id="keysight-dsox4024a",
+        expected_physical_model_id=None,
         capabilities=None,
-        resource="DRY::DSOX4024A::INSTR",
+        resource="DRY::keysight-dsox4024a::INSTR",
     )
     with pytest.raises(OscilloscopeError, match="dry-run"):
         open_scope_for_run(config)
 
 
 def test_simulate_open_scope_uses_simulator():
-    options = RunModeOptions(simulate=True, model="DSOX4024A")
+    options = RunModeOptions(
+        simulate=True,
+        planning_physical_model_id="keysight-dsox4024a",
+    )
     config = ResolvedRunConfig(
         mode="simulate",
-        model="DSOX4024A",
+        planning_physical_model_id="keysight-dsox4024a",
+        expected_physical_model_id=None,
         capabilities=None,
-        resource="SIM::DSOX4024A::INSTR",
+        resource="SIM::keysight-dsox4024a::INSTR",
         options=options,
     )
 
     with open_scope_for_run(config) as scope:
         assert isinstance(scope.backend, SimulatorBackend)
+        assert scope.backend.physical_model_id == "keysight-dsox4024a"
+
+
+def test_live_detected_identity_sets_actual_capabilities(monkeypatch):
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
+    monkeypatch.setattr(
+        "scopes_tool_core.run_config.Oscilloscope.open",
+        lambda *args, **kwargs: Oscilloscope(backend),
+    )
+    config = ResolvedRunConfig(
+        mode="live",
+        planning_physical_model_id=None,
+        expected_physical_model_id="keysight-dsox4034a",
+        capabilities=None,
+        resource="USB0::FAKE::INSTR",
+    )
+
+    with open_scope_for_run(config) as scope:
+        assert scope.idn.model_id == "keysight-dsox4034a"
+        assert scope.capabilities is not None
+        assert scope.capabilities.series == "4000X"
+
+
+def test_live_expected_identity_cannot_override_detected_identity(monkeypatch):
+    backend = SimulatorBackend(physical_model_id="keysight-dsox3024a")
+    monkeypatch.setattr(
+        "scopes_tool_core.run_config.Oscilloscope.open",
+        lambda *args, **kwargs: Oscilloscope(backend),
+    )
+    config = ResolvedRunConfig(
+        mode="live",
+        planning_physical_model_id=None,
+        expected_physical_model_id="keysight-dsox4024a",
+        capabilities=None,
+        resource="USB0::FAKE::INSTR",
+    )
+
+    with pytest.raises(OscilloscopeError, match="does not match"):
+        open_scope_for_run(config)
+
+    assert backend.history == ["*IDN?"]

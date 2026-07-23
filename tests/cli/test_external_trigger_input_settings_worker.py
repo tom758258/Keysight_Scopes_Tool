@@ -13,7 +13,7 @@ from scopes_tool_core.errors import OscilloscopeError
 
 def _runtime(tmp_path):
     return worker.WorkerRuntime(
-        host="127.0.0.1", port=0, mode="simulate", model="DSOX4034A", resource=None,
+        host="127.0.0.1", port=0, mode="simulate", model="keysight-dsox4034a", resource=None,
         artifact_root=tmp_path, queue_max=1, output_format="jsonl",
     )
 

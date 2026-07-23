@@ -11,7 +11,7 @@ from scopes_tool_cli import cli, worker
 from scopes_tool_core.errors import OscilloscopeError
 
 
-def _runtime(tmp_path, model="DSOX4034A"):
+def _runtime(tmp_path, model="keysight-dsox4034a"):
     return worker.WorkerRuntime(
         host="127.0.0.1", port=0, mode="simulate", model=model, resource=None,
         artifact_root=tmp_path, queue_max=1, output_format="jsonl",

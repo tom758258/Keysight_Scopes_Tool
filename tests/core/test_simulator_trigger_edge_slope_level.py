@@ -31,7 +31,7 @@ def _unrelated_trigger_state(backend):
     ],
 )
 def test_simulator_edge_slope_roundtrip_is_isolated(command, readback):
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     before = _unrelated_trigger_state(backend)
 
     backend.write(f":TRIGger:EDGE:SLOPe {command}")
@@ -51,7 +51,7 @@ def test_simulator_edge_slope_rejects_invalid_values():
 
 
 def test_simulator_edge_level_is_source_qualified_and_keeps_inactive_source_independent():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:SOURce CHANnel1")
     baseline = _unrelated_trigger_state(backend)
 
@@ -82,7 +82,7 @@ def test_simulator_edge_level_is_source_qualified_and_keeps_inactive_source_inde
 
 
 def test_simulator_edge_level_updates_active_analog_level_only_for_active_channel():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
 
     backend.write(":TRIGger:EDGE:LEVel 0.5,CHANnel1")
     backend.write(":TRIGger:EDGE:LEVel 0,CHANnel2")
@@ -94,7 +94,7 @@ def test_simulator_edge_level_updates_active_analog_level_only_for_active_channe
 
 
 def test_simulator_unqualified_edge_level_write_syncs_active_analog_channel():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
 
     backend.write(":TRIGger:EDGE:SOURce CHANnel1")
     backend.write(":TRIGger:EDGE:LEVel 0.5,CHANnel1")
@@ -118,7 +118,7 @@ def test_simulator_unqualified_edge_level_write_syncs_active_analog_channel():
 
 
 def test_simulator_analog_source_switch_activates_stored_channel_level():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
 
     backend.write(":TRIGger:EDGE:SOURce CHANnel1")
     backend.write(":TRIGger:EDGE:LEVel 0.1")
@@ -144,7 +144,7 @@ def test_simulator_analog_source_switch_activates_stored_channel_level():
 
 
 def test_simulator_analog_source_switch_without_stored_level_keeps_global_fallback():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
 
     backend.write(":TRIGger:EDGE:LEVel 0.1")
     backend.write(":TRIGger:EDGE:SOURce CHANnel2")
@@ -165,7 +165,7 @@ def test_simulator_analog_source_switch_without_stored_level_keeps_global_fallba
 
 
 def test_simulator_unqualified_level_write_with_non_analog_source_does_not_update_storage():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:LEVel 0.5,CHANnel1")
     stored_levels = copy.deepcopy(backend.trigger_levels)
 
@@ -183,7 +183,7 @@ def test_simulator_unqualified_level_write_with_non_analog_source_does_not_updat
 
 
 def test_simulator_edge_level_rejects_invalid_channel_and_nonfinite_value():
-    backend = SimulatorBackend(model="DSOX2004A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox2004a")
 
     with pytest.raises(SimulatorBackendError):
         backend.write(":TRIGger:EDGE:LEVel 0.5,CHANnel5")

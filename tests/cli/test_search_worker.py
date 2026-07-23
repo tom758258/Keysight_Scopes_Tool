@@ -4,7 +4,7 @@ from scopes_tool_cli import cli, worker
 from scopes_tool_core.errors import OscilloscopeError
 
 
-def _runtime(tmp_path, model="DSOX4034A"):
+def _runtime(tmp_path, model="keysight-dsox4034a"):
     return worker.WorkerRuntime(
         host="127.0.0.1",
         port=0,
@@ -81,9 +81,9 @@ def test_worker_search_rejects_noncanonical_payloads_before_side_effects(
 @pytest.mark.parametrize(
     "model, mode",
     [
-        ("DSOX2004A", "edge"),
-        ("DSOX2004A", "serial2"),
-        ("DSOX3024A", "peak"),
+        ("keysight-dsox2004a", "edge"),
+        ("keysight-dsox2004a", "serial2"),
+        ("keysight-dsox3024a", "peak"),
     ],
 )
 def test_worker_search_rejects_unsupported_mode_before_side_effects(tmp_path, model, mode):
@@ -98,13 +98,13 @@ def test_worker_search_rejects_unsupported_mode_before_side_effects(tmp_path, mo
 
 def test_worker_search_profile_acceptance_matrix(tmp_path):
     assert worker.parse_domain_command(
-        "search-mode", {"mode": "serial1"}, _runtime(tmp_path, "DSOX2004A")
+        "search-mode", {"mode": "serial1"}, _runtime(tmp_path, "keysight-dsox2004a")
     ).mode == "serial1"
     assert worker.parse_domain_command(
-        "search-mode", {"mode": "edge"}, _runtime(tmp_path, "DSOX3024A")
+        "search-mode", {"mode": "edge"}, _runtime(tmp_path, "keysight-dsox3024a")
     ).mode == "edge"
     assert worker.parse_domain_command(
-        "search-mode", {"mode": "peak"}, _runtime(tmp_path, "DSOX4034A")
+        "search-mode", {"mode": "peak"}, _runtime(tmp_path, "keysight-dsox4034a")
     ).mode == "peak"
 
 

@@ -5,7 +5,7 @@ from scopes_tool_core.errors import OscilloscopeError
 
 
 def _runtime(tmp_path):
-    return worker.WorkerRuntime("127.0.0.1", 0, "simulate", "DSOX4024A", None, tmp_path, 1, "jsonl")
+    return worker.WorkerRuntime("127.0.0.1", 0, "simulate", "keysight-dsox4024a", None, tmp_path, 1, "jsonl")
 
 
 @pytest.mark.parametrize(

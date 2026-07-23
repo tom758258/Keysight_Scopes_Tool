@@ -5,6 +5,7 @@ import pytest
 
 from scopes_tool_cli import cli
 from scopes_tool_core.errors import OscilloscopeError
+from scopes_tool_core.identity import physical_model_for_id
 from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
@@ -21,11 +22,50 @@ def test_verify_simulate_json_uses_simulator_without_resource(capsys):
     assert payload["ok"] is True
     assert payload["command"] == "identify"
     assert payload["mode"] == "simulate"
-    assert payload["resource"] == "SIM::DSOX4024A::INSTR"
+    assert payload["resource"] == "SIM::keysight-dsox4024a::INSTR"
     assert payload["backend"] == "Keysight simulator"
     assert payload["idn"]["model"] == "DSOX4024A"
     assert payload["capabilities"]["analog_channels"] == 4
     assert payload["scpi"]["sent"] == ["*IDN?"]
+
+
+@pytest.mark.parametrize("mode", ["--dry-run", "--simulate"])
+def test_model_argument_requires_canonical_physical_model_id(capsys, mode):
+    assert (
+        cli.main(
+            [
+                "identify",
+                mode,
+                "--json",
+                "--model",
+                "DSOX4024A",
+            ]
+        )
+        == 1
+    )
+
+    payload = _json_stdout(capsys)
+    assert payload["ok"] is False
+    assert payload["idn"] is None
+    assert "model ID" in payload["error"]["message"]
+
+
+@pytest.mark.parametrize("mode", ["--dry-run", "--simulate"])
+def test_unregistered_series_shaped_model_id_is_rejected(capsys, mode):
+    assert (
+        cli.main(
+            [
+                "identify",
+                mode,
+                "--json",
+                "--model",
+                "keysight-dsox4054a",
+            ]
+        )
+        == 1
+    )
+
+    assert "model ID" in _json_stdout(capsys)["error"]["message"]
 
 
 def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
@@ -35,7 +75,7 @@ def test_verify_dry_run_json_does_not_open_scope(monkeypatch, capsys):
 
     monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
-    assert cli.main(["identify", "--dry-run", "--json", "--model", "DSOX4024A"]) == 0
+    assert cli.main(["identify", "--dry-run", "--json", "--model", "keysight-dsox4024a"]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["ok"] is True
@@ -93,7 +133,7 @@ def test_label_and_annotation_dry_run_json_reports_planned_scpi_without_opening(
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--channel",
                 "1",
                 "--text",
@@ -118,7 +158,7 @@ def test_label_and_annotation_dry_run_json_reports_planned_scpi_without_opening(
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--slot",
                 "2",
                 "--on",
@@ -172,7 +212,7 @@ def test_annotation_validation_errors_do_not_open_backend(monkeypatch, capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX3024A",
+                "keysight-dsox3024a",
                 "--text",
                 "Note",
                 "--x",
@@ -191,7 +231,7 @@ def test_annotation_validation_errors_do_not_open_backend(monkeypatch, capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--text",
                 "x" * 255,
             ]
@@ -210,7 +250,7 @@ def test_annotation_simulate_json_roundtrip_4000x(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--slot",
                 "2",
                 "--on",
@@ -249,7 +289,7 @@ def test_annotation_query_simulate_json_3000x_reports_null_position(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX3024A",
+                "keysight-dsox3024a",
                 "--query",
             ]
         )
@@ -270,7 +310,7 @@ def test_annotation_query_simulate_json_3000x_reports_null_position(capsys):
 
 def test_annotation_query_json_reports_canonical_readback_enums(monkeypatch, capsys):
     backend = SimulatorBackend(
-        model="DSOX4034A",
+        physical_model_id="keysight-dsox4034a",
         query_overrides={
             ":DISPlay:ANNotation1:COLor?": "WHIT",
             ":DISPlay:ANNotation1:BACKground?": "tran",
@@ -285,7 +325,7 @@ def test_annotation_query_json_reports_canonical_readback_enums(monkeypatch, cap
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--query",
             ]
         )
@@ -457,7 +497,12 @@ def test_acquisition_check_dry_run_json_reports_plan_for_target_models(monkeypat
 
     monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
-    for model in ("DSOX4024A", "DSOX4034A", "DSOX3024A", "DSOX2004A"):
+    for model in (
+        "keysight-dsox4024a",
+        "keysight-dsox4034a",
+        "keysight-dsox3024a",
+        "keysight-dsox2004a",
+    ):
         output_dir = tmp_path / model
         assert (
             cli.main(
@@ -477,7 +522,9 @@ def test_acquisition_check_dry_run_json_reports_plan_for_target_models(monkeypat
         payload = _json_stdout(capsys)
         planned = payload["scpi"]["planned"]
         assert payload["mode"] == "dry_run"
-        assert payload["idn"]["model"] == model
+        assert payload["idn"]["model"] == physical_model_for_id(
+            model
+        ).canonical_model
         assert payload["files"] == [
             {"kind": "report", "path": str(output_dir / "report.json")},
             {"kind": "scpi_log", "path": str(output_dir / "scpi.log")},
@@ -513,7 +560,7 @@ def test_advanced_autoscale_dry_run_json_accepts_2000x_and_3000x(monkeypatch, ca
 
     monkeypatch.setattr(cli.Oscilloscope, "open", staticmethod(fail_open))
 
-    for model in ("DSOX2004A", "DSOX3024A"):
+    for model in ("keysight-dsox2004a", "keysight-dsox3024a"):
         assert cli.main(["autoscale", "--dry-run", "--json", "--model", model]) == 0
 
         payload = _json_stdout(capsys)
@@ -531,7 +578,7 @@ def test_acquisition_check_simulate_json_writes_report_and_scpi_log(capsys, tmp_
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--output-dir",
                 str(output_dir),
             ]
@@ -791,7 +838,7 @@ def test_simulate_json_error_is_single_json_object(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--channel",
                 "5",
                 "--item",
@@ -889,7 +936,7 @@ def test_channel_advanced_simulate_json_results(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX3024A",
+                "keysight-dsox3024a",
                 "--channel",
                 "1",
                 "--impedance",
@@ -1026,7 +1073,7 @@ def test_channel_impedance_simulate_rejects_2000x_fifty_after_idn(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX2004A",
+                "keysight-dsox2004a",
                 "--channel",
                 "1",
                 "--impedance",
@@ -1351,7 +1398,7 @@ def test_measure_pair_delay_simulate_json_on_4000x_uses_signal_model(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--source-channel",
                 "1",
                 "--reference-channel",
@@ -1385,7 +1432,7 @@ def test_measure_pair_delay_simulate_json_rejects_non_4000x_before_measurement(c
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX3024A",
+                "keysight-dsox3024a",
                 "--source-channel",
                 "1",
                 "--reference-channel",
@@ -1404,7 +1451,12 @@ def test_measure_pair_delay_simulate_json_rejects_non_4000x_before_measurement(c
 
 
 def test_measure_pair_phase_simulate_json_supported_across_target_models(capsys):
-    for model in ("DSOX4024A", "DSOX4034A", "DSOX3024A", "DSOX2004A"):
+    for model in (
+        "keysight-dsox4024a",
+        "keysight-dsox4034a",
+        "keysight-dsox3024a",
+        "keysight-dsox2004a",
+    ):
         assert (
             cli.main(
                 [
@@ -1424,7 +1476,9 @@ def test_measure_pair_phase_simulate_json_supported_across_target_models(capsys)
             == 0
         )
         payload = _json_stdout(capsys)
-        assert payload["idn"]["model"] == model
+        assert payload["idn"]["model"] == physical_model_for_id(
+            model
+        ).canonical_model
         assert payload["result"]["value"] == 45.0
 
 
@@ -2355,7 +2409,7 @@ def test_acquisition_simulate_json_peak_reports_sent_scpi(capsys):
 
 
 def test_doctor_dry_run_json_reports_snapshot_plan(capsys):
-    assert cli.main(["doctor", "--dry-run", "--json", "--model", "DSOX4034A"]) == 0
+    assert cli.main(["doctor", "--dry-run", "--json", "--model", "keysight-dsox4034a"]) == 0
 
     payload = _json_stdout(capsys)
     planned = payload["scpi"]["planned"]
@@ -2367,7 +2421,7 @@ def test_doctor_dry_run_json_reports_snapshot_plan(capsys):
 
 
 def test_doctor_simulate_json_reports_four_channels(capsys):
-    assert cli.main(["doctor", "--simulate", "--json", "--model", "DSOX4034A"]) == 0
+    assert cli.main(["doctor", "--simulate", "--json", "--model", "keysight-dsox4034a"]) == 0
 
     payload = _json_stdout(capsys)
     result = payload["result"]
@@ -2404,7 +2458,7 @@ def test_measure_sweep_simulate_json_pair_items_on_4000x(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--channel",
                 "1",
                 "--items",

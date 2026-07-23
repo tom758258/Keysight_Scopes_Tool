@@ -5,7 +5,7 @@ from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBacken
 
 
 def test_simulator_demo_defaults_and_roundtrip():
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -24,7 +24,7 @@ def test_simulator_demo_defaults_and_roundtrip():
 
 
 def test_simulator_rejects_unsupported_demo_token_and_phase():
-    backend = SimulatorBackend(model="DSOX2004A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox2004a")
     with pytest.raises(SimulatorBackendError):
         backend.write(":DEMO:FUNCtion I2S")
     with pytest.raises(SimulatorBackendError):

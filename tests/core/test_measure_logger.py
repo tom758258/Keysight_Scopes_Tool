@@ -99,7 +99,7 @@ def test_write_measure_log_manifest_json(tmp_path):
 
 
 def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path, capsys):
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -107,7 +107,7 @@ def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path, 
 
     result = measure_logger.log_measurements_workflow(
         scope=scope,
-        resource="SIM::DSOX4024A::INSTR",
+        resource="SIM::keysight-dsox4024a::INSTR",
         output_dir=tmp_path,
         csv_path=csv_path,
         manifest_path=manifest_path,
@@ -153,7 +153,7 @@ def test_log_measurements_workflow_runs_successfully_and_writes_files(tmp_path, 
 
 
 def test_log_measurements_workflow_respects_duration_limit(tmp_path):
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -161,7 +161,7 @@ def test_log_measurements_workflow_respects_duration_limit(tmp_path):
 
     result = measure_logger.log_measurements_workflow(
         scope=scope,
-        resource="SIM::DSOX4024A::INSTR",
+        resource="SIM::keysight-dsox4024a::INSTR",
         output_dir=tmp_path,
         csv_path=csv_path,
         manifest_path=manifest_path,
@@ -183,7 +183,7 @@ def test_log_measurements_workflow_respects_duration_limit(tmp_path):
 
 
 def test_log_measurements_workflow_handles_invalid_sentinels_and_errors(tmp_path):
-    backend = SimulatorBackend(model="DSOX4024A", invalid_measurement_channels={2})
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a", invalid_measurement_channels={2})
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -191,7 +191,7 @@ def test_log_measurements_workflow_handles_invalid_sentinels_and_errors(tmp_path
 
     result = measure_logger.log_measurements_workflow(
         scope=scope,
-        resource="SIM::DSOX4024A::INSTR",
+        resource="SIM::keysight-dsox4024a::INSTR",
         output_dir=tmp_path,
         csv_path=csv_path,
         manifest_path=manifest_path,
@@ -217,7 +217,7 @@ def test_log_measurements_workflow_handles_invalid_sentinels_and_errors(tmp_path
 
 def test_log_measurements_workflow_stops_on_error(tmp_path):
     # Setup simulator with system error triggered on queries
-    backend = SimulatorBackend(model="DSOX4024A", system_errors=['-113,"Undefined header"'])
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a", system_errors=['-113,"Undefined header"'])
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -225,7 +225,7 @@ def test_log_measurements_workflow_stops_on_error(tmp_path):
 
     result = measure_logger.log_measurements_workflow(
         scope=scope,
-        resource="SIM::DSOX4024A::INSTR",
+        resource="SIM::keysight-dsox4024a::INSTR",
         output_dir=tmp_path,
         csv_path=csv_path,
         manifest_path=manifest_path,
@@ -250,7 +250,7 @@ def test_log_measurements_workflow_stops_on_error(tmp_path):
 
 
 def test_log_measurements_workflow_records_interrupt(tmp_path, monkeypatch):
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -262,7 +262,7 @@ def test_log_measurements_workflow_records_interrupt(tmp_path, monkeypatch):
 
     result = measure_logger.log_measurements_workflow(
         scope=scope,
-        resource="SIM::DSOX4024A::INSTR",
+        resource="SIM::keysight-dsox4024a::INSTR",
         output_dir=tmp_path,
         csv_path=csv_path,
         manifest_path=manifest_path,

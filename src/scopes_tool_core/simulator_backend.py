@@ -10,9 +10,10 @@ import struct
 from typing import Any, Sequence
 import zlib
 
-from .capabilities import capabilities_for_model
+from .capabilities import capabilities_for_model_id
 from .demo import DEMO_FUNCTION_TOKENS
 from .errors import BackendClosedError, OscilloscopeError
+from .identity import VENDOR_REGISTRY, physical_model_for_id
 from .trigger import OPERATION_CONDITION_RUN_MASK
 
 
@@ -47,10 +48,19 @@ _TIMING_MEASUREMENT_ITEMS = frozenset(
 _PAIR_MEASUREMENT_ITEMS = frozenset(("phase", "delay"))
 
 
-def simulator_idn(model: str) -> str:
-    """Return a deterministic IDN string for a simulated model."""
+def simulator_idn(physical_model_id: str) -> str:
+    """Return a deterministic IDN string for a registered physical model."""
 
-    return f"KEYSIGHT TECHNOLOGIES,{model},SIM000000,07.20"
+    physical_model = physical_model_for_id(physical_model_id)
+    vendor = next(
+        vendor
+        for vendor in VENDOR_REGISTRY
+        if vendor.vendor_id == physical_model.vendor_id
+    )
+    return (
+        f"{vendor.canonical_manufacturer},{physical_model.canonical_model},"
+        "SIM000000,07.20"
+    )
 
 
 @dataclass(frozen=True)
@@ -94,7 +104,7 @@ class SimulatedSignal:
 class SimulatorBackend:
     """Small oscilloscope simulator that records SCPI command order."""
 
-    model: str = "DSOX4024A"
+    physical_model_id: str = "keysight-dsox4024a"
     resource_name: str | None = None
     strict_unknown_commands: bool = True
     system_errors: list[str] = field(default_factory=list)
@@ -273,9 +283,11 @@ class SimulatorBackend:
     trigger_alternate_count: int = 0
 
     def __post_init__(self) -> None:
+        self.physical_model = physical_model_for_id(self.physical_model_id)
+        self.model = self.physical_model.canonical_model
         if self.resource_name is None:
-            self.resource_name = f"SIM::{self.model}::INSTR"
-        self._capabilities = capabilities_for_model(self.model)
+            self.resource_name = f"SIM::{self.physical_model_id}::INSTR"
+        self._capabilities = capabilities_for_model_id(self.physical_model_id)
         self.system_errors = list(self.system_errors)
         self.signals = {
             self._validate_channel(channel): _coerce_simulated_signal(signal)
@@ -868,7 +880,7 @@ class SimulatorBackend:
             return self.query_overrides[command]
         upper = command.upper()
         if upper == "*IDN?":
-            return simulator_idn(self.model)
+            return simulator_idn(self.physical_model_id)
         if upper == "*OPC?":
             return "1"
         if upper == "*STB?":

@@ -43,7 +43,7 @@ def test_trigger_tv_configure_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--source-channel",
                 "1",
                 "--standard",

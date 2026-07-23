@@ -12,13 +12,13 @@ behavior is defined in [Scopes Worker Contract](scopes-worker-contract.md).
 Start a worker in simulator mode:
 
 ```text
-scopes-tool worker --simulate --model DSOX4024A --port 8765 --format jsonl
+scopes-tool worker --simulate --model keysight-dsox4024a --port 8765 --format jsonl
 ```
 
 For live mode, require an operator-selected resource:
 
 ```text
-scopes-tool worker --live --resource USB0::...::INSTR --model DSOX4024A --port 8765 --format jsonl
+scopes-tool worker --live --resource USB0::...::INSTR --model keysight-dsox4024a --port 8765 --format jsonl
 ```
 
 Wait for the Common control-plane readiness signal: read the worker stdout
@@ -136,7 +136,7 @@ worker = subprocess.Popen(
         "worker",
         "--simulate",
         "--model",
-        "DSOX4024A",
+        "keysight-dsox4024a",
         "--port",
         "8765",
         "--format",
@@ -201,7 +201,7 @@ try:
     assert ready["host"] == "127.0.0.1"
     assert ready["port"] == 8765
     assert ready["mode"] == "simulate"
-    assert ready["model"] == "DSOX4024A"
+    assert ready["model"] == "keysight-dsox4024a"
     assert ready["resource"] is None
     assert ready["command_url"].endswith("/command")
     assert ready["status_url"].endswith("/status")
@@ -397,7 +397,7 @@ from pathlib import Path
 payload = run_scope_json([
     "capture",
     "--simulate",
-    "--model", "DSOX4024A",
+    "--model", "keysight-dsox4024a",
     "--simulate-preset", "phase-shifted-pair",
     "--channel", "1",
     "--channel", "2",
@@ -414,7 +414,7 @@ For finite workflow validation:
 payload = run_scope_json([
     "acquisition-check",
     "--simulate",
-    "--model", "DSOX4034A",
+    "--model", "keysight-dsox4034a",
     "--output-dir", ".tmp_tests/acquisition_check",
 ])
 assert payload["result"]["status"] == "completed"

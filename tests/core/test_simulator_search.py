@@ -5,7 +5,7 @@ from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBacken
 
 
 def test_simulator_search_state_mode_and_count_are_deterministic():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -30,20 +30,20 @@ def test_simulator_search_state_mode_and_count_are_deterministic():
 
 
 @pytest.mark.parametrize(
-    "model, command",
+    "model_id, command",
     [
-        ("DSOX2004A", ":SEARch:MODE EDGE"),
-        ("DSOX2004A", ":SEARch:MODE SERial2"),
-        ("DSOX3024A", ":SEARch:MODE PEAK"),
+        ("keysight-dsox2004a", ":SEARch:MODE EDGE"),
+        ("keysight-dsox2004a", ":SEARch:MODE SERial2"),
+        ("keysight-dsox3024a", ":SEARch:MODE PEAK"),
     ],
 )
-def test_simulator_rejects_search_modes_outside_model_profile(model, command):
-    backend = SimulatorBackend(model=model)
+def test_simulator_rejects_search_modes_outside_model_profile(model_id, command):
+    backend = SimulatorBackend(physical_model_id=model_id)
     with pytest.raises(SimulatorBackendError, match="not supported by simulator model"):
         backend.write(command)
 
 
 def test_simulator_accepts_profile_supported_search_modes():
-    SimulatorBackend(model="DSOX2004A").write(":SEARch:MODE SERial1")
-    SimulatorBackend(model="DSOX3024A").write(":SEARch:MODE EDGE")
-    SimulatorBackend(model="DSOX4034A").write(":SEARch:MODE PEAK")
+    SimulatorBackend(physical_model_id="keysight-dsox2004a").write(":SEARch:MODE SERial1")
+    SimulatorBackend(physical_model_id="keysight-dsox3024a").write(":SEARch:MODE EDGE")
+    SimulatorBackend(physical_model_id="keysight-dsox4034a").write(":SEARch:MODE PEAK")

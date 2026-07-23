@@ -30,6 +30,7 @@ from .identity import (
     PhysicalModelInfo,
     VendorInfo,
     canonical_physical_model_id,
+    physical_model_for_id,
     resolve_physical_model_identity,
 )
 from .measurements import (
@@ -292,6 +293,7 @@ __all__ = [
     "capabilities_for_model",
     "capabilities_for_model_id",
     "canonical_physical_model_id",
+    "physical_model_for_id",
     "detect_series",
     "parse_channel_display",
     "parse_channel_coupling",

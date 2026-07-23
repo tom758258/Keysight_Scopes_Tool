@@ -19,7 +19,7 @@ def test_trigger_edge_query_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--query",
             ]
         )
@@ -49,7 +49,7 @@ def test_trigger_edge_configure_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--source-channel",
                 "1",
                 "--level",
@@ -104,7 +104,7 @@ def test_trigger_edge_configure_simulate_json(capsys):
                 "--simulate",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--source-channel",
                 "1",
                 "--level",

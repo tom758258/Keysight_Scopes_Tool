@@ -29,8 +29,9 @@ explicitly selects its runtime capability profile.
 
 Core resolves live `*IDN?` manufacturer and model fields to a canonical
 physical model ID, then follows the registered capability profile ID. Dry-run
-and simulator `--model` values keep their existing model-name syntax, but the
-name must resolve to exactly one registered physical model.
+and simulator `--model` values are canonical physical model IDs. Simulator
+manufacturer/model IDN fields and capabilities are derived from that same
+registry entry.
 
 | Profile ID | Series | Registered models | Analog channels |
 | --- | --- | ---: | --- |
@@ -40,8 +41,13 @@ name must resolve to exactly one registered physical model.
 
 A model string that merely resembles a DSO-X or MSO-X series model is not
 sufficient for capability selection. Unregistered names such as `DSOX4054A`
-are rejected even when their shape implies a known series. Model-only lookup
-also rejects normalized names that would be ambiguous across vendors.
+and raw model names such as `DSOX4024A` are rejected as `--model` values.
+
+In live execution, capabilities come only from the canonical physical identity
+resolved from the actual `*IDN?` manufacturer and model fields. A planning
+identity cannot override that result. Live workers treat `--model` as an
+expected canonical physical model ID and fail before command-specific SCPI
+when it does not match the detected identity.
 
 ## Capability Summary
 

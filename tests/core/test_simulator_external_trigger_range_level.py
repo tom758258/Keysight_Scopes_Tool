@@ -25,7 +25,7 @@ def _trigger_state(backend):
 
 
 def test_simulator_external_range_default_and_roundtrip_are_isolated():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     before = _trigger_state(backend)
 
     assert backend.query(":EXTernal:RANGe?") == "8"
@@ -50,7 +50,7 @@ def test_simulator_external_range_rejects_nonpositive_or_nonfinite_values(comman
 
 
 def test_simulator_external_level_is_independent_while_external_is_inactive():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:LEVel 0.1,CHANnel1")
 
     backend.write(":TRIGger:EDGE:LEVel 0.5,EXTernal")
@@ -63,7 +63,7 @@ def test_simulator_external_level_is_independent_while_external_is_inactive():
 
 
 def test_simulator_external_level_updates_global_only_when_external_is_active():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:SOURce EXTernal")
     backend.write(":TRIGger:EDGE:LEVel -0.5,EXTernal")
 
@@ -79,7 +79,7 @@ def test_simulator_external_level_updates_global_only_when_external_is_active():
 
 
 def test_simulator_legacy_level_does_not_update_external_storage_for_analog_or_line():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:LEVel 0.7,EXTernal")
 
     backend.write(":TRIGger:EDGE:LEVel 0.1")
@@ -94,7 +94,7 @@ def test_simulator_legacy_level_does_not_update_external_storage_for_analog_or_l
 
 
 def test_simulator_source_switch_loads_external_and_restores_analog_stored_levels():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:LEVel 0.1")
     backend.write(":TRIGger:EDGE:LEVel 0.8,EXTernal")
 
@@ -118,7 +118,7 @@ def test_simulator_source_switch_loads_external_and_restores_analog_stored_level
 
 
 def test_simulator_source_without_stored_level_preserves_global_fallback():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:LEVel 0.1")
 
     backend.write(":TRIGger:EDGE:SOURce CHANnel2")
@@ -129,7 +129,7 @@ def test_simulator_source_without_stored_level_preserves_global_fallback():
 
 
 def test_simulator_range_change_does_not_clamp_or_rewrite_external_level():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     backend.write(":TRIGger:EDGE:LEVel 4,EXTernal")
 
     backend.write(":EXTernal:RANGe 1.6")

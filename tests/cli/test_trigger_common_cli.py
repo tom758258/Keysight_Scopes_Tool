@@ -20,7 +20,7 @@ def _json_stdout(capsys):
     ],
 )
 def test_trigger_common_query_dry_run_json(capsys, command, query_arg, expected_query):
-    assert cli.main([command, "--dry-run", "--json", "--model", "DSOX4024A", query_arg]) == 0
+    assert cli.main([command, "--dry-run", "--json", "--model", "keysight-dsox4024a", query_arg]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["command"] == command
@@ -66,7 +66,7 @@ def test_trigger_common_query_dry_run_json(capsys, command, query_arg, expected_
 def test_trigger_common_configure_dry_run_json(
     capsys, args, expected_command, expected_result
 ):
-    assert cli.main([*args, "--dry-run", "--json", "--model", "DSOX4024A"]) == 0
+    assert cli.main([*args, "--dry-run", "--json", "--model", "keysight-dsox4024a"]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["result"]["operation"] == "configure"
@@ -100,7 +100,7 @@ def test_trigger_common_configure_dry_run_json(
 def test_trigger_common_query_simulate_json(
     capsys, command, expected_result, expected_sent
 ):
-    assert cli.main([command, "--simulate", "--json", "--model", "DSOX4024A", "--query"]) == 0
+    assert cli.main([command, "--simulate", "--json", "--model", "keysight-dsox4024a", "--query"]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["ok"] is True
@@ -136,7 +136,7 @@ def test_trigger_common_query_simulate_json(
     ],
 )
 def test_trigger_common_configure_simulate_json(capsys, args, expected_sent):
-    assert cli.main([*args, "--simulate", "--json", "--model", "DSOX4024A"]) == 0
+    assert cli.main([*args, "--simulate", "--json", "--model", "keysight-dsox4024a"]) == 0
 
     payload = _json_stdout(capsys)
     assert payload["ok"] is True
@@ -165,7 +165,7 @@ def test_trigger_common_configure_simulate_json(capsys, args, expected_sent):
     ],
 )
 def test_trigger_common_validation_errors_are_json(capsys, args, expected_message):
-    assert cli.main([*args, "--dry-run", "--json", "--model", "DSOX4024A"]) == 1
+    assert cli.main([*args, "--dry-run", "--json", "--model", "keysight-dsox4024a"]) == 1
 
     payload = _json_stdout(capsys)
     assert payload["ok"] is False

@@ -6,7 +6,7 @@ from scopes_tool_core.simulator_backend import SimulatorBackend
 
 
 def _scope():
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     scope.query_idn()
     return scope, backend

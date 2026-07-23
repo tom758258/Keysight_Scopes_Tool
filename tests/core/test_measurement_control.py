@@ -72,7 +72,7 @@ def test_measurement_controller_command_order_and_raw_state():
 
 
 def test_measurement_control_simulator_roundtrip():
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     scope.query_idn()
     scope.configure_measurement_show()

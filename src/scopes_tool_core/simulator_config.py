@@ -163,7 +163,12 @@ def simulator_backend_kwargs(
         )
 
     parsed = parse_config(config, capabilities)
-    parsed.update({"model": args.model, "resource_name": resource})
+    parsed.update(
+        {
+            "physical_model_id": args.planning_physical_model_id,
+            "resource_name": resource,
+        }
+    )
     return parsed
 
 
@@ -171,7 +176,11 @@ def validate_simulator_args(args: Any, capabilities: ScopeCapabilities) -> None:
     """Validate simulator-only arguments and any referenced scenario."""
 
     _parse_simulate_signal_specs(getattr(args, "simulate_signals", []), capabilities)
-    simulator_backend_kwargs(args, f"SIM::{args.model}::INSTR", capabilities)
+    simulator_backend_kwargs(
+        args,
+        f"SIM::{args.planning_physical_model_id}::INSTR",
+        capabilities,
+    )
 
 
 def load_scenario(path: Path) -> dict[str, Any]:

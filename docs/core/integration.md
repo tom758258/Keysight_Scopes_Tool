@@ -132,6 +132,7 @@ names are intended for package consumers and tests:
 - `capabilities_for_model`
 - `capabilities_for_model_id`
 - `canonical_physical_model_id`
+- `physical_model_for_id`
 - `detect_series`
 - `parse_channel_display`
 - `parse_channel_coupling`
@@ -168,6 +169,11 @@ Use `resolve_run_mode`, `resolve_resource`, `require_resource`, and
 `open_scope_for_run` to centralize live, simulated, and dry-run behavior.
 Operation planning helpers return planned SCPI and artifact paths without
 opening VISA. Operation runners execute against the selected backend.
+
+Dry-run and simulator configuration uses a planning canonical physical model
+ID. Live configuration keeps any expected canonical physical model ID separate
+from the identity detected through `*IDN?`; the expected identity never
+replaces the detected identity or its capability profile.
 
 Core should remain independent from command-line parser types and WebUI
 controller concepts. Package adapters may call Core, but Core should not import

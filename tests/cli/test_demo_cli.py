@@ -26,7 +26,7 @@ def _payload(capsys):
     ],
 )
 def test_demo_commands_dry_run_json(capsys, args, expected):
-    assert cli.main([*args, "--dry-run", "--json", "--model", "DSOX4024A"]) == 0
+    assert cli.main([*args, "--dry-run", "--json", "--model", "keysight-dsox4024a"]) == 0
     payload = _payload(capsys)
     assert payload["scpi"]["planned"][0] == expected
     assert payload["scpi"]["planned"][-1] == ":SYSTem:ERRor?"
@@ -84,7 +84,7 @@ def test_demo_phase_validation_fails_before_open(monkeypatch, capsys, degrees):
     monkeypatch.setattr(cli, "_open_scope", lambda *unused: pytest.fail("opened scope"))
     degree_args = [f"--degrees={degrees}"] if degrees == "-inf" else ["--degrees", degrees]
     assert cli.main([
-        "demo-phase", *degree_args, "--simulate", "--json", "--model", "DSOX4024A"
+        "demo-phase", *degree_args, "--simulate", "--json", "--model", "keysight-dsox4024a"
     ]) == 1
     assert _payload(capsys)["ok"] is False
 
@@ -92,7 +92,7 @@ def test_demo_phase_validation_fails_before_open(monkeypatch, capsys, degrees):
 def test_demo_function_profile_gating_fails_before_open(monkeypatch, capsys):
     monkeypatch.setattr(cli, "_open_scope", lambda *unused: pytest.fail("opened scope"))
     assert cli.main([
-        "demo-function", "--function", "i2s", "--simulate", "--json", "--model", "DSOX2004A"
+        "demo-function", "--function", "i2s", "--simulate", "--json", "--model", "keysight-dsox2004a"
     ]) == 1
     assert _payload(capsys)["ok"] is False
 

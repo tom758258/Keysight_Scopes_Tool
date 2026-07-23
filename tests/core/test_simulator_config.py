@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from scopes_tool_core.capabilities import capabilities_for_model
+from scopes_tool_core.capabilities import capabilities_for_model_id
 from scopes_tool_core.errors import OscilloscopeError
 from scopes_tool_core.simulator_config import (
     load_scenario,
@@ -12,12 +12,12 @@ from scopes_tool_core.simulator_config import (
 )
 
 
-CAPABILITIES = capabilities_for_model("DSOX4024A")
+CAPABILITIES = capabilities_for_model_id("keysight-dsox4024a")
 
 
 def _args(**overrides):
     values = {
-        "model": "DSOX4024A",
+        "planning_physical_model_id": "keysight-dsox4024a",
         "simulate_preset": None,
         "simulate_scenario": None,
         "simulate_signals": [],
@@ -106,11 +106,11 @@ def test_simulator_backend_kwargs_merges_preset_scenario_and_cli_overrides(tmp_p
             simulate_signals=["CH1:square:2000:3.0:0.25:15:0.02"],
             simulate_invalid_measurement_channels=["CH3"],
         ),
-        "SIM::DSOX4024A::INSTR",
+        "SIM::keysight-dsox4024a::INSTR",
         CAPABILITIES,
     )
 
-    assert kwargs["model"] == "DSOX4024A"
+    assert kwargs["physical_model_id"] == "keysight-dsox4024a"
     assert kwargs["signals"][1].shape == "square"
     assert kwargs["signals"][1].frequency_hz == 2000
     assert kwargs["signals"][1].vpp_v == 3.0
@@ -122,6 +122,6 @@ def test_simulator_backend_kwargs_rejects_bad_cli_system_error():
     with pytest.raises(OscilloscopeError, match="must be an integer"):
         simulator_backend_kwargs(
             _args(simulate_system_errors=["not-int"]),
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             CAPABILITIES,
         )

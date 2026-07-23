@@ -18,7 +18,7 @@ def test_trigger_delay_query_dry_run_text_does_not_open_visa(capsys):
                 "trigger-delay",
                 "--dry-run",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--query",
             ]
         )
@@ -27,7 +27,7 @@ def test_trigger_delay_query_dry_run_text_does_not_open_visa(capsys):
 
     captured = capsys.readouterr()
     assert captured.err == ""
-    assert "Resource: DRY::DSOX4034A::INSTR" in captured.out
+    assert "Resource: DRY::keysight-dsox4034a::INSTR" in captured.out
     assert "Command: :TRIGger:MODE?" in captured.out
     assert "Command: :TRIGger:DELay:ARM:SOURce?" in captured.out
     assert "Failed to open VISA resource" not in captured.out
@@ -42,7 +42,7 @@ def test_trigger_delay_query_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--query",
             ]
         )
@@ -75,7 +75,7 @@ def test_trigger_delay_configure_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--arm-channel",
                 "1",
                 "--arm-slope",
@@ -242,7 +242,7 @@ def test_trigger_delay_rejects_invalid_two_channel_source_before_access(capsys):
             [
                 "trigger-delay",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--arm-channel",
                 "1",
                 "--arm-slope",

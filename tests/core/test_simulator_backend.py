@@ -1,11 +1,12 @@
 import pytest
 
-from scopes_tool_core.errors import OscilloscopeError
+from scopes_tool_core.errors import OscilloscopeError, UnsupportedModelError
 from scopes_tool_core.simulator_backend import (
     SimulatedSignal,
     SimulatorBackend,
     SimulatorBackendError,
 )
+from scopes_tool_core.capabilities import capabilities_for_model_id
 
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -436,7 +437,7 @@ def test_simulator_channel_advanced_settings_round_trip():
 
 
 def test_simulator_label_and_display_annotation_roundtrip_4000x():
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
 
     backend.write(':CHANnel1:LABel "Input a"')
     backend.write(":DISPlay:LABel OFF")
@@ -492,7 +493,7 @@ def test_simulator_rejects_old_display_intensity_path():
 
 
 def test_simulator_unindexed_annotation_roundtrip_3000x():
-    backend = SimulatorBackend(model="DSOX3024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox3024a")
 
     backend.write(":DISPlay:ANNotation ON")
     backend.write(':DISPlay:ANNotation:TEXT "Note"')
@@ -526,7 +527,7 @@ def test_simulator_waveform_model_reflects_scale_offset_timebase_and_channel_pha
 
 
 def test_simulator_respects_model_channel_capabilities():
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
 
     with pytest.raises(SimulatorBackendError, match="CH5 is not available"):
         backend.write(":WAVeform:SOURce CHANnel5")
@@ -645,17 +646,17 @@ def test_simulator_screenshot_png_reflects_inksaver_background():
 
 def test_simulator_screenshot_png_reflects_model_label_deterministically():
     first = bytes(
-        SimulatorBackend(model="DSOX4024A").query_binary_values(
+        SimulatorBackend(physical_model_id="keysight-dsox4024a").query_binary_values(
             ":DISPlay:DATA? PNG, COLor"
         )
     )
     second = bytes(
-        SimulatorBackend(model="DSOX4024A").query_binary_values(
+        SimulatorBackend(physical_model_id="keysight-dsox4024a").query_binary_values(
             ":DISPlay:DATA? PNG, COLor"
         )
     )
     different_model = bytes(
-        SimulatorBackend(model="DSOX3024A").query_binary_values(
+        SimulatorBackend(physical_model_id="keysight-dsox3024a").query_binary_values(
             ":DISPlay:DATA? PNG, COLor"
         )
     )
@@ -666,7 +667,7 @@ def test_simulator_screenshot_png_reflects_model_label_deterministically():
 
 
 def test_simulator_hardcopy_format_pack_state_and_binary_payloads():
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
 
     assert backend.query(":HARDcopy:AREA?") == "SCR"
     assert backend.query(":HARDcopy:INKSaver?") == "0"
@@ -862,3 +863,21 @@ def test_simulator_trigger_out_of_range_level_does_not_align():
     backend.write(":TRIGger:EDGE:LEVel 5")
 
     assert backend._trigger_time_offset_s() == 0.0
+
+
+def test_simulator_identity_and_capabilities_come_from_physical_model_registry():
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
+
+    assert backend.query("*IDN?") == (
+        "KEYSIGHT TECHNOLOGIES,DSOX4034A,SIM000000,07.20"
+    )
+    assert backend._capabilities is capabilities_for_model_id(
+        "keysight-dsox4034a"
+    )
+
+
+def test_simulator_rejects_raw_or_unknown_physical_model_identity():
+    with pytest.raises(UnsupportedModelError):
+        SimulatorBackend(physical_model_id="DSOX4024A")
+    with pytest.raises(UnsupportedModelError):
+        SimulatorBackend(physical_model_id="keysight-dsox4054a")

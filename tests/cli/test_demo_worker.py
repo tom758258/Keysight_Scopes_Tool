@@ -6,7 +6,7 @@ from scopes_tool_cli import cli, worker
 from scopes_tool_core.errors import OscilloscopeError
 
 
-def _runtime(tmp_path, model="DSOX4024A"):
+def _runtime(tmp_path, model="keysight-dsox4024a"):
     return worker.WorkerRuntime(
         host="127.0.0.1",
         port=0,
@@ -88,7 +88,7 @@ def test_worker_demo_rejects_noncanonical_payloads_before_artifacts(tmp_path, co
 
 
 def test_worker_demo_rejects_profile_unsupported_function_before_artifacts(tmp_path):
-    runtime = _runtime(tmp_path, model="DSOX2004A")
+    runtime = _runtime(tmp_path, model="keysight-dsox2004a")
     with pytest.raises(OscilloscopeError):
         worker.parse_domain_command("demo-function", {"function": "i2s"}, runtime)
     assert not (tmp_path / runtime.run_id).exists()

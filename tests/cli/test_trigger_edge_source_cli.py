@@ -49,7 +49,7 @@ def _json_stdout(capsys):
 )
 def test_trigger_edge_source_dry_run_json(capsys, arguments, expected):
     assert cli.main([
-        "trigger-edge-source", "--dry-run", "--json", "--model", "DSOX4024A", *arguments
+        "trigger-edge-source", "--dry-run", "--json", "--model", "keysight-dsox4024a", *arguments
     ]) == 0
 
     payload = _json_stdout(capsys)
@@ -65,7 +65,7 @@ def test_trigger_edge_source_dry_run_text_does_not_open_scope(capsys, monkeypatc
     )
 
     assert cli.main([
-        "trigger-edge-source", "--dry-run", "--model", "DSOX4024A", "--source", "external"
+        "trigger-edge-source", "--dry-run", "--model", "keysight-dsox4024a", "--source", "external"
     ]) == 0
 
     output = capsys.readouterr().out
@@ -83,7 +83,7 @@ def test_trigger_edge_source_dry_run_text_does_not_open_scope(capsys, monkeypatc
 )
 def test_trigger_edge_source_simulate_configure(capsys, arguments, expected_command, expected_source, expected_channel):
     assert cli.main([
-        "trigger-edge-source", "--simulate", "--json", "--model", "DSOX4034A", *arguments
+        "trigger-edge-source", "--simulate", "--json", "--model", "keysight-dsox4034a", *arguments
     ]) == 0
 
     payload = _json_stdout(capsys)
@@ -101,7 +101,7 @@ def test_trigger_edge_source_simulate_configure(capsys, arguments, expected_comm
 
 def test_trigger_edge_source_simulate_query(capsys):
     assert cli.main([
-        "trigger-edge-source", "--simulate", "--json", "--model", "DSOX4034A", "--query"
+        "trigger-edge-source", "--simulate", "--json", "--model", "keysight-dsox4034a", "--query"
     ]) == 0
 
     payload = _json_stdout(capsys)
@@ -129,7 +129,7 @@ def test_trigger_edge_source_simulate_query(capsys):
     ],
 )
 def test_trigger_edge_source_rejects_invalid_operation(capsys, arguments):
-    assert cli.main(["trigger-edge-source", "--dry-run", "--json", "--model", "DSOX2004A", *arguments]) == 1
+    assert cli.main(["trigger-edge-source", "--dry-run", "--json", "--model", "keysight-dsox2004a", *arguments]) == 1
     payload = _json_stdout(capsys)
     assert payload["ok"] is False
 
@@ -144,7 +144,7 @@ def test_trigger_edge_source_rejects_invalid_source_choice(capsys, value):
 
 def test_existing_trigger_edge_behavior_is_unchanged(capsys):
     assert cli.main([
-        "trigger-edge", "--dry-run", "--json", "--model", "DSOX4024A",
+        "trigger-edge", "--dry-run", "--json", "--model", "keysight-dsox4024a",
         "--source-channel", "1", "--level", "0.5", "--slope", "positive",
     ]) == 0
     payload = _json_stdout(capsys)

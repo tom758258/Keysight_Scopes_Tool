@@ -5,7 +5,7 @@ from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBacken
 
 
 def test_simulator_save_export_roundtrip_and_start_recording(tmp_path):
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     scope.query_idn()
 
@@ -48,13 +48,13 @@ def test_simulator_save_export_roundtrip_and_start_recording(tmp_path):
     [":SAVE:IMAGe:FORMat NONE", ":SAVE:WAVeform:FORMat NONE"],
 )
 def test_simulator_rejects_none_format_writes(command):
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     with pytest.raises(SimulatorBackendError):
         backend.write(command)
 
 
 def test_simulator_none_format_readbacks_remain_parseable():
-    backend = SimulatorBackend(model="DSOX4024A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4024a")
     scope = Oscilloscope(backend)
     backend.save_image_format = "NONE"
     backend.save_waveform_format = "NONE"

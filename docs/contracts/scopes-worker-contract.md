@@ -21,8 +21,8 @@ to this document.
 Start the worker with:
 
 ```text
-scopes-tool worker --host 127.0.0.1 --port 8765 --simulate --model DSOX4024A
-scopes-tool worker --host 127.0.0.1 --port 8765 --live --resource <RESOURCE> --model DSOX4024A
+scopes-tool worker --host 127.0.0.1 --port 8765 --simulate --model keysight-dsox4024a
+scopes-tool worker --host 127.0.0.1 --port 8765 --live --resource <RESOURCE> --model keysight-dsox4024a
 ```
 
 Arguments:
@@ -31,9 +31,12 @@ Arguments:
 - `--port`: bind port, default `8765`; `0` requests an available port.
 - `--simulate` or `--live`: required run mode. Live mode requires
   `--resource`.
-- `--model`: registered physical model name, default `DSOX4024A`. The
-  registered physical model selects its associated capability profile.
-  Unknown or unregistered model names are rejected during validation.
+- `--model`: registered canonical physical model ID, default
+  `keysight-dsox4024a`. In simulator mode it is the planning identity and
+  selects the registered model's capability profile. In live mode it is the
+  expected identity; the detected `*IDN?` identity remains authoritative.
+  Unknown IDs, raw model names, and unregistered values are rejected during
+  validation.
 - `--resource`: live resource string, required with `--live`.
 - `--artifact-root`: default `data/worker`.
 - `--queue-max`: accepted pending job limit, default `32`.
@@ -1597,7 +1600,8 @@ lists only command artifact paths that actually exist.
 
 Live worker jobs validate identity before command-specific SCPI. The worker
 opens the startup `resource`, sets a fixed `2000 ms` timeout, queries `*IDN?`,
-and compares the normalized IDN model with the startup `model`. A mismatch
+resolves its manufacturer and model to a canonical physical model ID, and
+compares that ID with the startup `model`. A mismatch
 fails the job with structured `error.type: "identity_mismatch"`,
 `expected_model`, and `actual_idn`; the worker control plane remains alive.
 

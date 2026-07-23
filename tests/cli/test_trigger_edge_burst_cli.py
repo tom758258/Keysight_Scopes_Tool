@@ -25,7 +25,7 @@ def test_trigger_edge_burst_query_dry_run_json(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--query",
             ]
         )
@@ -55,7 +55,7 @@ def test_trigger_edge_burst_query_dry_run_text(capsys):
             [
                 "trigger-edge-burst",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--query",
                 "--dry-run",
             ]
@@ -64,7 +64,7 @@ def test_trigger_edge_burst_query_dry_run_text(capsys):
     )
 
     output = _text_stdout(capsys)
-    assert "Resource: DRY::DSOX4034A::INSTR" in output
+    assert "Resource: DRY::keysight-dsox4034a::INSTR" in output
     assert "Model: DSOX4034A" in output
     assert "Series: 4000X" in output
     assert "Planned query: Nth Edge Burst trigger state" in output
@@ -91,7 +91,7 @@ def test_trigger_edge_burst_configure_dry_run_json_without_level(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--source-channel",
                 "1",
                 "--slope",
@@ -131,7 +131,7 @@ def test_trigger_edge_burst_configure_dry_run_text_without_level(capsys):
             [
                 "trigger-edge-burst",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--source-channel",
                 "2",
                 "--slope",
@@ -167,7 +167,7 @@ def test_trigger_edge_burst_configure_dry_run_json_with_level(capsys):
                 "--dry-run",
                 "--json",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--source-channel",
                 "1",
                 "--slope",
@@ -202,7 +202,7 @@ def test_trigger_edge_burst_configure_dry_run_text_with_level(capsys):
             [
                 "trigger-edge-burst",
                 "--model",
-                "DSOX4034A",
+                "keysight-dsox4034a",
                 "--source-channel",
                 "1",
                 "--slope",
@@ -220,7 +220,7 @@ def test_trigger_edge_burst_configure_dry_run_text_with_level(capsys):
     )
 
     output = _text_stdout(capsys)
-    assert "Resource: DRY::DSOX4034A::INSTR" in output
+    assert "Resource: DRY::keysight-dsox4034a::INSTR" in output
     assert "Model: DSOX4034A" in output
     assert "Series: 4000X" in output
     assert "Planned change: Nth Edge Burst trigger CH1, positive, count 3" in output
@@ -349,7 +349,7 @@ def test_trigger_edge_burst_text_dry_run_rejects_invalid_channel_before_open(cap
             [
                 "trigger-edge-burst",
                 "--model",
-                "DSOX4024A",
+                "keysight-dsox4024a",
                 "--source-channel",
                 "5",
                 "--slope",

@@ -9,7 +9,7 @@ def _runtime(tmp_path, *, mode="simulate"):
         host="127.0.0.1",
         port=0,
         mode=mode,
-        model="DSOX4024A",
+        model="keysight-dsox4024a",
         resource="USB0::SIM::INSTR" if mode == "live" else None,
         artifact_root=tmp_path,
         queue_max=1,

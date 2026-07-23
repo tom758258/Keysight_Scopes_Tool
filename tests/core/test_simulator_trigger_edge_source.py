@@ -4,7 +4,7 @@ from scopes_tool_core.simulator_backend import SimulatorBackend, SimulatorBacken
 
 
 def test_simulator_trigger_edge_source_roundtrip_and_isolation():
-    backend = SimulatorBackend(model="DSOX4034A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox4034a")
     initial_mode = backend.trigger_mode
     initial_level = backend.trigger_level
     initial_slope = backend.trigger_slope
@@ -39,7 +39,7 @@ def test_simulator_trigger_edge_source_roundtrip_and_isolation():
 
 
 def test_simulator_trigger_edge_source_rejects_invalid_values_and_channels():
-    backend = SimulatorBackend(model="DSOX2004A")
+    backend = SimulatorBackend(physical_model_id="keysight-dsox2004a")
 
     with pytest.raises(SimulatorBackendError):
         backend.write(":TRIGger:EDGE:SOURce WGEN1")

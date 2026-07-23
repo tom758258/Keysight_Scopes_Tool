@@ -33,8 +33,14 @@ class _StepClock:
         self.now += seconds
 
 
-def _scope(model="DSOX4024A", **kwargs):
-    return Oscilloscope(SimulatorBackend(model=model, resource_name=f"SIM::{model}::INSTR", **kwargs))
+def _scope(model_id="keysight-dsox4024a", **kwargs):
+    return Oscilloscope(
+        SimulatorBackend(
+            physical_model_id=model_id,
+            resource_name=f"SIM::{model_id}::INSTR",
+            **kwargs,
+        )
+    )
 
 
 class _ProfileScope:
@@ -47,7 +53,7 @@ def test_run_capture_writes_files_and_checks_system_error(tmp_path):
     with _scope() as scope:
         result = run_capture(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             CaptureRequest((1,), 1000, csv_path=tmp_path / "capture.csv"),
         )
 
@@ -62,7 +68,7 @@ def test_run_capture_wait_trigger_natural_path_writes_files(tmp_path):
     with _scope(operation_condition_values=[56, 56, 48]) as scope:
         result = run_capture(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             CaptureRequest(
                 (1,),
                 1000,
@@ -85,7 +91,7 @@ def test_run_capture_wait_trigger_timeout_writes_no_artifacts(tmp_path):
     with _scope(operation_condition_values=[56]) as scope:
         result = run_capture(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             CaptureRequest(
                 (1,),
                 1000,
@@ -109,7 +115,7 @@ def test_run_capture_wait_trigger_force_after_timeout_then_captures(tmp_path):
     with _scope(operation_condition_values=[56], force_operation_condition_values=[56, 48]) as scope:
         result = run_capture(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             CaptureRequest(
                 (1,),
                 1000,
@@ -136,7 +142,7 @@ def test_run_capture_wait_trigger_unknown_writes_no_artifacts(tmp_path):
     with _scope(query_failures={":OPERegister:CONDition?": RuntimeError("configured query failure")}) as scope:
         result = run_capture(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             CaptureRequest(
                 (1,),
                 1000,
@@ -169,8 +175,8 @@ def test_trigger_wait_classifier_profile_uses_x_series_run_bit_for_live_models()
 
 
 def test_run_doctor_returns_channel_snapshot():
-    with _scope("DSOX4034A") as scope:
-        result = run_doctor(scope, "SIM::DSOX4034A::INSTR")
+    with _scope("keysight-dsox4034a") as scope:
+        result = run_doctor(scope, "SIM::keysight-dsox4034a::INSTR")
 
     assert result.exit_code == 0
     assert len(result.result["channels"]) == 4
@@ -181,7 +187,7 @@ def test_run_measure_invalid_sentinel_exits_one():
     with _scope(invalid_measurement_channels=(1,)) as scope:
         result = run_measure(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             MeasureRequest(item="vpp", channel=1),
         )
 
@@ -193,7 +199,7 @@ def test_run_measure_sweep_summary_counts_invalid():
     with _scope(invalid_measurement_channels=(2,)) as scope:
         result = run_measure_sweep(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             MeasureSweepRequest(channels=(1, 2), items="vpp"),
         )
 
@@ -209,7 +215,7 @@ def test_run_measure_log_returns_structured_result_without_console_output(tmp_pa
     with _scope() as scope:
         result = run_measure_log(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             MeasureLogRequest(
                 channels=(1,),
                 items="vpp",
@@ -236,7 +242,7 @@ def test_run_measure_log_preserves_instrument_error_result(tmp_path):
     with _scope(system_errors=['-113,"Undefined header"']) as scope:
         result = run_measure_log(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             MeasureLogRequest(
                 channels=(1,),
                 items="vpp",
@@ -258,7 +264,7 @@ def test_run_measure_log_preserves_invalid_measurement_and_duration_limit(tmp_pa
     with _scope(invalid_measurement_channels=(1,)) as scope:
         result = run_measure_log(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             MeasureLogRequest(
                 channels=(1,),
                 items="vpp",
@@ -287,7 +293,7 @@ def test_run_measure_log_preserves_interrupt_result(tmp_path, monkeypatch):
         )
         result = run_measure_log(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             MeasureLogRequest(
                 channels=(1,),
                 items="vpp",
@@ -309,7 +315,7 @@ def test_run_smoke_writes_report(tmp_path):
     with _scope() as scope:
         result = run_smoke(
             scope,
-            "SIM::DSOX4024A::INSTR",
+            "SIM::keysight-dsox4024a::INSTR",
             SmokeRequest(output_dir=tmp_path / "smoke"),
         )
 
@@ -320,20 +326,20 @@ def test_run_smoke_writes_report(tmp_path):
 
 
 def test_run_acquisition_check_check_only_and_restore(tmp_path):
-    with _scope("DSOX4034A") as scope:
+    with _scope("keysight-dsox4034a") as scope:
         check_only = run_acquisition_check(
             scope,
-            "SIM::DSOX4034A::INSTR",
+            "SIM::keysight-dsox4034a::INSTR",
             AcquisitionCheckRequest(output_dir=tmp_path / "check", check_only=True),
         )
 
     assert check_only.result["termination_reason"] == "check_only"
     assert [step["name"] for step in check_only.result["steps"]] == ["initial-query"]
 
-    with _scope("DSOX4034A") as scope:
+    with _scope("keysight-dsox4034a") as scope:
         restored = run_acquisition_check(
             scope,
-            "SIM::DSOX4034A::INSTR",
+            "SIM::keysight-dsox4034a::INSTR",
             AcquisitionCheckRequest(output_dir=tmp_path / "restore", restore_type=True),
         )
 
