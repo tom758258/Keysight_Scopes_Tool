@@ -201,7 +201,11 @@ from scopes_tool_core.dvm import (
     dvm_source_command,
     dvm_source_query,
 )
-from scopes_tool_core.errors import OscilloscopeError, ParameterValidationError
+from scopes_tool_core.errors import (
+    OscilloscopeError,
+    ParameterValidationError,
+    UnsupportedModelError,
+)
 from scopes_tool_core.drivers import scope_for_physical_model
 from scopes_tool_core.idn import parse_idn
 from scopes_tool_core.identity import physical_model_for_id
@@ -418,6 +422,7 @@ _CONTROL_COMMANDS = {
 _CAPTURE_DEFAULT_TIMEZONE = timezone(timedelta(hours=8), name="UTC+8")
 AUTOSCALE_SYSTEM_ERROR_TIMEOUT_MS = 15000
 WORKER_IDN_TIMEOUT_MS = 2000
+_DRIVER_OPTIONAL_LIVE_COMMANDS = {"identify"}
 _JSON_RECORD: dict[str, object] | None = None
 
 
@@ -2841,9 +2846,36 @@ def _open_scope(args: argparse.Namespace, resource: str) -> Oscilloscope:
     _LAST_BACKEND = getattr(scope, "backend", None)
     if getattr(args, "_worker_live_validation", False):
         scope = _validate_worker_live_identity(args, scope)
+    elif isinstance(scope, Oscilloscope):
+        scope = _select_one_shot_live_driver(args, scope)
     if _JSON_RECORD is not None:
         _JSON_RECORD["backend"] = getattr(scope.backend, "backend", None)
     return scope
+
+
+def _select_one_shot_live_driver(
+    args: argparse.Namespace,
+    scope: Oscilloscope,
+) -> Oscilloscope:
+    try:
+        idn = scope.query_idn()
+        selected_scope = scope_for_physical_model(
+            idn.physical_model,
+            scope.backend,
+            existing_scope=scope,
+        )
+    except UnsupportedModelError:
+        if args.command not in _DRIVER_OPTIONAL_LIVE_COMMANDS:
+            scope.close()
+            raise
+        selected_scope = scope
+        idn = scope.idn
+
+    if idn is not None:
+        selected_scope.idn = idn
+        selected_scope.capabilities = scope.capabilities
+        selected_scope._preloaded_idn = idn
+    return selected_scope
 
 
 def _validate_worker_live_identity(
@@ -2858,6 +2890,8 @@ def _validate_worker_live_identity(
         scope.backend,
         existing_scope=scope,
     )
+    selected_scope.idn = idn
+    selected_scope._preloaded_idn = idn
     _json_record_scope(selected_scope, idn)
     if idn.model_id != expected.model_id:
         raise OscilloscopeError(

@@ -125,6 +125,7 @@ class Oscilloscope:
         self.scpi = SCPIClient(backend)
         self.idn: IDN | None = None
         self.capabilities: ScopeCapabilities | None = None
+        self._preloaded_idn: IDN | None = None
 
     @classmethod
     def open(cls, resource_name: str, visa_library: str | None = None) -> "Oscilloscope":
@@ -135,23 +136,15 @@ class Oscilloscope:
     def query_idn(self) -> IDN:
         """Query, parse, and store `*IDN?` information."""
 
+        if self._preloaded_idn is not None:
+            parsed = self._preloaded_idn
+            self._preloaded_idn = None
+            return parsed
+
         parsed = parse_idn(self.scpi.query("*IDN?"))
         self.idn = parsed
         try:
-            physical_model = parsed.physical_model
-        except UnsupportedModelError:
-            self.capabilities = None
-            return parsed
-
-        from .drivers import scope_for_physical_model
-
-        scope_for_physical_model(
-            physical_model,
-            self.backend,
-            existing_scope=self,
-        )
-        try:
-            self.capabilities = capabilities_for_model_id(physical_model.model_id)
+            self.capabilities = capabilities_for_model_id(parsed.model_id)
         except UnsupportedModelError:
             self.capabilities = None
         return parsed

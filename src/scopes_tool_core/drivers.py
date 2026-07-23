@@ -39,4 +39,12 @@ def scope_for_physical_model(
     driver = driver_for_physical_model(physical_model)
     if existing_scope is not None and isinstance(existing_scope, driver):
         return existing_scope
-    return driver(backend)
+    selected_scope = driver(backend)
+    if existing_scope is not None:
+        selected_scope.idn = getattr(existing_scope, "idn", None)
+        selected_scope.capabilities = getattr(
+            existing_scope,
+            "capabilities",
+            None,
+        )
+    return selected_scope
