@@ -2188,6 +2188,28 @@ def test_screenshot_help_describes_general_image_output(capsys):
     assert "capture the current oscilloscope screen to a PNG file" not in help_text
 
 
+def test_model_help_distinguishes_one_shot_planning_from_worker(capsys):
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["identify", "--help"])
+
+    assert excinfo.value.code == 0
+    help_text = " ".join(capsys.readouterr().out.split())
+    assert (
+        "canonical physical model ID used for dry-run and simulation planning"
+        in help_text
+    )
+    assert "live execution uses the identity detected from *IDN?" in help_text
+    assert "expected live worker model" not in help_text
+
+    with pytest.raises(SystemExit) as excinfo:
+        cli.main(["worker", "--help"])
+
+    assert excinfo.value.code == 0
+    worker_help_text = " ".join(capsys.readouterr().out.split())
+    assert "--model MODEL" in worker_help_text
+    assert "dry-run and simulation planning" not in worker_help_text
+
+
 def test_screenshot_format_pack_rejects_invalid_values_before_backend(monkeypatch):
     opened = False
 

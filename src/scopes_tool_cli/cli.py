@@ -2572,8 +2572,9 @@ def _add_scope_connection_args(parser: argparse.ArgumentParser) -> None:
         "--model",
         default="keysight-dsox4024a",
         help=(
-            "canonical physical model ID used for planning/simulation or as "
-            "the expected live worker model; defaults to keysight-dsox4024a"
+            "canonical physical model ID used for dry-run and simulation planning; "
+            "live execution uses the identity detected from *IDN?; "
+            "defaults to keysight-dsox4024a"
         ),
     )
     parser.add_argument(
