@@ -25,6 +25,10 @@ Canonical registration identifies a physical model; it does not claim that
 every feature has completed live hardware validation. Each registered model
 explicitly selects its runtime capability profile.
 
+Every registered physical model is protected by a hardware-free consistency
+gate covering vendor identity, capability lookup, driver selection, and
+deterministic simulator identity resolution.
+
 Core has an explicit driver-selection boundary keyed by each physical model's
 registered driver ID. The only currently registered runtime driver is
 `keysight-infiniivision`. Live selection follows the canonical physical model
