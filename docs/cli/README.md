@@ -180,7 +180,7 @@ virtual environment, install the package with development dependencies, then
 run the default hardware-free tests:
 
 ```powershell
-cd path\to\Keysight_Scopes
+cd path\to\scopes-tool
 ```
 
 ```powershell

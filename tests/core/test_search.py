@@ -102,7 +102,7 @@ def test_search_mode_profile_gating(model, accepted, rejected):
         assert backend.history == []
 
 
-def test_keysight_scope_search_queries_preserve_raw_readbacks():
+def test_oscilloscope_search_queries_preserve_raw_readbacks():
     backend = FakeBackend(
         responses={
             "*IDN?": "KEYSIGHT TECHNOLOGIES,DSOX4034A,MY00000000,02.50",

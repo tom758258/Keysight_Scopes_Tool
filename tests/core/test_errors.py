@@ -27,7 +27,7 @@ class TestOscilloscopeError:
 class TestVisaBackendError:
     """Tests for VisaBackendError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify VisaBackendError inherits from OscilloscopeError."""
         assert issubclass(errors.VisaBackendError, errors.OscilloscopeError)
 
@@ -45,7 +45,7 @@ class TestVisaBackendError:
 class TestBackendClosedError:
     """Tests for BackendClosedError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify BackendClosedError inherits from OscilloscopeError."""
         assert issubclass(errors.BackendClosedError, errors.OscilloscopeError)
 
@@ -59,7 +59,7 @@ class TestBackendClosedError:
 class TestIDNParseError:
     """Tests for IDNParseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify IDNParseError inherits from OscilloscopeError."""
         assert issubclass(errors.IDNParseError, errors.OscilloscopeError)
 
@@ -72,7 +72,7 @@ class TestIDNParseError:
         with pytest.raises(ValueError):
             raise errors.IDNParseError("Invalid IDN format")
 
-    def test_can_be_caught_as_keysight_scope_error(self):
+    def test_can_be_caught_as_oscilloscope_error(self):
         """Test that IDNParseError can be caught as OscilloscopeError."""
         with pytest.raises(errors.OscilloscopeError):
             raise errors.IDNParseError("Invalid IDN format")
@@ -81,7 +81,7 @@ class TestIDNParseError:
 class TestUnsupportedModelError:
     """Tests for UnsupportedModelError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify UnsupportedModelError inherits from OscilloscopeError."""
         assert issubclass(errors.UnsupportedModelError, errors.OscilloscopeError)
 
@@ -98,7 +98,7 @@ class TestUnsupportedModelError:
 class TestSystemErrorParseError:
     """Tests for SystemErrorParseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify SystemErrorParseError inherits from OscilloscopeError."""
         assert issubclass(errors.SystemErrorParseError, errors.OscilloscopeError)
 
@@ -110,7 +110,7 @@ class TestSystemErrorParseError:
 class TestParameterValidationError:
     """Tests for ParameterValidationError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify ParameterValidationError inherits from OscilloscopeError."""
         assert issubclass(errors.ParameterValidationError, errors.OscilloscopeError)
 
@@ -122,7 +122,7 @@ class TestParameterValidationError:
 class TestChannelResponseError:
     """Tests for ChannelResponseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify ChannelResponseError inherits from OscilloscopeError."""
         assert issubclass(errors.ChannelResponseError, errors.OscilloscopeError)
 
@@ -134,7 +134,7 @@ class TestChannelResponseError:
 class TestTimebaseResponseError:
     """Tests for TimebaseResponseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify TimebaseResponseError inherits from OscilloscopeError."""
         assert issubclass(errors.TimebaseResponseError, errors.OscilloscopeError)
 
@@ -146,7 +146,7 @@ class TestTimebaseResponseError:
 class TestTriggerResponseError:
     """Tests for TriggerResponseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify TriggerResponseError inherits from OscilloscopeError."""
         assert issubclass(errors.TriggerResponseError, errors.OscilloscopeError)
 
@@ -158,7 +158,7 @@ class TestTriggerResponseError:
 class TestMeasurementResponseError:
     """Tests for MeasurementResponseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify MeasurementResponseError inherits from OscilloscopeError."""
         assert issubclass(errors.MeasurementResponseError, errors.OscilloscopeError)
 
@@ -170,7 +170,7 @@ class TestMeasurementResponseError:
 class TestWaveformResponseError:
     """Tests for WaveformResponseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify WaveformResponseError inherits from OscilloscopeError."""
         assert issubclass(errors.WaveformResponseError, errors.OscilloscopeError)
 
@@ -182,7 +182,7 @@ class TestWaveformResponseError:
 class TestScreenshotResponseError:
     """Tests for ScreenshotResponseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify ScreenshotResponseError inherits from OscilloscopeError."""
         assert issubclass(errors.ScreenshotResponseError, errors.OscilloscopeError)
 
@@ -194,7 +194,7 @@ class TestScreenshotResponseError:
 class TestAcquisitionResponseError:
     """Tests for AcquisitionResponseError exception."""
 
-    def test_inherits_from_keysight_scope_error(self):
+    def test_inherits_from_oscilloscope_error(self):
         """Verify AcquisitionResponseError inherits from OscilloscopeError."""
         assert issubclass(errors.AcquisitionResponseError, errors.OscilloscopeError)
 
@@ -206,7 +206,7 @@ class TestAcquisitionResponseError:
 class TestExceptionHierarchy:
     """Tests for the overall exception hierarchy."""
 
-    def test_all_errors_are_keysight_scope_errors(self):
+    def test_all_errors_are_oscilloscope_errors(self):
         """Verify all custom errors inherit from OscilloscopeError."""
         error_classes = [
             errors.VisaBackendError,
